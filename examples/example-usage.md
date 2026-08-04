@@ -1,6 +1,8 @@
 # Example Usage
 
-Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in professional engineering workflows.
+Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack v2.0 in professional engineering workflows.
+
+> **Auto-activation note**: In v2.0, skills auto-activate based on the `description` field in YAML frontmatter — you typically do NOT need to invoke them explicitly. The `/skill <name>` invocations shown below are for cases where you want to force-activate a specific skill. In practice, just describe your task naturally and Claude Code will activate the right skills.
 
 ---
 
@@ -22,7 +24,7 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@system-design-expert Design the architecture for an e-commerce backend. Requirements:
+/skill system-design-expert Design the architecture for an e-commerce backend. Requirements:
 - 100,000 daily active users
 - 1,000,000 products
 - 10,000 orders per day
@@ -39,7 +41,7 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@postgresql-expert Design the database schema based on the architecture. Include:
+/skill postgresql-expert Design the database schema based on the architecture. Include:
 - Users, addresses, carts, orders, order_items, products, categories, reviews
 - Multi-currency support
 - Soft deletes with audit columns
@@ -53,7 +55,7 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@nestjs-expert Implement the OrdersModule based on the schema. Use:
+/skill nestjs-expert Implement the OrdersModule based on the schema. Use:
 - Clean Architecture with use cases, repositories, and controllers
 - Prisma ORM
 - Zod validation
@@ -67,8 +69,8 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@authentication-expert Implement JWT-based authentication with refresh token rotation.
-@authorization-expert Add RBAC with roles: customer, support, admin, super_admin.
+/skill authentication-expert Implement JWT-based authentication with refresh token rotation.
+/skill authorization-expert Add RBAC with roles: customer, support, admin, super_admin.
 ```
 
 **Expected output**: Auth module with login, refresh, logout, and a role-based guard.
@@ -77,8 +79,8 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@integration-testing-expert Write integration tests for the order placement flow.
-@e2e-testing-expert Write E2E tests for the checkout flow.
+/skill integration-testing-expert Write integration tests for the order placement flow.
+/skill e2e-testing-expert Write E2E tests for the checkout flow.
 ```
 
 **Expected output**: Test suites with setup, teardown, and assertions.
@@ -87,8 +89,8 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@docker-expert Create a production Dockerfile for the NestJS service.
-@github-actions-expert Create a CI/CD pipeline that builds, tests, scans, and deploys to AWS ECS.
+/skill docker-expert Create a production Dockerfile for the NestJS service.
+/skill github-actions-expert Create a CI/CD pipeline that builds, tests, scans, and deploys to AWS ECS.
 ```
 
 **Expected output**: Multi-stage Dockerfile and a GitHub Actions workflow.
@@ -97,8 +99,8 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@owasp-top-10-expert Review the entire codebase for OWASP Top 10 vulnerabilities.
-@api-security-expert Review the API for rate limiting, input validation, and authn/authz gaps.
+/skill owasp-top-10-expert Review the entire codebase for OWASP Top 10 vulnerabilities.
+/skill api-security-expert Review the API for rate limiting, input validation, and authn/authz gaps.
 ```
 
 **Expected output**: Security report with findings, severity, and remediation steps.
@@ -107,8 +109,8 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@performance-optimization-expert Profile the order placement flow and optimize bottlenecks.
-@redis-expert Design a caching layer for product catalog and user sessions.
+/skill performance-optimization-expert Profile the order placement flow and optimize bottlenecks.
+/skill redis-expert Design a caching layer for product catalog and user sessions.
 ```
 
 **Expected output**: Performance report with before/after metrics and cache strategy.
@@ -123,7 +125,7 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@code-review-expert Audit the existing PHP monolith. Identify:
+/skill code-review-expert Audit the existing PHP monolith. Identify:
 - Modules that map cleanly to microservices
 - Shared database tables that need to be split
 - Synchronous calls that need to become async
@@ -134,7 +136,7 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@refactoring-expert Create an incremental refactoring plan. Constraints:
+/skill refactoring-expert Create an incremental refactoring plan. Constraints:
 - Zero downtime
 - 2-week sprint cycles
 - 5-engineer team
@@ -145,7 +147,7 @@ Real-world scenarios demonstrating how to use the Claude Code Ultimate Pack in p
 
 **Prompt**:
 ```
-@microservices-expert Implement the Strangler Fig pattern. Start with the Products module.
+/skill microservices-expert Implement the Strangler Fig pattern. Start with the Products module.
 Extract it into a NestJS microservice behind an API gateway that routes /products to the new service
 and everything else to the legacy monolith.
 ```
@@ -154,7 +156,7 @@ and everything else to the legacy monolith.
 
 **Prompt**:
 ```
-@clean-architecture-expert Design the boundary between the new Products service and the legacy database.
+/skill clean-architecture-expert Design the boundary between the new Products service and the legacy database.
 Use the Outbox pattern for eventual consistency.
 ```
 
@@ -162,7 +164,7 @@ Use the Outbox pattern for eventual consistency.
 
 **Prompt**:
 ```
-@integration-testing-expert Write contract tests between the API gateway and both backends.
+/skill integration-testing-expert Write contract tests between the API gateway and both backends.
 ```
 
 ---
@@ -175,7 +177,7 @@ Use the Outbox pattern for eventual consistency.
 
 **Prompt**:
 ```
-@solidity-expert Review this ERC-20 contract for:
+/skill solidity-expert Review this ERC-20 contract for:
 - Reentrancy
 - Integer overflow/underflow
 - Access control
@@ -187,15 +189,15 @@ Use the Outbox pattern for eventual consistency.
 
 **Prompt**:
 ```
-@foundry-expert Write fuzz tests and invariant tests for this contract.
-@hardhat-expert Create a test suite that exercises every external function with edge case inputs.
+/skill foundry-expert Write fuzz tests and invariant tests for this contract.
+/skill hardhat-expert Create a test suite that exercises every external function with edge case inputs.
 ```
 
 ### Step 3: Security Review
 
 **Prompt**:
 ```
-@smart-contract-security-expert Perform a full security audit. Produce a report with severity levels
+/skill smart-contract-security-expert Perform a full security audit. Produce a report with severity levels
 (critical, high, medium, low, informational) and remediation steps for each finding.
 ```
 
@@ -203,7 +205,7 @@ Use the Outbox pattern for eventual consistency.
 
 **Prompt**:
 ```
-@ethereum-expert Optimize gas usage without sacrificing security. Identify storage slots that can be packed,
+/skill ethereum-expert Optimize gas usage without sacrificing security. Identify storage slots that can be packed,
 unnecessary SLOADs, and loops that can be replaced with mappings.
 ```
 
@@ -211,7 +213,7 @@ unnecessary SLOADs, and loops that can be replaced with mappings.
 
 **Prompt**:
 ```
-@openzeppelin-expert Set up an upgradeable proxy pattern using OpenZeppelin Defender.
+/skill openzeppelin-expert Set up an upgradeable proxy pattern using OpenZeppelin Defender.
 ```
 
 ---
@@ -224,7 +226,7 @@ unnecessary SLOADs, and loops that can be replaced with mappings.
 
 **Prompt**:
 ```
-@linux-expert The production server is an Ubuntu 22.04 EC2 instance. SSH in and gather:
+/skill linux-expert The production server is an Ubuntu 22.04 EC2 instance. SSH in and gather:
 - Top processes by CPU and memory
 - Recent log entries from the application
 - Disk space and inode usage
@@ -236,7 +238,7 @@ unnecessary SLOADs, and loops that can be replaced with mappings.
 
 **Prompt**:
 ```
-@performance-optimization-expert Based on these logs and metrics, diagnose the root cause.
+/skill performance-optimization-expert Based on these logs and metrics, diagnose the root cause.
 The error rate spiked at 14:30 UTC. The database CPU is at 95%. The application is throwing connection pool errors.
 ```
 
@@ -244,7 +246,7 @@ The error rate spiked at 14:30 UTC. The database CPU is at 95%. The application 
 
 **Prompt**:
 ```
-@postgresql-expert This query is taking 5 seconds. It was 50ms yesterday. Investigate and fix:
+/skill postgresql-expert This query is taking 5 seconds. It was 50ms yesterday. Investigate and fix:
 <query and EXPLAIN ANALYZE output>
 ```
 
@@ -252,14 +254,14 @@ The error rate spiked at 14:30 UTC. The database CPU is at 95%. The application 
 
 **Prompt**:
 ```
-@cicd-expert Deploy the fix using a blue-green deployment. Verify health checks before cutting over.
+/skill cicd-expert Deploy the fix using a blue-green deployment. Verify health checks before cutting over.
 ```
 
 ### Step 5: Post-Mortem
 
 **Prompt**:
 ```
-@code-review-expert Help me write a blameless post-mortem. What early warning signals did we miss?
+/skill code-review-expert Help me write a blameless post-mortem. What early warning signals did we miss?
 What alerts should we add to catch this earlier next time?
 ```
 
@@ -273,7 +275,7 @@ What alerts should we add to catch this earlier next time?
 
 **Prompt**:
 ```
-@ai-agent-architect Design a multi-agent system with:
+/skill ai-agent-architect Design a multi-agent system with:
 - A planner agent that decomposes questions into sub-tasks
 - A retriever agent that searches the document store
 - A synthesizer agent that combines results into an answer
@@ -284,7 +286,7 @@ What alerts should we add to catch this earlier next time?
 
 **Prompt**:
 ```
-@rag-expert Design the RAG pipeline. Use:
+/skill rag-expert Design the RAG pipeline. Use:
 - Chunking strategy: semantic chunking with 512 token windows
 - Embedding model: text-embedding-3-large
 - Vector database: pgvector
@@ -296,7 +298,7 @@ What alerts should we add to catch this earlier next time?
 
 **Prompt**:
 ```
-@vector-database-expert Design the pgvector schema. We have 10M chunks. What indexing strategy?
+/skill vector-database-expert Design the pgvector schema. We have 10M chunks. What indexing strategy?
 What HNSW parameters? What's the expected query latency?
 ```
 
@@ -304,7 +306,7 @@ What HNSW parameters? What's the expected query latency?
 
 **Prompt**:
 ```
-@langgraph-expert Implement the agent graph. Use LangGraph with:
+/skill langgraph-expert Implement the agent graph. Use LangGraph with:
 - Conditional edges for the planner
 - Human-in-the-loop for low-confidence answers
 - State persistence for long-running research
@@ -314,7 +316,7 @@ What HNSW parameters? What's the expected query latency?
 
 **Prompt**:
 ```
-@memory-systems-expert Design the agent memory system. The assistant must remember:
+/skill memory-systems-expert Design the agent memory system. The assistant must remember:
 - User preferences across sessions
 - Previously answered questions
 - Source documents the user has marked as trusted
@@ -324,14 +326,14 @@ What HNSW parameters? What's the expected query latency?
 
 **Prompt**:
 ```
-@mcp-expert Expose the document store as an MCP server so the agents can use it as a tool.
+/skill mcp-expert Expose the document store as an MCP server so the agents can use it as a tool.
 ```
 
 ### Step 7: Evaluation
 
 **Prompt**:
 ```
-@prompt-engineering-expert Design an evaluation pipeline. Use:
+/skill prompt-engineering-expert Design an evaluation pipeline. Use:
 - RAGAS for retrieval quality
 - LLM-as-judge for answer quality
 - Human eval for the top 100 questions

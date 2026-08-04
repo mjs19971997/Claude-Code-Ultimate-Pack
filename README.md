@@ -1,8 +1,9 @@
 # Claude Code Ultimate Pack
 
-> The most comprehensive, production-ready collection of Claude Code Skills engineered for senior-level software development across 11 domains and 93 specialized expert personas.
+> The most comprehensive, production-ready collection of **Agent Skills** for Claude Code — 93 specialized expert personas across 11 engineering domains, fully migrated to the official [Claude Code Agent Skills specification](https://code.claude.com/docs/en/skills).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Spec: Claude Code Agent Skills](https://img.shields.io/badge/Spec-Claude%20Code%20Agent%20Skills-7c3aed.svg)](https://code.claude.com/docs/en/skills)
 [![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)]()
 [![Skills: 93](https://img.shields.io/badge/Skills-93-orange.svg)]()
 [![Domains: 11](https://img.shields.io/badge/Domains-11-purple.svg)]()
@@ -12,28 +13,31 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Why This Pack Exists](#why-this-pack-exists)
-3. [Key Differentiators](#key-differentiators)
-4. [Repository Structure](#repository-structure)
+2. [What's New in v2.0](#whats-new-in-v20)
+3. [Repository Structure](#repository-structure)
+4. [Skill Anatomy](#skill-anatomy)
 5. [Skill Domains](#skill-domains)
-6. [Skill Anatomy](#skill-anatomy)
-7. [Installation](#installation)
+6. [Installation](#installation)
+7. [Updating](#updating)
 8. [Usage](#usage)
-9. [Engineering Principles](#engineering-principles)
-10. [Quality Standards](#quality-standards)
-11. [Contributing](#contributing)
-12. [Changelog](#changelog)
-13. [License](#license)
+9. [Skill Structure (Official Spec)](#skill-structure-official-spec)
+10. [Example Use Cases](#example-use-cases)
+11. [Migration Guide (v1 → v2)](#migration-guide-v1--v2)
+12. [Troubleshooting](#troubleshooting)
+13. [Contributing](#contributing)
+14. [Changelog](#changelog)
+15. [License](#license)
 
 ---
 
 ## Overview
 
-**Claude Code Ultimate Pack** is a meticulously engineered repository of Claude Code Skills designed to transform Claude Code into a team of senior, staff, and principal-level engineers. Each skill is a self-contained, deeply-structured instruction set that constrains Claude Code to behave like a world-class specialist with 20+ years of experience in a specific technology, framework, or discipline.
+**Claude Code Ultimate Pack** is a meticulously engineered collection of [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code. Each skill is a self-contained folder containing a `SKILL.md` file with YAML frontmatter and a deeply-structured instruction set that constrains Claude Code to behave like a world-class specialist (staff/principal level, 20+ years of experience) in a specific technology, framework, or discipline.
 
-This is not a collection of short prompts. Each skill file is a 300–1000 line, production-grade specification covering role definition, thinking processes, decision-making rules, architecture rules, coding standards, naming conventions, folder structures, design patterns, best practices, anti-patterns, performance rules, security rules, testing strategies, documentation standards, code review checklists, refactoring checklists, deployment checklists, production checklists, logging strategies, monitoring strategies, error handling, examples, common mistakes, professional workflows, response styles, and output formats.
+This is not a collection of short prompts. Each `SKILL.md` is a 300–1000 line, production-grade specification covering role definition, thinking processes, decision-making rules, architecture rules, coding standards, naming conventions, folder structures, design patterns, best practices, anti-patterns, performance rules, security rules, testing strategies, documentation standards, code review checklists, refactoring checklists, deployment checklists, production checklists, logging strategies, monitoring strategies, error handling, examples, common mistakes, professional workflows, response styles, and output formats.
 
 Every skill is engineered to produce code and decisions that are:
+
 - **Production-ready** — no prototypes, no placeholders, no shortcuts
 - **Secure by design** — following OWASP, CIS, and vendor-specific hardening guides
 - **Performant** — optimized for latency, throughput, and resource efficiency
@@ -42,36 +46,32 @@ Every skill is engineered to produce code and decisions that are:
 
 ---
 
-## Why This Pack Exists
+## What's New in v2.0
 
-Most Claude Code skill packs on the internet suffer from one or more critical deficiencies:
+Version 2.0 is a **full migration** to the official [Claude Code Agent Skills specification](https://code.claude.com/docs/en/skills). The repository is now 100% spec-compliant and works out-of-the-box with the latest Claude Code GUI.
 
-1. **Shallow prompts** — 10–50 line "you are an expert" prompts that produce generic, junior-level output
-2. **No decision frameworks** — skills that tell Claude *what* to do but never *how to decide* between trade-offs
-3. **No anti-patterns** — skills that list best practices but never warn against the mistakes that cause production incidents
-4. **No checklists** — skills that produce code but never verify it against production-readiness criteria
-5. **Domain gaps** — packs that cover frontend and backend but ignore blockchain, mobile, SEO, and AI agent architecture
-6. **Inconsistent structure** — every skill organized differently, making them impossible to navigate programmatically
-7. **No examples** — skills that describe abstractly but never show concrete code
+### Breaking Changes from v1.x
 
-**Claude Code Ultimate Pack** solves every one of these problems. Every skill follows the exact same 30-section anatomy. Every skill contains concrete code examples. Every skill includes production checklists. Every skill warns against real-world anti-patterns observed in production systems.
-
----
-
-## Key Differentiators
-
-| Feature | Typical Skill Pack | Claude Code Ultimate Pack |
+| Aspect | v1.x (Legacy) | v2.0 (Official Spec) |
 |---|---|---|
-| Average skill length | 20–80 lines | 300–1000 lines |
-| Sections per skill | 3–6 | 30 |
-| Decision frameworks | Rare | Mandatory in every skill |
-| Anti-patterns | Rare | Mandatory in every skill |
-| Production checklists | Rare | 4 checklists per skill |
-| Code examples | Rare | Mandatory in every skill |
-| Domains covered | 2–4 | 11 |
-| Total skills | 10–30 | 95+ |
-| Engineering principles | Ad-hoc | SOLID, DRY, KISS, YAGNI, Clean Architecture enforced everywhere |
-| Quality bar | "Senior" | "Staff/Principal with 20+ years" |
+| Skill location | `skills/<domain>/<skill-name>.md` | `skills/<skill-name>/SKILL.md` |
+| Skill entry point | `<skill-name>.md` | `SKILL.md` (folder name = skill name) |
+| Metadata | `# Skill: <Name>` H1 + blockquote + `**Domain**: ...` block | YAML frontmatter (`name`, `description`, `license`, `version`) |
+| Domain folders | 11 domain subdirectories under `skills/` | None — flat structure, matching Anthropic's reference repo |
+| Skill discovery | Folder-based, manual invocation | Auto-discovered by Claude Code based on `description` field |
+| Template location | `templates/skill-template.md` | `templates/skill-template/SKILL.md` |
+| Installation paths | `cp skills/* ~/.claude/skills/` | `cp -r skills/* ~/.claude/skills/` (each skill is a folder) |
+
+### Why We Migrated
+
+The official Claude Code Agent Skills specification (published October 2025, stabilized through 2026) defines a strict skill format that enables:
+
+1. **Automatic discovery** — Claude Code reads YAML frontmatter from every `SKILL.md` and decides which skill to invoke based on the `description` field, with no manual `@skill-name` invocation required.
+2. **Cross-tool compatibility** — the same skill works in Claude Code, Claude.ai, VS Code with Claude, GitHub Copilot CLI, and any other agent that implements the spec.
+3. **Composability** — skills can include supporting files (`scripts/`, `resources/`, `templates/`) inside their folder, loaded on demand.
+4. **Validation** — the spec defines a precise `name` format (lowercase letters, digits, hyphens; max 64 chars) that tooling can validate.
+
+See the [Migration Guide](#migration-guide-v1--v2) below for step-by-step upgrade instructions.
 
 ---
 
@@ -79,194 +79,354 @@ Most Claude Code skill packs on the internet suffer from one or more critical de
 
 ```
 Claude-Code-Ultimate-Pack/
-├── README.md                    # This file
-├── INSTALL.md                   # Installation guide for Claude Code
-├── CHANGELOG.md                 # Version history
-├── LICENSE                      # MIT License
-├── CONTRIBUTING.md              # Contribution guidelines
-├── docs/                        # Documentation
-│   ├── architecture.md          # Repository architecture
-│   ├── skill-structure.md       # Anatomy of a skill
-│   ├── usage-guide.md           # How to use skills effectively
-│   ├── best-practices.md        # Cross-cutting best practices
-│   └── skill-index.md           # Complete index of all 95+ skills
-├── examples/                    # Usage examples
-│   └── example-usage.md         # Real-world usage scenarios
-├── templates/                   # Templates
-│   ├── skill-template.md        # Template for creating new skills
-│   └── project-templates/       # Starter project scaffolds
-└── skills/                      # 95+ skill files organized by domain
-    ├── frontend/                # 10 skills
-    ├── backend/                 # 10 skills
-    ├── database/                # 5 skills
-    ├── blockchain/              # 13 skills
-    ├── mobile/                  # 6 skills
-    ├── devops/                  # 12 skills
-    ├── architecture/            # 8 skills
-    ├── security/                # 5 skills
-    ├── testing/                 # 7 skills
-    ├── ai/                      # 13 skills
-    └── seo/                     # 4 skills
+├── README.md                          # This file
+├── INSTALL.md                         # Cross-platform installation guide
+├── CHANGELOG.md                       # Version history (includes v2.0 migration)
+├── CONTRIBUTING.md                    # Contribution rules (official spec only)
+├── LICENSE                            # MIT License
+├── skills/                            # 93 skill folders, flat structure
+│   ├── accessibility-expert/
+│   │   └── SKILL.md
+│   ├── ai-agent-architect/
+│   │   └── SKILL.md
+│   ├── android-kotlin-expert/
+│   │   └── SKILL.md
+│   ├── ... (90 more skill folders)
+│   └── ux-designer/
+│       └── SKILL.md
+├── templates/
+│   └── skill-template/                # Official-spec template for new skills
+│       └── SKILL.md
+├── docs/                              # Documentation
+│   ├── architecture.md
+│   ├── skill-structure.md             # 30-section anatomy spec
+│   ├── usage-guide.md
+│   ├── best-practices.md
+│   └── skill-index.md                 # Complete index of all 93 skills
+└── examples/
+    └── example-usage.md               # Real-world usage scenarios
 ```
 
----
+Each skill folder follows the official spec:
 
-## Skill Domains
-
-### Frontend (10 skills)
-Modern web frontend engineering covering React 19, Next.js 15, TypeScript, TailwindCSS, shadcn/ui, UI design, UX design, accessibility, performance, and Framer Motion.
-
-### Backend (10 skills)
-Server-side engineering covering Node.js, Express, NestJS, REST, GraphQL, authentication, authorization, Domain-Driven Design, microservices, and Clean Architecture.
-
-### Database (5 skills)
-Data persistence covering PostgreSQL, Prisma, MongoDB, Redis, and ElasticSearch.
-
-### Blockchain (13 skills)
-Distributed ledger engineering covering Hyperledger Fabric, Ethereum, Solidity, Hardhat, Foundry, Web3.js, ethers.js, OpenZeppelin, enterprise blockchain, smart contract security, DeFi, DAOs, and NFTs.
-
-### Mobile (6 skills)
-Mobile engineering covering Android Kotlin, Jetpack Compose, Android architecture, Swift, SwiftUI, and UIKit.
-
-### DevOps (12 skills)
-Operations engineering covering Docker, Docker Compose, Linux, Ubuntu Server, Nginx, Git, GitHub, GitHub Actions, CI/CD, Kubernetes, Terraform, and AWS.
-
-### Architecture (8 skills)
-Systems architecture covering software architecture, solution architecture, enterprise architecture, system design, performance optimization, scalability, refactoring, and code review.
-
-### Security (5 skills)
-Application security covering OWASP Top 10, secure coding, JWT, OAuth2, and API security.
-
-### Testing (7 skills)
-Quality engineering covering Vitest, Jest, Playwright, Cypress, unit testing, integration testing, and end-to-end testing.
-
-### AI (13 skills)
-AI engineering covering agent architecture, MCP, LangGraph, LangChain, CrewAI, OpenAI SDK, Anthropic SDK, Gemini SDK, prompt engineering, RAG, vector databases, memory systems, and multi-agent systems.
-
-### SEO (4 skills)
-Search engineering covering technical SEO, Core Web Vitals, Schema.org, and structured data.
+```
+skills/<skill-name>/
+├── SKILL.md          # Required entry point with YAML frontmatter
+└── (optional)        # scripts/, resources/, templates/ — loaded on demand
+```
 
 ---
 
 ## Skill Anatomy
 
-Every skill file in this repository follows the exact same 30-section anatomy. This consistency is intentional — it allows developers to navigate any skill programmatically and ensures no critical dimension is ever omitted.
+Every `SKILL.md` in this repository combines:
 
-1. **Role** — The exact persona Claude Code should adopt
-2. **Mission** — The single-sentence purpose of the skill
-3. **Core Expertise** — The knowledge domains the skill masters
-4. **Responsibilities** — What the skill is accountable for delivering
-5. **Thinking Process** — The step-by-step reasoning framework
-6. **Decision Making Rules** — Trade-off resolution rules
-7. **Architecture Rules** — Structural constraints
-8. **Coding Standards** — Code-level conventions
-9. **Naming Conventions** — Naming rules for every construct
-10. **Folder Structure** — Canonical project layout
-11. **Project Structure** — End-to-end project organization
-12. **Design Patterns** — Patterns to apply and when
-13. **Best Practices** — Proven approaches to adopt
-14. **Anti Patterns** — Mistakes to refuse and explain
-15. **Performance Rules** — Performance constraints and optimizations
-16. **Security Rules** — Security constraints and hardening
-17. **Testing Strategy** — Testing pyramid and coverage rules
-18. **Documentation Standards** — Documentation requirements
-19. **Code Review Checklist** — Pre-merge verification
-20. **Refactoring Checklist** — Safe refactoring steps
-21. **Deployment Checklist** — Pre-deployment verification
-22. **Production Checklist** — Production-readiness verification
-23. **Logging Strategy** — What, when, and how to log
-24. **Monitoring Strategy** — Metrics, alerts, and dashboards
-25. **Error Handling** — Error handling patterns and rules
-26. **Examples** — Concrete code examples
-27. **Common Mistakes** — Frequently observed errors
-28. **Professional Workflow** — End-to-end delivery workflow
-29. **Response Style** — How the skill communicates
-30. **Output Format** — The exact structure of every response
+1. **YAML frontmatter** — the official Claude Code Agent Skills metadata block:
+   ```yaml
+   ---
+   name: senior-react-19-engineer
+   description: >
+     Ships production React 19 applications leveraging Actions, the React
+     Compiler, Server Components, and concurrent primitives without
+     compromising accessibility or performance.
+
+     Use this skill when building web frontends with React, Next.js,
+     TypeScript, TailwindCSS, shadcn/ui, Framer Motion, or when addressing
+     UI/UX, accessibility, or performance.
+   license: MIT
+   version: 1.0.0
+   ---
+   ```
+
+2. **30-section body** — the deeply-structured instruction set:
+   1. Role · 2. Mission · 3. Core Expertise · 4. Responsibilities · 5. Thinking Process · 6. Decision Making Rules · 7. Architecture Rules · 8. Coding Standards · 9. Naming Conventions · 10. Folder Structure · 11. Project Structure · 12. Design Patterns · 13. Best Practices · 14. Anti Patterns · 15. Performance Rules · 16. Security Rules · 17. Testing Strategy · 18. Documentation Standards · 19. Code Review Checklist · 20. Refactoring Checklist · 21. Deployment Checklist · 22. Production Checklist · 23. Logging Strategy · 24. Monitoring Strategy · 25. Error Handling · 26. Examples · 27. Common Mistakes · 28. Professional Workflow · 29. Response Style · 30. Output Format
 
 See [`docs/skill-structure.md`](./docs/skill-structure.md) for the complete specification.
 
 ---
 
+## Skill Domains
+
+The 93 skills span 11 engineering domains. Domain is recorded as a tag in each skill's `description` and indexed in [`docs/skill-index.md`](./docs/skill-index.md) — but the filesystem layout is flat (per the official spec).
+
+| Domain | Count | Coverage |
+|---|---:|---|
+| Frontend | 10 | React 19, Next.js 15, TypeScript, TailwindCSS, shadcn/ui, UI/UX, accessibility, performance, Framer Motion |
+| Backend | 10 | Node.js, Express, NestJS, REST, GraphQL, authn, authz, DDD, microservices, Clean Architecture |
+| Database | 5 | PostgreSQL, Prisma, MongoDB, Redis, ElasticSearch |
+| Blockchain | 13 | Ethereum, Solidity, Hardhat, Foundry, Web3.js, ethers.js, OpenZeppelin, enterprise blockchain, smart-contract security, DeFi, DAO, NFT, Hyperledger Fabric |
+| Mobile | 6 | Android Kotlin, Jetpack Compose, Android architecture, Swift, SwiftUI, UIKit |
+| DevOps | 12 | Docker, Docker Compose, Linux, Ubuntu Server, Nginx, Git, GitHub, GitHub Actions, CI/CD, Kubernetes, Terraform, AWS |
+| Architecture | 8 | Software architecture, solution architecture, enterprise architecture, system design, performance optimization, scalability, refactoring, code review |
+| Security | 5 | OWASP Top 10, secure coding, JWT, OAuth2, API security |
+| Testing | 7 | Vitest, Jest, Playwright, Cypress, unit, integration, end-to-end |
+| AI | 13 | Agent architecture, MCP, LangGraph, LangChain, CrewAI, OpenAI SDK, Anthropic SDK, Gemini SDK, prompt engineering, RAG, vector databases, memory systems, multi-agent |
+| SEO | 4 | Technical SEO, Core Web Vitals, Schema.org, structured data |
+| **Total** | **93** | |
+
+---
+
 ## Installation
 
-See [`INSTALL.md`](./INSTALL.md) for full installation instructions. Quick start:
+Full instructions for Windows, Linux, and macOS — global, project-local, and manual — are in [`INSTALL.md`](./INSTALL.md). Quick start:
+
+### Global installation (Linux / macOS)
 
 ```bash
-# Clone the repository
 git clone https://github.com/your-org/Claude-Code-Ultimate-Pack.git
-
-# Copy skills into your Claude Code skills directory
 cp -r Claude-Code-Ultimate-Pack/skills/* ~/.claude/skills/
-
-# Or use a project-local installation
-cp -r Claude-Code-Ultimate-Pack/skills/* .claude/skills/
 ```
+
+### Global installation (Windows PowerShell)
+
+```powershell
+git clone https://github.com/your-org/Claude-Code-Ultimate-Pack.git
+Copy-Item -Path Claude-Code-Ultimate-Pack\skills\* -Destination $HOME\.claude\skills\ -Recurse
+```
+
+### Project-local installation
+
+```bash
+cd /path/to/your/project
+mkdir -p .claude/skills
+cp -r /path/to/Claude-Code-Ultimate-Pack/skills/* .claude/skills/
+```
+
+After installation, restart Claude Code. Skills activate automatically based on the `description` field — no manual `@skill-name` invocation required (though explicit invocation still works).
+
+---
+
+## Updating
+
+```bash
+# Pull the latest from your clone
+cd /path/to/Claude-Code-Ultimate-Pack
+git pull origin main
+
+# Re-copy to your global skills directory (Linux / macOS)
+rm -rf ~/.claude/skills/accessibility-expert ~/.claude/skills/ai-agent-architect # ... etc.
+cp -r skills/* ~/.claude/skills/
+
+# Or on Windows PowerShell
+Remove-Item $HOME\.claude\skills\* -Recurse -Force
+Copy-Item -Path skills\* -Destination $HOME\.claude\skills\ -Recurse
+```
+
+For project-local installs, re-copy into `.claude/skills/` and commit the change.
 
 ---
 
 ## Usage
 
-Once installed, skills activate automatically when Claude Code detects relevant context. You can also explicitly invoke a skill by name:
+Skills activate automatically when Claude Code detects relevant context. The `description` field in each skill's YAML frontmatter is the trigger condition — Claude reads it at startup and decides whether to invoke the skill based on the user's prompt.
+
+### Automatic activation
+
+Just ask Claude a question in the skill's domain:
 
 ```
-@senior-react-19-engineer Build a server component that fetches user data with Suspense streaming
-@nestjs-expert Design a module structure for an e-commerce checkout service
-@kubernetes-expert Convert this docker-compose file into production-ready Helm charts
-@solidity-expert Audit this ERC-20 token contract for reentrancy and access control issues
+Build a Next.js 15 page that fetches user data with Suspense streaming
 ```
 
-See [`docs/usage-guide.md`](./docs/usage-guide.md) for detailed usage patterns and [`examples/example-usage.md`](./examples/example-usage.md) for real-world scenarios.
+Claude Code reads the `description` of `senior-react-19-engineer` and `nextjs-15-architect`, matches them against the prompt, and activates them automatically.
+
+### Explicit invocation
+
+You can also force-activate a skill by name:
+
+```
+/skill senior-react-19-engineer
+
+Build a useDebounce hook that's safe for SSR
+```
+
+Or, in the Claude Code GUI, select the skill from the Skills panel.
+
+### Composing skills
+
+Multiple skills can be active simultaneously. For example, building an authenticated REST API with PostgreSQL would naturally compose `nestjs-expert`, `authentication-expert`, `postgresql-expert`, and `jest-expert`.
+
+See [`docs/usage-guide.md`](./docs/usage-guide.md) for detailed patterns and [`examples/example-usage.md`](./examples/example-usage.md) for real-world scenarios.
 
 ---
 
-## Engineering Principles
+## Skill Structure (Official Spec)
 
-Every skill in this pack enforces the following principles without exception:
+Per the [official Claude Code Agent Skills specification](https://code.claude.com/docs/en/skills):
 
-- **SOLID** — Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
-- **DRY** — Don't Repeat Yourself; extract duplication into reusable abstractions
-- **KISS** — Keep It Simple, Stupid; prefer the simplest solution that works
-- **YAGNI** — You Aren't Gonna Need It; never build for speculative future requirements
-- **Clean Architecture** — Dependencies point inward toward domain logic
-- **Feature-Based Architecture** — Organize by feature, not by technical layer
-- **Enterprise Architecture** — Design for multi-team, multi-year sustainability
-- **Production Ready Code** — No prototypes, no placeholders, no TODOs
-- **Security First** — Every decision evaluated through a security lens
-- **Performance First** — Every decision evaluated through a performance lens
-- **Scalability** — Designs that grow 1000x without rewrites
-- **Maintainability** — Code that the next developer can understand in 5 minutes
-- **Readable Code** — Code is read 10x more than it is written
-- **Reusable Components** — Build once, use everywhere
-- **Comprehensive Documentation** — Code without documentation is unfinished
+### Required
+
+- **A folder** named after the skill. The folder name must match the `name` field in YAML frontmatter.
+- **A `SKILL.md` file** inside that folder — the entry point Claude reads.
+- **YAML frontmatter** at the top of `SKILL.md`, delimited by `---` lines, with:
+  - `name` (required) — lowercase letters, digits, hyphens only. Max 64 characters. Cannot start with a hyphen.
+  - `description` (required) — a substantive description of what the skill does **and** when to use it. Claude uses this as the trigger condition.
+
+### Recommended
+
+- `license` — SPDX identifier (e.g., `MIT`).
+- `version` — SemVer (e.g., `1.0.0`).
+
+### Optional supporting files
+
+Each skill folder may also contain:
+
+- `scripts/` — helper scripts Claude can execute
+- `resources/` — reference materials Claude can read on demand
+- `templates/` — file templates Claude can copy
+
+### Where skills live
+
+Claude Code auto-discovers skills in:
+
+- **Personal/global**: `~/.claude/skills/<skill-name>/SKILL.md`
+- **Project-local**: `.claude/skills/<skill-name>/SKILL.md`
+- **Plugin-bundled**: inside a plugin's `skills/` directory
+
+### Validation rules (enforced in this repo)
+
+Every `SKILL.md` in this repository passes the validation script at `scripts/validate_skills.py`:
+
+- UTF-8 encoded, no BOM, LF line endings only
+- Frontmatter parses as valid YAML
+- `name` matches the folder name and conforms to `^[a-z0-9][a-z0-9-]{0,63}$`
+- `description` is non-empty and at least 40 characters
+- `license` and `version` are present
+- Body contains the 30 mandatory section headers
+- No `TODO:`, `FIXME:`, or `PLACEHOLDER:` markers in prose (outside code blocks)
 
 ---
 
-## Quality Standards
+## Example Use Cases
 
-Every skill file must satisfy these standards before merge:
+1. **Greenfield e-commerce backend** — compose `nestjs-expert`, `postgresql-expert`, `jest-expert`, `docker-expert`, and `aws-expert` to ship a checkout service.
+2. **Smart contract audit** — invoke `solidity-expert` + `smart-contract-security-expert` to audit an ERC-20 for reentrancy and access control issues.
+3. **Production incident response** — invoke `code-review-expert` + `performance-optimization-expert` + `kubernetes-expert` to diagnose and patch a latency regression.
+4. **AI agent system build** — compose `ai-agent-architect`, `langgraph-expert`, `rag-expert`, and `prompt-engineering-expert` to design a multi-step tool-using agent.
 
-- [ ] Minimum 300 lines, up to 1000 lines where warranted
-- [ ] All 30 sections present and substantive
-- [ ] No placeholders, no TODOs, no "TODO: implement later"
-- [ ] No section shorter than 5 lines (unless inherently list-based)
-- [ ] At least 3 concrete code examples in the Examples section
-- [ ] At least 5 items in every checklist
-- [ ] At least 5 anti-patterns documented
-- [ ] At least 5 common mistakes documented
-- [ ] Production-ready language throughout — no "you might" or "consider"
-- [ ] Imperial directives — "always", "never", "must", "must not"
+See [`examples/example-usage.md`](./examples/example-usage.md) for full scenarios.
+
+---
+
+## Migration Guide (v1 → v2)
+
+If you have a v1.x installation or fork, follow these steps to migrate.
+
+### Step 1: Remove the legacy skills
+
+The legacy layout used domain subdirectories. Remove them:
+
+```bash
+# Linux / macOS — remove the 11 legacy domain folders
+rm -rf ~/.claude/skills/{ai,architecture,backend,blockchain,database,devops,frontend,mobile,security,seo,testing}
+
+# Windows PowerShell
+$domains = 'ai','architecture','backend','blockchain','database','devops','frontend','mobile','security','seo','testing'
+foreach ($d in $domains) { Remove-Item -Recurse -Force "$HOME\.claude\skills\$d" }
+```
+
+### Step 2: Install the v2.0 pack
+
+```bash
+# Linux / macOS
+cp -r Claude-Code-Ultimate-Pack/skills/* ~/.claude/skills/
+
+# Windows PowerShell
+Copy-Item -Path Claude-Code-Ultimate-Pack\skills\* -Destination $HOME\.claude\skills\ -Recurse
+```
+
+### Step 3: Restart Claude Code
+
+```bash
+claude restart
+```
+
+### Step 4: Verify
+
+You should now see 93 skill folders (not 11 domain folders) under `~/.claude/skills/`:
+
+```bash
+ls ~/.claude/skills/ | wc -l   # should print 93
+```
+
+### What changed for end users
+
+- **No more `@skill-name` invocation required** — skills auto-activate based on `description`.
+- **Skill names are unchanged** — `senior-react-19-engineer` is still `senior-react-19-engineer`; it's now a folder instead of a `.md` file.
+- **Content is unchanged** — every section, every checklist, every example from v1.x is preserved verbatim in v2.0.
+
+### What changed for contributors
+
+- New skills must follow the official spec — see [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the [`templates/skill-template/`](./templates/skill-template/) folder.
+- The legacy `# Skill: <Name>` H1 header is replaced by YAML frontmatter.
+- Domain categorization is done via the `description` field and the skill index, not via filesystem subdirectories.
+
+---
+
+## Troubleshooting
+
+### Skills not appearing after installation
+
+1. Verify each skill is a folder containing `SKILL.md`:
+   ```bash
+   ls ~/.claude/skills/senior-react-19-engineer/
+   # Should show: SKILL.md
+   ```
+2. Verify the YAML frontmatter is valid:
+   ```bash
+   head -10 ~/.claude/skills/senior-react-19-engineer/SKILL.md
+   # Should start with: ---
+   ```
+3. Restart Claude Code:
+   ```bash
+   claude restart
+   ```
+
+### Skill not auto-activating
+
+The `description` field is the trigger. If a skill doesn't activate, either:
+- The prompt doesn't match the description's "when to use" clause — try rephrasing or invoke explicitly with `/skill <name>`.
+- Another skill with a more specific description is winning — check for conflicts in `~/.claude/skills/`.
+
+### YAML parse errors
+
+If Claude Code reports a YAML parse error in a `SKILL.md`:
+1. Ensure the file starts with `---\n` (no leading blank lines, no BOM).
+2. Ensure the frontmatter is closed with a second `---` line.
+3. Validate locally:
+   ```bash
+   python3 -c "import yaml; print(yaml.safe_load(open('SKILL.md').read().split('---')[1]))"
+   ```
+
+### CRLF line endings on Windows
+
+If you cloned with `core.autocrlf=true`, files may have CRLF endings. Force LF:
+
+```bash
+git config --global core.autocrlf false
+git rm --cached -r .
+git reset --hard
+```
+
+### Line-ending mismatch in WSL2
+
+```bash
+find ~/.claude/skills -name "SKILL.md" -exec dos2unix {} \;
+```
+
+See [`INSTALL.md`](./INSTALL.md) for full troubleshooting across Windows, Linux, and macOS.
 
 ---
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for contribution guidelines. All contributions must maintain the 30-section anatomy and pass the quality standards above.
+Contributions are welcome. All new skills **must** follow the official Claude Code Agent Skills specification — see [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full workflow and the [`templates/skill-template/`](./templates/skill-template/) folder for the canonical template.
 
 ---
 
 ## Changelog
 
-See [`CHANGELOG.md`](./CHANGELOG.md) for version history.
+See [`CHANGELOG.md`](./CHANGELOG.md) for version history. The v2.0.0 entry documents the full migration to the official spec, including all breaking changes.
 
 ---
 
@@ -277,5 +437,6 @@ MIT License — see [`LICENSE`](./LICENSE) for full text.
 ---
 
 <p align="center">
-  Built for engineers who refuse to ship anything less than production-ready.
+  Built for engineers who refuse to ship anything less than production-ready.<br>
+  Fully compliant with the <a href="https://code.claude.com/docs/en/skills">official Claude Code Agent Skills specification</a>.
 </p>

@@ -1,6 +1,8 @@
 # Usage Guide
 
-This guide explains how to use the Claude Code Ultimate Pack effectively, including how skills activate, how to invoke them explicitly, how to compose them in workflows, and how to get the best output.
+This guide explains how to use the Claude Code Ultimate Pack v2.0 effectively, including how skills activate, how to invoke them explicitly, how to compose them in workflows, and how to get the best output.
+
+v2.0 skills follow the [official Claude Code Agent Skills specification](https://code.claude.com/docs/en/skills) — they auto-activate based on the `description` field in YAML frontmatter.
 
 ---
 
@@ -17,228 +19,314 @@ This guide explains how to use the Claude Code Ultimate Pack effectively, includ
 
 ## How Skills Activate
 
-When you send a prompt to Claude Code, it analyzes the prompt and activates the most relevant skill based on:
+When you send a prompt to Claude Code, the following happens:
 
-1. **Keywords** — technologies, frameworks, and concepts mentioned in the prompt
-2. **Intent** — what you are asking for (design, implement, review, debug, deploy)
-3. **Context** — the surrounding project files, if any
+1. **Startup scan** — Claude Code reads the YAML frontmatter (`name` + `description`) of every `SKILL.md` in `~/.claude/skills/` and `.claude/skills/`. This happens once per session.
+2. **Prompt analysis** — Claude analyzes your prompt to identify technologies, frameworks, intent, and context.
+3. **Skill matching** — Claude compares your prompt against every skill's `description` field. Skills whose "Use this skill when..." clause matches your prompt are candidates for activation.
+4. **Activation** — Claude activates the best-matching skill(s). The skill's full `SKILL.md` body is loaded into context, and Claude follows its instructions.
 
-For example, if you type "build a Next.js 15 page that fetches data with server components", Claude Code activates `nextjs-15-architect` because the prompt mentions Next.js 15, server components, and data fetching.
+### What this means for you
 
-Skills activate automatically; you do not need to do anything special. However, if Claude Code does not activate the skill you expect, you can invoke it explicitly.
+- **No manual `@skill-name` invocation required** — just ask your question naturally.
+- **Multiple skills can be active simultaneously** — Claude composes them based on your prompt.
+- **The `description` field is critical** — a vague description means the skill won't activate. Every skill in this pack has a carefully crafted two-paragraph description (what + when).
+
+### Example: automatic activation
+
+If you type:
+
+```
+Build a Next.js 15 page that fetches user data with Suspense streaming
+```
+
+Claude Code reads the descriptions of:
+- `senior-react-19-engineer` — "Use this skill when building web frontends with React, Next.js, TypeScript..."
+- `nextjs-15-architect` — "Use this skill when building Next.js 15 applications with App Router, RSC, streaming..."
+- `performance-expert` — "Use this skill when addressing web performance..."
+
+It activates the most relevant ones (likely `nextjs-15-architect` and `senior-react-19-engineer`) and follows their guidance for Server Components, Suspense streaming, and React 19 patterns.
 
 ---
 
 ## Explicit Invocation
 
-To guarantee a specific skill activates, prefix your prompt with `@<skill-name>` (without the `.md` extension):
+Sometimes you want to force-activate a specific skill — for example, to override Claude's auto-selection, or to ensure a particular skill's checklist is applied.
+
+### `/skill` command
 
 ```
-@senior-react-19-engineer Build a useDebounce hook with TypeScript
-@nestjs-expert Design a module structure for an e-commerce checkout
-@kubernetes-expert Convert this docker-compose into Helm charts
-@solidity-expert Audit this ERC-20 contract for reentrancy
-@postgresql-expert Design a schema for a multi-tenant SaaS application
-@playwright-expert Write an E2E test for the user signup flow
+/skill senior-react-19-engineer
+
+Build a useDebounce hook that's safe for SSR
 ```
 
-The skill name is the file name without the `.md` extension. For example, `senior-react-19-engineer.md` becomes `@senior-react-19-engineer`.
+This forces `senior-react-19-engineer` to be active for the next response. The skill's full body is loaded into context.
+
+### Skill chaining
+
+You can chain multiple `/skill` invocations:
+
+```
+/skill nestjs-expert
+/skill postgresql-expert
+/skill jest-expert
+
+Design a NestJS module for user registration that stores users in PostgreSQL and includes Jest unit tests
+```
+
+All three skills are active, and Claude composes their guidance.
+
+### Claude Code GUI
+
+In the Claude Code GUI, you can also select skills from the Skills panel. The panel shows every skill Claude has discovered (i.e., every `SKILL.md` in `~/.claude/skills/` and `.claude/skills/`).
 
 ---
 
 ## Composing Skills in Workflows
 
-Real engineering work spans multiple domains. Compose skills by invoking them in sequence within a single conversation. Claude Code maintains context across invocations.
+Skills compose naturally — Claude reads multiple skill bodies and applies all of their constraints simultaneously. Here are common composition patterns:
 
-### Pattern 1: Design then implement
+### Pattern 1: Greenfield full-stack feature
 
-```
-@system-design-expert Design the architecture for a real-time chat application
-```
-*(Review the design, then:)*
-```
-@nestjs-expert Implement the WebSocket gateway based on this design
-```
-*(Review the implementation, then:)*
-```
-@postgresql-expert Design the schema for messages and conversations
-```
+**Goal**: Add a new feature end-to-end.
 
-### Pattern 2: Implement then secure
+**Skills activated**: `senior-react-19-engineer` + `nextjs-15-architect` + `nestjs-expert` + `postgresql-expert` + `jest-expert` + `playwright-expert`
+
+**Prompt**:
 
 ```
-@rest-api-expert Implement the user registration endpoint
-```
-```
-@owasp-top-10-expert Review this endpoint for security vulnerabilities
-```
-```
-@api-security-expert Add rate limiting and input validation
+Add a "team invitations" feature: a React 19 form (with the React Compiler)
+that posts to a NestJS endpoint, which stores the invitation in PostgreSQL
+and sends an email. Include Jest unit tests for the service and Playwright
+E2E tests for the form submission.
 ```
 
-### Pattern 3: Implement then test then deploy
+Claude composes the constraints from all five skills:
+- React 19 patterns (Server Actions, useActionState, useOptimistic)
+- Next.js 15 App Router patterns
+- NestJS module structure (controller, service, DTO, module)
+- PostgreSQL schema design and Prisma migration
+- Jest test structure (describe/it/expect, mocking)
+- Playwright test structure (page fixture, assertions)
+
+### Pattern 2: Production incident response
+
+**Goal**: Diagnose and patch a production latency regression.
+
+**Skills activated**: `code-review-expert` + `performance-optimization-expert` + `kubernetes-expert` + `nginx-expert`
+
+**Prompt**:
 
 ```
-@expressjs-expert Implement the order processing service
-```
-```
-@jest-expert Write unit tests for the order processing logic
-```
-```
-@playwright-expert Write E2E tests for the checkout flow
-```
-```
-@docker-expert Create a production Dockerfile for this service
-```
-```
-@github-actions-expert Create a CI/CD pipeline to build, test, and deploy
+We're seeing p99 latency spike from 200ms to 2.5s on the /checkout endpoint
+in production. The cluster is on Kubernetes with an Nginx ingress. Diagnose
+the likely causes and propose a fix.
 ```
 
-### Pattern 4: Audit then refactor
+Claude composes:
+- Code review checklist (recent deploys, schema changes)
+- Performance optimization (profiling, bottlenecks)
+- Kubernetes (pod CPU/memory, HPA, cluster autoscaler)
+- Nginx (upstream timeouts, connection limits, rate limiting)
+
+### Pattern 3: Smart contract audit
+
+**Goal**: Audit an ERC-20 token contract for security issues.
+
+**Skills activated**: `solidity-expert` + `smart-contract-security-expert` + `openzeppelin-expert`
+
+**Prompt**:
 
 ```
-@code-review-expert Review this codebase for issues
+Audit this ERC-20 contract for reentrancy, access control, and integer
+overflow issues. Suggest OpenZeppelin-based mitigations.
 ```
+
+Claude composes:
+- Solidity 0.8+ patterns and gas optimization
+- Smart contract security (reentrancy, access control, common vulnerabilities)
+- OpenZeppelin (AccessControl, SafeERC20, ReentrancyGuard)
+
+### Pattern 4: AI agent system build
+
+**Goal**: Design a multi-step tool-using agent.
+
+**Skills activated**: `ai-agent-architect` + `langgraph-expert` + `rag-expert` + `prompt-engineering-expert`
+
+**Prompt**:
+
 ```
-@refactoring-expert Refactor the authentication module based on the review
+Design a LangGraph-based agent that answers questions about our internal
+docs. It should: (1) retrieve relevant chunks from a vector store, (2)
+decide whether the retrieved context is sufficient, (3) call a search
+tool if not, (4) synthesize an answer with citations.
 ```
-```
-@performance-optimization-expert Optimize the database queries identified in the review
-```
+
+Claude composes:
+- AI agent architecture (anatomy, reasoning patterns, production hardening)
+- LangGraph (stateful graphs, conditional edges, tool nodes)
+- RAG (chunking, embedding, retrieval, reranking)
+- Prompt engineering (system prompts, few-shot, chain-of-thought)
 
 ---
 
 ## Getting the Best Output
 
-### 1. Be specific
+### 1. Be specific about constraints
 
-Vague prompts produce vague output. Specify:
-- The exact technology and version
-- The exact problem
-- The constraints (performance, security, scale)
-- The expected output format
+Skills apply their decision-making rules based on constraints you state. Mention:
 
-**Bad**: "Build a React component"
+- **Scale** — "10M users", "1B rows", "$1B TVL"
+- **Performance** — "p99 < 100ms", "60fps", "TTFB < 200ms"
+- **Security** — "SOC 2 compliant", "audited by OpenZeppelin", "PCI-DSS"
+- **Team** — "5 engineers", "mixed seniority", "remote-first"
+- **Timeline** — "ship in 2 weeks", "long-term maintainable"
 
-**Good**: "Build a React 19 server component using TypeScript that fetches user data from `/api/users/[id]` with Suspense streaming, handles loading and error states, and is accessible per WCAG 2.2 AA"
+Example:
 
-### 2. Provide context
+> ❌ "Build a checkout API."
+> ✅ "Build a NestJS checkout API that handles 1000 RPS, persists to PostgreSQL with serializable isolation, and includes idempotency keys for retry safety. Ship in 3 weeks with a 5-engineer team."
 
-If you have existing code, architecture, or constraints, share them. Claude Code cannot read your mind.
+The second prompt activates more skills (`nestjs-expert`, `postgresql-expert`, `performance-optimization-expert`, `scalability-expert`) and applies their performance and scalability rules.
 
-**Bad**: "Design the database schema"
+### 2. Ask for the production checklist
 
-**Good**: "Design the database schema for a multi-tenant SaaS application using PostgreSQL 16. Each tenant must have isolated data. We expect 10,000 tenants, 1,000,000 users total, and 100,000,000 records total. The primary query pattern is filtering records by tenant_id and created_at."
-
-### 3. Ask for one thing at a time
-
-Complex requests produce shallow output. Break them down.
-
-**Bad**: "Build the entire authentication system with JWT, OAuth2, refresh tokens, rate limiting, and audit logging"
-
-**Good**:
-1. "Design the authentication architecture"
-2. "Implement the JWT issuance endpoint"
-3. "Implement the refresh token rotation logic"
-4. "Add rate limiting to the login endpoint"
-5. "Add audit logging for all authentication events"
-
-### 4. Review and iterate
-
-Treat Claude Code's first response as a draft. Review it, identify weaknesses, and ask for improvements:
-
-- "This design does not handle the case where the database is unavailable. Add a fallback."
-- "The error handling is too generic. Specify exact error codes and messages."
-- "The test coverage is incomplete. Add tests for the edge cases."
-
-### 5. Use the checklists
-
-Every skill includes four checklists (Code Review, Refactoring, Deployment, Production). Use them:
+Every skill has a `## 22. Production Checklist` section. Ask Claude to apply it:
 
 ```
-@nestjs-expert Review this module against your Code Review Checklist and report any failures
+Build this feature, then verify it against the production checklist from
+the nestjs-expert skill.
 ```
 
+### 3. Ask for trade-offs
+
+Skills have `## 6. Decision Making Rules` sections that document trade-offs. Ask Claude to surface them:
+
 ```
-@docker-expert Verify this Dockerfile against your Production Checklist before we deploy
+What are the trade-offs between using a transactional outbox and a
+two-phase commit for this checkout flow? Apply the decision-making rules
+from the microservices-expert and postgresql-expert skills.
 ```
+
+### 4. Ask for anti-patterns
+
+Every skill has a `## 14. Anti Patterns` section. Ask Claude to check its work:
+
+```
+Review your proposed implementation against the anti-patterns section of
+the senior-react-19-engineer skill. Did you introduce any?
+```
+
+### 5. Iterate
+
+Skills are most powerful when used iteratively. After Claude's first response, ask:
+
+- "Apply the code review checklist from `<skill>` to your response."
+- "Refactor this using the refactoring checklist from `<skill>`."
+- "What would the production checklist say is missing?"
 
 ---
 
 ## Common Patterns
 
-### Pattern: Greenfield project
+### "Design X using skill Y"
 
-1. `@system-design-expert` — design the overall architecture
-2. `@software-architect` — define the module structure and boundaries
-3. Domain-specific skills — implement each module
-4. `@testing-expert` (various) — write tests
-5. `@cicd-expert` — set up the pipeline
-6. `@docker-expert` and `@kubernetes-expert` — containerize and orchestrate
-7. `@owasp-top-10-expert` — security review
-8. `@performance-optimization-expert` — performance review
+```
+Design a rate limiter using the redis-expert skill. Include the Redis
+data structure, the algorithm (token bucket vs sliding window), and
+the fail-closed vs fail-open trade-off.
+```
 
-### Pattern: Legacy modernization
+### "Audit X using skill Y"
 
-1. `@code-review-expert` — audit the existing codebase
-2. `@refactoring-expert` — plan the refactoring in incremental steps
-3. `@testing-expert` (various) — add characterization tests before refactoring
-4. Domain-specific skills — implement the modernized version
-5. `@security-expert` (various) — security review of the modernized version
+```
+Audit this Dockerfile using the docker-expert skill. Apply the
+production checklist and list every failing item with a fix.
+```
 
-### Pattern: Incident response
+### "Refactor X using skill Y"
 
-1. `@linux-expert` — investigate on the server
-2. `@performance-optimization-expert` — identify the bottleneck
-3. Domain-specific skill — implement the fix
-4. `@testing-expert` — verify the fix
-5. `@cicd-expert` — deploy the fix
-6. `@code-review-expert` — post-mortem review
+```
+Refactor this Express route using the clean-architecture-expert skill.
+Move the business logic into a use case, the HTTP concerns into a
+controller, and the data access into a repository.
+```
 
-### Pattern: Security audit
+### "Compare X and Y using skill Z"
 
-1. `@owasp-top-10-expert` — top-level audit
-2. `@api-security-expert` — API-specific audit
-3. `@jwt-expert` or `@oauth2-expert` — authentication-specific audit
-4. `@secure-coding-expert` — code-level audit
-5. Domain-specific skills — implement the fixes
+```
+Compare PostgreSQL and MongoDB for a product catalog with 10M SKUs and
+5 attribute facets per product. Apply the decision-making rules from
+the postgresql-expert and mongodb-expert skills.
+```
+
+### "Write tests for X using skills Y and Z"
+
+```
+Write Jest unit tests and Playwright E2E tests for the user
+registration flow. Apply the testing strategy from the jest-expert and
+playwright-expert skills.
+```
 
 ---
 
 ## Troubleshooting
 
-### The wrong skill activated
+### Skill not auto-activating
 
-If Claude Code activates the wrong skill, explicitly invoke the correct one:
+1. Verify the skill is installed:
+   ```bash
+   ls ~/.claude/skills/<skill-name>/SKILL.md
+   ```
+2. Verify the YAML frontmatter parses:
+   ```bash
+   python3 -c "import yaml; print(yaml.safe_load(open('$HOME/.claude/skills/<skill-name>/SKILL.md').read().split('---')[1]))"
+   ```
+3. Re-read the skill's `description` field — does your prompt match the "Use this skill when..." clause?
+4. Force-activate with `/skill <skill-name>` to verify the skill itself works.
+5. Restart Claude Code: `claude restart`.
 
-```
-@nestjs-expert <your prompt>
-```
+### Wrong skill activating
 
-### The output is too generic
+If a less-specific skill wins over a more-specific one:
 
-Your prompt is too vague. Add specificity: exact technology, exact version, exact constraints, exact expected output.
+1. Check the descriptions — the less-specific skill may have a broader "when" clause that matches your prompt.
+2. Force-activate the more-specific skill with `/skill <skill-name>`.
+3. Consider opening a PR to tighten the more-specific skill's `description`.
 
-### The output does not follow the skill's standards
+### Too many skills activating
 
-Remind Claude Code of the skill:
+If too many skills activate and Claude's response is unfocused:
 
-```
-@nestjs-expert Re-implement this following your Coding Standards and Architecture Rules exactly
-```
+1. Force-activate only the skills you want with `/skill`.
+2. Be more specific in your prompt — vague prompts match more skills.
+3. Uninstall skills you don't use from `~/.claude/skills/`.
 
-### The skill is not installed
+### Skill body not applied
 
-If `@<skill-name>` produces an error, the skill is not installed. See `INSTALL.md` for installation instructions. Verify with:
+If Claude activates a skill but doesn't follow its rules:
 
-```bash
-ls ~/.claude/skills/<domain>/<skill-name>.md
-```
+1. Verify the skill body is well-formed — run the validator:
+   ```bash
+   python3 scripts/validate_skills.py
+   ```
+2. Check that the skill body has all 30 sections in order.
+3. Re-invoke with an explicit instruction: "Apply the production checklist from `<skill>` to your response."
 
-### Skills conflict
+### Conflict between skills
 
-If two skills give contradictory guidance, prioritize by domain relevance. For example, if `@expressjs-expert` and `@clean-architecture-expert` disagree on file organization, `@clean-architecture-expert` wins on architecture decisions, `@expressjs-expert` wins on Express-specific implementation details.
+If two skills give conflicting guidance:
+
+1. Skills have `## 6. Decision Making Rules` sections — Claude should resolve conflicts using these.
+2. If Claude doesn't, explicitly invoke the higher-priority skill with `/skill`.
+3. Open a PR to clarify the conflict in one of the skills' decision-making rules.
 
 ---
 
-The Claude Code Ultimate Pack is most powerful when you treat it as a team of specialists. Each skill is a world-class engineer in their domain. Compose them, direct them, review their work, and iterate. That is how senior engineers use tools — not as oracles, but as collaborators.
+## See Also
+
+- [`docs/skill-index.md`](./skill-index.md) — complete index of all 93 skills
+- [`docs/skill-structure.md`](./skill-structure.md) — the 30-section skill anatomy specification
+- [`examples/example-usage.md`](../examples/example-usage.md) — real-world usage scenarios
+- [`INSTALL.md`](../INSTALL.md) — installation guide for Windows, Linux, and macOS
