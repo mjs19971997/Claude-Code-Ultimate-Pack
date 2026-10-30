@@ -1,641 +1,306 @@
 ---
 name: prisma-expert
-description: >
-  Design, migrate, and operate Prisma ORM 5+ applications with type-safe queries, zero-downtime migrations, and production-grade connection pooling.
-  
-  Use this skill when designing schemas, queries, indexing, replication, or operating datastores such as PostgreSQL, MongoDB, Redis, ElasticSearch, or Prisma.
+description: >-
+  Designs Prisma ORM 7 data layers on PostgreSQL: schema.prisma, the prisma-client generator, driver adapters (@prisma/adapter-pg), prisma.config.ts, Prisma Migrate, queries and transactions, $extends client extensions, typed SQL, raw queries and multi-tenant isolation. Use when editing schema.prisma or prisma.config.ts, creating or deploying migrations, setting up PrismaClient, fixing N+1 or slow Prisma queries, writing interactive transactions or tenant-scoped clients, or upgrading from Prisma 6 to 7. Not for SQL design, index tuning or RLS policies themselves (use postgresql-expert), MongoDB (use mongodb-expert; Prisma 7 does not support it), or GraphQL schemas (use graphql-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# Prisma Expert
 
----
+This skill covers Prisma ORM 7 in TypeScript services backed by PostgreSQL: the schema and generator, the driver-adapter client, migrations, query shaping, transactions, client extensions and tenant isolation. Prisma 7 changed project setup substantially compared with Prisma 6 (no Rust engine, required `output` and adapter, `prisma.config.ts`), so the setup steps below are the current ones. Deep material is in three reference files.
 
-## 1. Role
+> Verified against Prisma ORM 7.10.1 (latest stable 7.x, published 2026-10-19; Prisma 8 is in release-candidate stage, and npm's `latest` tag already points to an 8.0 RC, so pin `7.10.1` explicitly), @prisma/adapter-pg 7.10.1, Node.js 22, TypeScript 5.9; code examples type-checked against a generated 7.10.1 client and tested on PostgreSQL 16 with RLS (2026-10).
 
-The Prisma Expert is the principal authority on Prisma ORM 5+ in TypeScript and Node.js applications. This role owns schema design in `schema.prisma`, migration strategy (deploy, resolve, reset), transaction orchestration (interactive and sequential), query optimization via `select` and `include`, N+1 prevention, raw SQL escape hatches, multi-schema and multi-tenancy patterns, connection pooling, Prisma Data Platform integration (Accelerate, Pulse), and the full lifecycle of middleware, extensions, and JSON field handling. The expert makes irreversible schema and migration decisions under load, enforces type-safety end-to-end, and must always reason from generated client behavior and query logs, never from intuition.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-## 2. Mission
+## 1. Scope
 
-Deliver a Prisma platform that satisfies the following contract: 100% type-safety from schema to API, zero-downtime migrations in production, p99 query latency under 50 ms for indexed lookups, zero N+1 queries in hot paths, RPO ≤ 5 seconds via Pulse or logical replication, and full auditability via query logging. Every schema change must be backward compatible, every migration must be reviewed and tested, every query must be optimized via `select`/`include` or documented as an intentional eager load, and every connection must flow through PgBouncer or Prisma Accelerate in production.
+- Covered: Prisma ORM 7 setup, `schema.prisma`, Prisma Migrate, PrismaClient queries, transactions, `$extends`, typed SQL and raw queries, tenant scoping, testing, upgrade notes from 6.
+- Not covered: PostgreSQL index design, query plans, RLS policy design and online DDL (postgresql-expert); MongoDB (Prisma 7 does not support it; stay on Prisma 6 or use mongodb-expert); API layer concerns (graphql-expert, rest-api-expert, nestjs-expert).
+- Prisma 8 is pre-release at the time of writing; check its upgrade guide before moving off 7.x.
 
-## 3. Core Expertise
+## 2. Core Expertise
 
-- **schema.prisma syntax**: `generator`, `datasource`, `model`, `enum`, `composite type`, `view`, `type` aliases, and JSON field declarations.
-- **Relations**: 1:1, 1:N, M:N, self-relations, cascading deletes (`onDelete: Cascade | Restrict | SetNull`), and relation scalar fields.
-- **Migrations**: `prisma migrate dev` (development), `prisma migrate deploy` (production CI/CD), `prisma migrate resolve` (failed migration rollback), `prisma migrate diff` (SQL generation), and `prisma db push` (prototyping only).
-- **Transactions**: interactive transactions (`$transaction([array])` and `$transaction(async (tx) => ...)`), timeout configuration, isolation level setting, and nested transaction semantics.
-- **Query optimization**: `select` vs `include`, `where` filters, `orderBy`, `distinct`, `take/skip/cursor` pagination, and avoiding `include` over-fetching.
-- **N+1 prevention**: eager loading via `include` and `select`, `_count`, `_avg`, `_sum`, `_min`, `_max` aggregations, and `groupBy`.
-- **Raw queries**: `$queryRaw`, `$executeRaw`, `$queryRawUnsafe` (forbidden in production), tagged template literals for parameterization, and typed raw results.
-- **Multi-schema**: `@@schema` attribute, multiple `datasource` blocks, and cross-schema relations.
-- **Multi-tenancy**: separate database per tenant, separate schema per tenant, shared schema with `tenantId` discriminator, and Prisma client extensions for tenant context injection.
-- **Connection pooling**: `DATABASE_URL` with PgBouncer `?pgbouncer=true&connection_limit=`, Prisma Accelerate, and `connection_limit` tuning.
-- **Prisma Data Platform**: Accelerate for pooled edge access, Pulse for real-time change streams, and Data Proxy for serverless.
-- **Middleware and extensions**: `$extends` for query lifecycle hooks, model-level extensions, result extensions, and client-level extensions.
-- **JSON fields**: `Json` type, typed JSON via `@db.JsonB`, querying with `path` and `string_filters`, and validation with Zod.
-- **Enums and composite types**: enum declarations, composite types in PostgreSQL, and database-level constraints.
-- **Testing**: `prisma migrate reset` in test setup, transactional test isolation, factories, and snapshot testing of generated client.
+- **Prisma 7 setup changes** (from 6):
+  - The Rust query engine is gone; the `prisma-client` generator produces TypeScript client code, and `output` is required (no more generation into `node_modules`). `prisma-client-js` is the legacy generator.
+  - `PrismaClient` needs a driver adapter (for PostgreSQL `@prisma/adapter-pg`) or an `accelerateUrl`; `datasources` and `datasourceUrl` constructor options and `directUrl` are removed.
+  - `prisma.config.ts` (with `defineConfig` from `prisma/config`) holds `schema`, `datasource.url`, `datasource.shadowDatabaseUrl`, `migrations.path`, `migrations.seed` and `typedSql.path`; the `prisma` key in `package.json` is removed.
+  - The CLI no longer loads `.env` files (import `dotenv/config` or use `--env-file`); `generate` and seeding do not run implicitly after `install` or `migrate`.
+  - ESM package: Node.js 20.19+ and TypeScript 5.4+ are required (the upgrade guide recommends Node 22.x and TypeScript 5.9.x); set `"type": "module"` and an ESM-compatible `tsconfig`.
+  - Mapped enums (`@map` on members, `@@map` on the enum), and the `metrics` preview feature is removed.
+- **Schema**: models, relations (including composite keys), enums, `@@index`, `@@unique`, `@db.*` native types, `@default(dbgenerated("uuidv7()"))` for PostgreSQL 18 time-ordered ids. See [references/schema-and-migrations.md](references/schema-and-migrations.md).
+- **Migrations**: `migrate dev` (development), `migrate deploy` (CI and production), `migrate status`, `migrate resolve`, `migrate diff`, `db push` (prototypes only), hand-edited SQL via `migrate dev --create-only`.
+- **Queries**: `select`, `omit`, `include`, filters, cursor pagination, `groupBy`, aggregates, nested writes, `createMany`, `upsert`, atomic operators (`increment`).
+- **Transactions**: sequential `$transaction([...])` and interactive `$transaction(async (tx) => ...)` with `maxWait`, `timeout` and `isolationLevel`; error `P2034` for write conflicts and deadlocks.
+- **Client extensions**: `$extends` with `query`, `result`, `model` and `client` components; `Prisma.defineExtension`. See [references/client-extensions-and-multi-tenancy.md](references/client-extensions-and-multi-tenancy.md).
+- **Raw SQL**: `$queryRaw`/`$executeRaw` tagged templates, `Prisma.sql`, typed SQL (`prisma/sql/*.sql`, `prisma generate --sql`, `$queryRawTyped`). See [references/performance-and-raw-sql.md](references/performance-and-raw-sql.md).
+- **Error codes**: `P2002` unique violation, `P2003` foreign key, `P2025` record not found, `P2034` transaction conflict, thrown as `Prisma.PrismaClientKnownRequestError` with `code` and `meta`.
 
-## 4. Responsibilities
+## 3. Workflow
 
-- Author and review `schema.prisma` changes enforcing naming conventions, index presence, and relation integrity.
-- Design and operate migration pipelines: `prisma migrate deploy` in CI/CD, rollback strategy, and zero-downtime expand-contract.
-- Diagnose production incidents: connection exhaustion, slow queries, transaction deadlocks, and migration failures.
-- Tune `connection_limit`, `pool_timeout`, and PgBouncer settings based on workload.
-- Maintain Prisma client generation across multiple generators (client, zod, trpc, etc.).
-- Audit queries for N+1 patterns using Prisma query logs and `prisma-query-log`.
-- Define and operate seeding strategy: `prisma db seed` with idempotent factory functions.
-- Maintain extension lifecycle: query logging, soft-delete, tenant context, and audit columns.
-- Operate failover drills: PgBouncer switchover, Accelerate failover, and Pulse reconnection.
-- Author runbooks for migration rollback, replica rebuild, schema drift resolution, and client regeneration.
+1. Model the domain in `schema.prisma`, mirroring the database design (types, constraints, indexes). Keep database-specific features (RLS, partial indexes, CHECK constraints) in SQL migrations.
+2. Run `prisma migrate dev --name <change>` locally; inspect the generated SQL; use `--create-only` when the SQL needs hand edits (concurrent indexes, backfills, constraints).
+3. Run `prisma generate` explicitly (it no longer runs implicitly) and commit or build the output according to the project's convention.
+4. Write queries with explicit `select` (or `omit`), bounded `take`, and indexes that match the `where` and `orderBy`.
+5. Wrap multi-step invariants in a transaction; keep interactive transactions short and free of network calls.
+6. Test against a real PostgreSQL instance with migrations applied (`migrate deploy`), including tenant isolation tests.
+7. Deploy by running `prisma migrate deploy` as a separate release step before starting the new application version.
+8. Review the SQL for risky operations (table rewrites, non-concurrent indexes, new NOT NULL) with the postgresql-expert online-migration rules.
 
-## 5. Thinking Process
+## 4. Decision Rules
 
-1. **Read the schema first** — never design a query without understanding the model relations, indexes, and `@@index` declarations.
-2. **Identify the access pattern** — list the WHERE predicates, ORDER BY, JOIN depth, and pagination requirements.
-3. **Choose `select` over `include`** — fetch only the columns the consumer needs; `include` over-fetches by default.
-4. **Verify index coverage** — every `where` predicate on a hot query must match an index; check `@@index` and `@unique` declarations.
-5. **Check for N+1** — review every loop that performs a Prisma call; replace with `include`, `groupBy`, or batched `findMany` with `where: { id: { in: [...] } }`.
-6. **Decide transaction boundary** — interactive transaction for multi-step business logic; sequential for independent writes; never wrap a read-only query in a transaction.
-7. **Confirm pagination strategy** — offset pagination (`skip/take`) for small datasets, cursor pagination (`cursor/take`) for large or infinite feeds.
-8. **Plan migration path** — expand-contract for breaking changes; `prisma migrate diff` for SQL review; never deploy an unreviewed migration.
-9. **Test rollback** — every migration must have a tested down path; `prisma migrate resolve --rolled-back` is the last resort, not the primary tool.
-10. **Capture metrics before and after** — `prisma:query` event logs, `pg_stat_statements` for the underlying SQL, and p99 latency for affected endpoints.
+- Use `select`/`omit` for anything returned over an API; use `include` only when the full related rows are needed.
+- Use cursor pagination (`cursor`, `take`, stable unique `orderBy`) for large or growing tables; `skip/take` only for small, bounded result sets.
+- Use a sequential `$transaction([...])` for independent writes; use the interactive form when later statements depend on earlier results.
+- Use Prisma Client for CRUD and relation loading; use typed SQL or `$queryRaw` for window functions, CTEs, bulk upserts with `ON CONFLICT` semantics Prisma cannot express, and reporting queries.
+- Use `migrate dev` locally, `migrate deploy` everywhere else; `db push` only for throwaway prototypes (it records no history).
+- Prefer shared tables with `tenantId` plus PostgreSQL RLS for many small tenants; schema-per-tenant or database-per-tenant only for strict isolation or per-tenant restore requirements (each additional database needs its own client and adapter).
+- Prefer a database default or generated id (`uuidv7()`, `autoincrement()`) over client-generated ids unless ids must exist before the insert.
+- Keep the pooled runtime connection and the direct migration connection separate: the adapter gets the pooled URL at runtime, `prisma.config.ts` gets the direct URL for the CLI.
 
-## 6. Decision Making Rules
+## 5. Coding Standards
 
-- When **`select`** and **`include`** both apply, choose `select` because it returns only required fields, reducing payload and enabling index-only scans at the database layer.
-- When **interactive** and **sequential** transactions both work, choose sequential for independent operations (lower lock duration) and interactive only when intermediate results drive subsequent queries.
-- When **offset** and **cursor** pagination both function, choose cursor for any table expected to exceed 10,000 rows because offset pagination degrades quadratically.
-- When **`$queryRaw`** and **Prisma client** both express the query, choose Prisma client for type safety and N+1 prevention; escape to `$queryRaw` only for SQL features Prisma cannot express (window functions, CTEs, recursive queries).
-- When **shared-schema** and **separate-database** multi-tenancy both apply, choose separate-database when tenant count is < 100 and data isolation is regulatory; choose shared-schema when tenant count is > 1000 and operational cost dominates.
-- When **Accelerate** and **PgBouncer** both pool connections, choose Accelerate for serverless/edge deployments and PgBouncer for long-running Node.js processes; never use both in the same application.
-- When **soft delete** and **hard delete** both apply, choose hard delete for ephemeral data (sessions, logs) and soft delete for regulated data (orders, financial records); never mix within the same aggregate.
-- When **`prisma migrate dev`** and **`prisma db push`** both modify the schema, choose `migrate dev` for any environment with persistence because `db push` loses migration history and is reserved for prototyping.
+- One `PrismaClient` per process, exported from a single module; never construct it per request.
+- Import the client and `Prisma` namespace from the generated `output` directory, not from `@prisma/client` (when using the `prisma-client` generator).
+- Name models in PascalCase singular, fields in camelCase, and map to snake_case tables and columns with `@@map` and `@map` when the database convention differs.
+- Declare `onDelete` explicitly on every relation. Use `Restrict` unless cascading is a deliberate rule.
+- Use `@db.Timestamptz(6)` for instants, `BigInt` or integer minor units for money (never `Float`), `@db.Uuid` for uuid columns.
+- Validate input at the boundary (for example with Zod) before passing it to Prisma; never pass request bodies directly as `data` or `where`.
+- Catch `Prisma.PrismaClientKnownRequestError` by `code` and map to domain errors; do not expose raw Prisma messages to clients.
+- Reuse shared selections with `Prisma.validator` or `satisfies Prisma.UserSelect`, and derive result types with `Prisma.UserGetPayload<...>`.
 
-## 7. Architecture Rules
-
-- Every model must have a primary key (`@id`) and `createdAt`/`updatedAt` timestamps (`@default(now())` and `@updatedAt`).
-- Every foreign key relation must declare `onDelete` explicitly; implicit `SetNull` is forbidden when the referenced column is non-nullable.
-- Every multi-tenant model must have a `tenantId` field with `@@index([tenantId])` and a Prisma client extension enforcing tenant context.
-- Every `schema.prisma` change must produce a migration file reviewed in PR; `prisma db push` is forbidden in any persistent environment.
-- Every production deployment must use `prisma migrate deploy`, never `migrate dev`; `migrate dev` resets the database on drift.
-- Every query in a hot path must use `select` or `include` to limit payload; unbounded `findMany` without `take` is forbidden.
-- Every transaction must declare its isolation level via `$transaction(fn, { isolationLevel: 'Serializable' })` when correctness requires it.
-- Every raw query must use tagged template literals (`$queryRaw\`...\``); `$queryRawUnsafe` is forbidden in production code.
-- Every connection string must include `?connection_limit=N` tuned to the instance size; default 10 is too low for production.
-- Every schema change must be backward compatible with the previous deployed application version; breaking changes require expand-contract.
-
-## 8. Coding Standards
-
-- Every model declaration must list fields in order: id, foreign keys, business fields, timestamps, relations.
-- Every relation field must have a backing relation scalar (`userId User @relation(fields: [userId], references: [id])`).
-- Every `findMany` must include `take` with a documented maximum; unbounded queries are forbidden.
-- Every `update` and `delete` must include `where` with a unique field; non-unique bulk updates require explicit review.
-- Every `create` and `update` must validate input via Zod schemas generated from `prisma-zod-generator` or hand-written schemas mirroring the model.
-- Every `where` clause on a hot query must match an index; `EXPLAIN` the generated SQL when in doubt.
-- Every nested write (`create`, `update`, `connect`, `connectOrCreate`) must be reviewed for cascade side effects.
-- Every `$transaction` must have a `timeout` configured (default 5 seconds); long transactions must be split.
-- Every Prisma client instantiation must be a singleton per process; multiple instances cause connection leaks.
-- Every `select` must be a typed constant when reused across queries; `Prisma.UserSelect` and `Prisma.OrderSelect` enable sharing.
-- Every `include` deeper than 2 levels must be justified in a code comment; deep includes cause cartesian products.
-- Every raw SQL must use `$queryRaw` with tagged templates; string interpolation is forbidden.
-- Every enum must be declared in `schema.prisma` and mirrored in TypeScript; runtime string literals are forbidden.
-
-## 9. Naming Conventions
-
-- **Models**: PascalCase singular (`User`, `OrderItem`, `AuditLog`); map to snake_case plural tables via `@@map("users")`.
-- **Fields**: camelCase (`email`, `createdAt`, `isActive`); map to snake_case columns via `@map("created_at")`.
-- **Enums**: PascalCase (`OrderStatus`, `PaymentMethod`); values SCREAMING_SNAKE_CASE (`PENDING`, `PAID`).
-- **Relations**: camelCase singular for 1:1 and N:1 (`profile`, `user`), camelCase plural for 1:N and M:N (`orders`, `tags`).
-- **Foreign keys**: camelCase `<referenced>Singular + Id` (`userId`, `orderId`); map to snake_case via `@map("user_id")`.
-- **Composite types**: PascalCase (`Address`, `Money`); fields camelCase inside.
-- **Indexes**: `@@index([field1, field2])` with `@@index([tenantId, createdAt])` comment naming the access pattern.
-- **Unique constraints**: `@@unique([field])` or `@@unique([field1, field2], name: "user_email_tenant_unique")`.
-- **Files**: `schema.prisma` at `prisma/`; migrations at `prisma/migrations/<timestamp>_<name>/migration.sql`.
-- **Directories**: `prisma/`, `prisma/migrations/`, `prisma/seeds/`, `prisma/extensions/`, `prisma/factories/`.
-- **Tests**: `*.repository.spec.ts` for repository unit tests, `*.integration.spec.ts` for database-touching tests.
-- **Clients**: singleton exported from `src/infrastructure/prisma/client.ts`.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
 prisma/
-├── schema.prisma                 # Single source of truth for schema
-├── migrations/                   # Generated migrations, ordered by timestamp
-│   ├── 20250101000000_init/
-│   │   └── migration.sql
-│   └── 20250102000000_add_orders/
-│       └── migration.sql
-├── seeds/                        # Idempotent seed scripts
-│   ├── index.ts                  # Orchestrator
-│   ├── users.seed.ts
-│   └── orders.seed.ts
-├── factories/                    # Test data factories
-│   ├── user.factory.ts
-│   └── order.factory.ts
-├── extensions/                   # Prisma client extensions
-│   ├── soft-delete.ts
-│   ├── tenant-context.ts
-│   └── audit-logging.ts
-├── scripts/                      # Operational scripts
-│   ├── backfill.ts               # One-off data backfills
-│   └── verify-migration.ts       # Post-deploy verification
-└── README.md                     # Prisma ops runbook
+  schema.prisma
+  migrations/            # generated SQL plus hand edits, committed
+  sql/                   # typed SQL files (invoiceTotals.sql)
+  seed.ts                # development seed (never run in production)
+prisma.config.ts         # schema path, datasource.url, migrations.seed, typedSql.path
+src/
+  generated/prisma/      # generator output (commit or build in CI, per team convention)
+  db/
+    client.ts            # adapter + PrismaClient singleton
+    tenant.ts            # tenant extension, withTenant(), retry helper
+  modules/<feature>/     # repositories or services calling the client
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
+- **Repository per aggregate** that takes a client or transaction handle, so the same code runs inside and outside transactions.
+- **Unit of work**: a service opens one transaction, passes `tx` to repositories, commits once.
+- **Tenant-scoped client**: `prisma.$extends(tenantScope(tenantId))` plus a per-transaction `set_config` for RLS (section 14).
+- **Result extensions** for computed fields (`fullName`) and to hide sensitive fields from every query of a model.
+- **Outbox**: write domain rows and an `OutboxEvent` row in one transaction; a worker publishes events afterwards.
+- **Optimistic concurrency**: a `version Int` column, `updateMany({ where: { id, version }, data: { ..., version: { increment: 1 } } })`, treat `count === 0` as a conflict.
+- **Idempotent writes**: unique key plus `upsert` or catch `P2002`.
+
+## 8. Best Practices
+
+- Review migration SQL in pull requests; commit the `migrations` folder and `migration_lock.toml`.
+- Make schema changes backward compatible with the running application version (expand, deploy, contract).
+- Back every `where`, `orderBy` and relation foreign key used in hot paths with an index (`@@index`).
+- Keep interactive transactions under a few seconds and do not call external services inside them.
+- Prefer `createMany`/`createManyAndReturn` and `updateMany` over loops of single writes.
+- Use `findUniqueOrThrow` and `findFirstOrThrow` when absence is an error, so callers handle `P2025` once.
+- Log `warn` and `error` in production; enable `query` logging only temporarily and never log bound parameters of sensitive data.
+- Pin `prisma`, `@prisma/client` and `@prisma/adapter-pg` to the same version.
+
+## 9. Performance
+
+- Avoid N+1: load relations with `include`/`select` in one call, or batch with `findMany({ where: { id: { in: ids } } })`. Never `await` queries inside `.map` or `for` loops over rows.
+- Select only the columns needed; deep or wide `include` trees multiply rows and payload.
+- Set an explicit `take` limit on every `findMany` that serves user traffic.
+- Use `groupBy`, `aggregate` and `_count` in the database instead of loading rows to aggregate in JavaScript.
+- Pool size is configured on the adapter (`new PrismaPg({ connectionString, max })`, the options of the `pg` pool), not with the old engine's URL parameters such as `connection_limit` (check the adapter docs for the options your version supports); size it to the database's connection budget across all instances, and use PgBouncer or the managed pooler for many short-lived instances.
+- Use `EXPLAIN (ANALYZE, BUFFERS)` on the SQL Prisma logs (`log: ['query']` in a test environment) to verify index use; details in [references/performance-and-raw-sql.md](references/performance-and-raw-sql.md).
+- Use `$queryRawTyped` or `$queryRaw` for heavy reporting queries and bulk operations that the query API would split into many statements.
+
+## 10. Security
+
+- Use tagged templates for raw SQL (`` $queryRaw`... ${value}` ``). `$queryRawUnsafe` and `$executeRawUnsafe` accept only static SQL text with `$1` placeholders and separate parameters; never concatenate input into the string.
+- Tenant isolation covers writes as well as reads: inject `tenantId` on create, scope `where` on update, updateMany, upsert, delete and deleteMany, and back it with PostgreSQL RLS driven by a per-transaction `set_config` (section 14 and the multi-tenancy reference). Raw queries bypass client extensions, so RLS is the layer that protects them.
+- The application database role must not own the tables and must not have `BYPASSRLS`; migrations run with a separate owner role.
+- Never put `DATABASE_URL` or credentials in client bundles, logs or committed `.env` files; load from the environment or a secret manager. Do not import the generated client into browser code.
+- Whitelist sortable and filterable fields; do not spread user-supplied objects into `where`, `orderBy`, `select` or `data` (mass assignment and operator injection such as `{ contains }` or relation filters).
+- Use TLS to the database (`ssl` in the adapter's pool options, with certificate verification) in production.
+- Treat `omit` and result extensions as a convenience, not an access control; enforce field-level access in the service layer.
+
+## 11. Testing
+
+- Run integration tests against real PostgreSQL (container or CI service) with `prisma migrate deploy`; SQLite or mocks hide constraint, transaction and RLS behavior.
+- Isolate tests with one database per worker, truncation between tests, or a transaction rolled back per test; do not use `migrate reset` outside development.
+- Unit-test services with the client behind an interface or a mocked repository; keep Prisma-specific behavior (constraints, P-codes) in integration tests.
+- Test tenant isolation explicitly: tenant B cannot read, update, delete or upsert tenant A's rows, cannot create rows with A's `tenantId`, and a query without tenant context returns nothing under RLS.
+- Test error mapping for `P2002`, `P2003`, `P2025` and `P2034` retries.
+
+## 12. Review Checklist
+
+- [ ] `prisma-client` generator has `output`; client built with `PrismaPg` adapter; one client instance per process.
+- [ ] `prisma.config.ts` provides `datasource.url` from the environment; no secrets committed.
+- [ ] Migration SQL reviewed (no table rewrite, concurrent indexes, `NOT VALID` constraints for large tables).
+- [ ] Queries use `select`/`omit`, bounded `take`, indexed filters; no queries in loops.
+- [ ] Transactions are short; `P2034` is retried where serializable isolation is used.
+- [ ] Tenant-owned models: all write operations scoped, `tenantId` indexed, RLS policies with `USING` and `WITH CHECK`.
+- [ ] No `$queryRawUnsafe` with interpolated input; no user objects spread into `where` or `data`.
+- [ ] Error handling maps Prisma codes to domain errors.
+
+## 13. Production Notes
+
+- Release order: `prisma migrate deploy` (one runner, not on every instance start), then roll out the application. Failed migrations are resolved with `prisma migrate resolve --applied` or `--rolled-back` after manual repair.
+- Pooling: the application uses the pooled URL through the adapter; `prisma.config.ts` uses the direct connection for CLI commands (`migrate`, `db pull`), which need session features and advisory locks.
+- Serverless and edge: use an adapter that matches the runtime (the `pg` adapter needs TCP; check the Prisma docs for the HTTP and edge adapters) and create the client once per instance outside the handler.
+- Graceful shutdown: call `await prisma.$disconnect()` on `SIGTERM` after in-flight requests finish.
+- Monitor query latency and pool wait time from the adapter's pool, slow query logs in PostgreSQL (`pg_stat_statements`), and `P2034` rates.
+- Upgrade path from 6: switch the generator to `prisma-client` with `output`, add the adapter, move URLs into `prisma.config.ts`, load environment variables yourself, make the package ESM, and run `prisma generate` and `migrate` explicitly (see [references/schema-and-migrations.md](references/schema-and-migrations.md)).
+
+## 14. Examples
+
+Client setup (`src/db/client.ts`). The URL comes from the environment; the pool is configured on the adapter:
+
+```ts
+import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient } from '../generated/prisma/client'
+
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) throw new Error('DATABASE_URL is not set')
+
+const adapter = new PrismaPg({ connectionString, max: 10 })
+
+export const prisma = new PrismaClient({ adapter, log: ['warn', 'error'] })
 ```
-prisma-project/
-├── prisma/                       # Prisma artifacts (see folder structure)
-├── src/
-│   ├── infrastructure/
-│   │   └── prisma/
-│   │       ├── client.ts         # Singleton PrismaClient
-│   │       ├── extensions.ts     # Extension composition
-│   │       └── types.ts          # Prisma type re-exports
-│   ├── repositories/             # Data access layer
-│   │   ├── user.repository.ts
-│   │   ├── order.repository.ts
-│   │   └── base.repository.ts    # Generic CRUD base
-│   ├── domain/                   # Business entities (framework-free)
-│   │   ├── user.entity.ts
-│   │   └── order.entity.ts
-│   ├── services/                 # Use cases orchestrating repositories
-│   │   ├── user.service.ts
-│   │   └── order.service.ts
-│   ├── api/                      # HTTP/gRPC entry points
-│   │   ├── routes/
-│   │   └── middleware/
-│   ├── config/
-│   │   └── env.ts                # Validated environment variables
-│   └── utils/
-│       └── pagination.ts         # Cursor and offset helpers
-├── tests/
-│   ├── unit/                     # Service and repository unit tests
-│   ├── integration/              # Database-touching tests
-│   └── e2e/                      # API end-to-end tests
-├── scripts/                      # Operational scripts
-├── docker-compose.yml            # Local dev with Postgres + PgBouncer
-├── package.json
-├── tsconfig.json
-├── .env.example
-└── README.md
-```
 
-## 12. Design Patterns
+Tenant scoping that covers reads and writes (`src/db/tenant.ts`). Every operation is handled explicitly and unknown operations fail closed; nested writes and raw SQL are not intercepted, which is why RLS backs it:
 
-### 12.1 Repository Pattern
-**When to use**: Decouple persistence from domain logic; test services without a database.
-**When not to use**: Trivial CRUD apps where Prisma client is used directly in routes.
-**Sketch**: `interface UserRepository { findById(id): Promise<User | null> }` implemented by `PrismaUserRepository` wrapping `prisma.user.findUnique`.
+```ts
+import { Prisma } from '../generated/prisma/client'
+import { prisma } from './client'
 
-### 12.2 Unit of Work (Transaction)
-**When to use**: Multi-step business operations requiring atomicity.
-**When not to use**: Single-write operations; Prisma client handles those directly.
-**Sketch**: `await prisma.$transaction(async (tx) => { await tx.order.create(...); await tx.inventory.update(...); })`.
+const TENANT_MODELS = new Set<string>(['Customer', 'Invoice'])
 
-### 12.3 Tenant Context Extension
-**When to use**: Multi-tenant SaaS with shared schema.
-**When not to use**: Single-tenant applications; separate-database tenancy.
-**Sketch**: `prisma.$extends({ query: { $allModels: { async $allOperations({ args, query, operation }) { args.where = { ...args.where, tenantId: getCurrentTenantId() }; return query(args); } } } })`.
+type Args = { where?: Record<string, unknown>; data?: unknown; create?: Record<string, unknown>; update?: unknown }
 
-### 12.4 Soft Delete Extension
-**When to use**: Regulated data requiring audit retention.
-**When not to use**: Ephemeral data; full-text search indexes where deleted rows must not appear.
-**Sketch**: Extension intercepts `delete` to `update({ data: { deletedAt: new Date() } })` and `findMany` to `where: { deletedAt: null }`.
+function forbidTenantChange(data: unknown, tenantId: string): void {
+  for (const item of Array.isArray(data) ? data : [data]) {
+    if (item && typeof item === 'object' && 'tenantId' in item && item.tenantId !== tenantId) {
+      throw new Error('tenant-scope: tenantId in input does not match the current tenant')
+    }
+  }
+}
 
-### 12.5 Cursor Pagination
-**When to use**: Infinite feeds, large tables, mobile pagination.
-**When not to use**: Small admin tables where offset pagination is simpler.
-**Sketch**: `prisma.post.findMany({ take: 20, skip: 1, cursor: { id: lastId }, orderBy: { id: 'desc' } })`.
+const withTenantId = <T>(data: T, tenantId: string): T =>
+  (Array.isArray(data) ? data.map((d) => ({ ...d, tenantId })) : { ...(data as object), tenantId }) as T
 
-### 12.6 Optimistic Concurrency
-**When to use**: Multi-step workflows with low write contention.
-**When not to use**: High-contention counters; use `update({ data: { count: { increment: 1 } } })` instead.
-**Sketch**: `const updated = await prisma.user.update({ where: { id, version }, data: { ..., version: { increment: 1 } } });` check rowcount.
-
-## 13. Best Practices
-
-- Always use `select` to fetch only required fields; `include` over-fetches by default.
-- Always declare `onDelete` explicitly on every relation; implicit cascade is dangerous.
-- Always set `connection_limit` in the connection string based on instance size.
-- Always run `prisma migrate deploy` in production; never `migrate dev` or `db push`.
-- Always review generated SQL via `prisma migrate diff` before deploying.
-- Always use `$queryRaw` tagged templates for raw SQL; never `$queryRawUnsafe`.
-- Always declare isolation level explicitly in `$transaction` when correctness requires it.
-- Always generate Prisma client in `postinstall` script; never commit generated client.
-- Always use `@updatedAt` for `updatedAt`; never manage timestamps manually.
-- Always use Zod schemas generated from Prisma for input validation at API boundaries.
-- Always export a singleton Prisma client; never instantiate per-request.
-- Always log queries via `prisma:query` event in staging; sample in production.
-- Always run `prisma migrate reset` only in dev/test; never in production.
-- Always version schema changes with descriptive migration names (`20250101_add_user_role`).
-
-## 14. Anti Patterns
-
-### 14.1 N+1 Queries in Loops
-**Why wrong**: O(N) round-trips instead of O(1); p99 latency explodes.
-**Correct alternative**: Use `include` or batch `findMany({ where: { id: { in: ids } } })`.
-
-### 14.2 `$queryRawUnsafe` with User Input
-**Why wrong**: SQL injection; type-unsafe; bypasses parameterization.
-**Correct alternative**: Use `$queryRaw` tagged templates with parameter placeholders.
-
-### 14.3 `prisma db push` in Staging/Production
-**Why wrong**: Loses migration history; cannot roll back; drift undetectable.
-**Correct alternative**: Always `prisma migrate dev` (staging/dev with persistence) or `migrate deploy` (production).
-
-### 14.4 `findMany` Without `take`
-**Why wrong**: Unbounded result set; OOM risk; p99 latency unbounded.
-**Correct alternative**: Always include `take` with a documented maximum (e.g., 100).
-
-### 14.5 Deep `include` Chains (> 2 levels)
-**Why wrong**: Cartesian products; payload explosion; performance cliff.
-**Correct alternative**: Refactor into separate queries or denormalize via a materialized view.
-
-### 14.6 Multiple Prisma Client Instances
-**Why wrong**: Connection leaks; connection pool exhaustion; unpredictable behavior.
-**Correct alternative**: Singleton client per process; share via dependency injection.
-
-## 15. Performance Rules
-
-- `connection_limit` must be sized as `(CPU cores × 2) + spindle_count` for OLTP workloads; cap at `num_workers × 5` for serverless.
-- Every `findMany` must include `take` with a maximum; unbounded queries are forbidden.
-- Every `where` predicate on a hot query must match an `@@index`; verify via `EXPLAIN`.
-- `select` must be used to fetch only required fields; never `findUnique` without `select`.
-- `include` depth must not exceed 2 without justification; deep includes cause cartesian products.
-- Cursor pagination must be used for tables exceeding 10,000 rows; offset pagination degrades quadratically.
-- `groupBy` must replace client-side aggregation for any grouping over > 100 rows.
-- `upsert` must use `where` on a unique field; non-unique `upsert` causes race conditions.
-- `$transaction` must include `timeout` (default 5s); long transactions must be split.
-- Raw SQL must be preferred for window functions, CTEs, and recursive queries Prisma cannot express.
-
-## 16. Security Rules
-
-- `$queryRawUnsafe` is forbidden in production; `$queryRaw` tagged templates enforce parameterization.
-- `DATABASE_URL` must never be committed; load from secret manager (Vault, AWS Secrets Manager).
-- Every multi-tenant query must enforce `tenantId` via Prisma extension; application-level enforcement alone is insufficient.
-- Prisma client must use SSL in production (`?sslmode=require` or `?sslmode=verify-full`).
-- Connection string must not include credentials in logs; use `?schema=public` without `password` in `log_level=query`.
-- Every `delete` must be soft-delete for regulated data; hard delete requires ADR.
-- Every raw SQL parameter must be passed via tagged template; string interpolation is forbidden.
-- Prisma client must be instantiated with `log: ['error', 'warn']` minimum; `query` log is for staging only.
-- Every seed script must be idempotent; destructive seeds are forbidden.
-- Prisma Accelerate API key must be rotated quarterly; never embedded in client-side code.
-
-## 17. Testing Strategy
-
-- Every repository method must have unit tests with a mocked Prisma client.
-- Every service must have integration tests with a real database via `testcontainers` or ephemeral Docker.
-- Every migration must be tested forward and backward; `prisma migrate reset` must restore the prior state.
-- Test isolation must use transactional rollback (`prisma.$transaction` with rollback) or per-test database.
-- Factories must produce valid domain objects with sensible defaults; override only test-specific fields.
-- N+1 tests must use Prisma `query` event log to assert round-trip count.
-- Snapshot tests must capture generated client types and migration SQL.
-- Load tests must run nightly against a production-sized dataset subset.
-- Multi-tenant tests must verify tenant A cannot read tenant B's data.
-- End-to-end tests must cover the full API → service → repository → database flow.
-
-## 18. Documentation Standards
-
-- Every model in `schema.prisma` must have a `///` doc comment describing purpose and tenant model.
-- Every non-obvious field must have a `///` doc comment (e.g., `/// ISO 4217 currency code`).
-- Every relation must document cascade behavior in a comment.
-- Every migration must include a header comment stating purpose, ticket ID, and rollback reference.
-- Every extension must have a JSDoc comment describing the hook and side effects.
-- ADRs must be written for irreversible decisions (multi-tenancy strategy, connection pooling, Accelerate adoption).
-- `prisma/README.md` must list common commands (`migrate dev`, `migrate deploy`, `db seed`, `studio`).
-- Runbooks must exist for migration rollback, schema drift resolution, and connection pool exhaustion.
-
-## 19. Code Review Checklist
-
-- [ ] Migration is reversible; down path tested in CI.
-- [ ] Migration follows expand-contract; no destructive change in a single step.
-- [ ] Every model has `@id`, `createdAt`, `updatedAt`.
-- [ ] Every relation declares `onDelete` explicitly.
-- [ ] Every `findMany` includes `take` with documented maximum.
-- [ ] Every `where` predicate on hot queries matches an `@@index`.
-- [ ] No `$queryRawUnsafe`; only `$queryRaw` tagged templates.
-- [ ] No `include` deeper than 2 levels without justification comment.
-- [ ] No N+1 loops; replaced with `include` or batch `findMany`.
-- [ ] Every `$transaction` declares `isolationLevel` when correctness requires it.
-- [ ] Every `upsert` uses a unique field in `where`.
-- [ ] Prisma client is a singleton; no per-request instantiation.
-- [ ] Input validated via Zod schema at API boundary.
-- [ ] Multi-tenant queries enforce `tenantId` via extension.
-- [ ] `connection_limit` configured in connection string.
-- [ ] `prisma:query` log sampled in production.
-- [ ] No `prisma db push` in any persistent environment.
-- [ ] Migration file reviewed by second engineer before deploy.
-
-## 20. Refactoring Checklist
-
-- [ ] Identify N+1 queries via `prisma:query` log in staging.
-- [ ] Replace `include` with `select` where only specific fields are needed.
-- [ ] Replace offset pagination with cursor pagination for large tables.
-- [ ] Replace client-side aggregation with `groupBy`, `_count`, `_sum`.
-- [ ] Replace `$queryRawUnsafe` with `$queryRaw` tagged templates.
-- [ ] Replace per-request Prisma client with singleton.
-- [ ] Replace manual `updatedAt` with `@updatedAt`.
-- [ ] Replace implicit `onDelete` with explicit declaration.
-- [ ] Split deep `include` chains into separate queries or denormalize.
-- [ ] Add `@@index` for hot query predicates missing index.
-- [ ] Add `take` to unbounded `findMany` calls.
-- [ ] Re-measure p99 latency before and after; document improvement.
-
-## 21. Deployment Checklist
-
-- [ ] Migration tested forward and backward in staging.
-- [ ] `prisma migrate diff` SQL reviewed and approved.
-- [ ] `pg_stat_statements` baseline captured pre-deploy.
-- [ ] PgBouncer capacity headroom confirmed.
-- [ ] Replicas healthy with lag < 1 second.
-- [ ] Backup completed immediately before deploy.
-- [ ] Rollback migration tested in staging.
-- [ ] Deploy window scheduled during low-traffic period.
-- [ ] On-call engineer briefed and reachable.
-- [ ] Runbook linked in deploy ticket.
-- [ ] Feature flags configured for behavior changes.
-- [ ] Prisma client regenerated and committed (if generator changed).
-- [ ] `connection_limit` verified for production instance size.
-- [ ] Accelerate API key rotated if deploying new client version.
-- [ ] Seed scripts idempotent and tested.
-- [ ] Post-deploy: verify `migrations` table matches expected state.
-
-## 22. Production Checklist
-
-- [ ] Prisma client is singleton; one instance per process.
-- [ ] `connection_limit` tuned to instance size; not default 10.
-- [ ] PgBouncer or Accelerate configured in front of database.
-- [ ] SSL enforced in connection string (`?sslmode=verify-full`).
-- [ ] `prisma:query` log sampled at 1% in production for slow query detection.
-- [ ] `error` and `warn` logs always enabled.
-- [ ] Every multi-tenant query enforces `tenantId` via extension.
-- [ ] Soft-delete extension active on regulated models.
-- [ ] Audit logging extension active on sensitive models.
-- [ ] Migration history table backed up with database.
-- [ ] Accelerate API key rotated quarterly.
-- [ ] Pulse change stream monitored for connection drops.
-- [ ] Dashboard: connection count, query p50/p95/p99, transaction duration, error rate.
-- [ ] Alerts: connection exhaustion, slow query > 1s, transaction > 5s, migration failure.
-- [ ] Runbooks for migration rollback, schema drift, connection exhaustion, Accelerate outage.
-- [ ] Quarterly disaster recovery drill: restore database, regenerate client, verify application.
-
-## 23. Logging Strategy
-
-- `log: ['error', 'warn']` always enabled in production.
-- `log: ['query', 'error', 'warn']` enabled in staging and dev.
-- `prisma:query` events sampled at 1% in production via custom log handler.
-- Every query log must include duration, model, operation, and parameter count (not values).
-- Every transaction log must include isolation level, duration, and outcome (commit/rollback).
-- Every migration log must include migration name, duration, and outcome.
-- Every extension hook log must include model, operation, and side effect.
-- PII must be redacted before log shipping; use parameter count, not values.
-- Logs must be shipped to centralized log store (Loki, CloudWatch, Datadog) with retention ≥ 90 days.
-- Slow query threshold: log any query > 500 ms with full SQL and parameter count.
-
-## 24. Monitoring Strategy
-
-- Prisma client metrics: active connections, idle connections, query duration histogram.
-- Database metrics (via Postgres exporter): connections, replication lag, cache hit ratio, bloat.
-- Application metrics: query count per endpoint, transaction duration per use case, error rate per model.
-- Pulse change stream metrics: events per second, lag, reconnection count.
-- Accelerate metrics: request count, latency, error rate, cache hit ratio.
-- Alert on: connection count > 80% of `connection_limit`, query p99 > 1s, transaction duration > 5s, migration failure, Pulse disconnection > 10s, Accelerate error rate > 1%.
-- Dashboard: query duration heatmap, top slow queries, transaction duration by use case, error rate by model.
-- Daily report: top 10 slowest queries, top 10 most-called queries, schema drift detection.
-- Weekly report: migration history, index usage, connection pool utilization trend.
-- Monthly report: capacity planning, cost breakdown, Accelerate/Pulse usage.
-
-## 25. Error Handling
-
-- Prisma known errors must be mapped to domain errors: `P2002` (unique constraint) → 409 Conflict; `P2025` (record not found) → 404 Not Found; `P2003` (foreign key) → 400 Bad Request.
-- Connection errors (`P1001`, `P1002`) must retry with exponential backoff and jitter; never retry in tight loop.
-- Transaction deadlocks must be retried with bounded attempts (3-5) and logged.
-- Migration failures (`P3005`, `P3014`) must halt deployment; never force `migrate resolve` without root cause analysis.
-- Timeout errors (`P2024`) must surface to user; never extend indefinitely.
-- Schema drift (`P3008`) must halt deployment; never `migrate reset` in production.
-- Raw SQL errors must preserve PostgreSQL error code and message; never swallow.
-- Extension errors must fail closed; never silently bypass tenant isolation.
-- Validation errors must surface field-level details to the API consumer.
-- Pulse disconnection must auto-reconnect with backoff; surface to monitoring.
-
-## 26. Examples
-
-### Example 1: Multi-Tenant Repository with Cursor Pagination
-
-```typescript
-// src/infrastructure/prisma/extensions/tenant-context.ts
-import { Prisma, PrismaClient } from '@prisma/client';
-
-export function withTenantContext(prisma: PrismaClient) {
-  return prisma.$extends({
-    name: 'tenantContext',
+export const tenantScope = (tenantId: string) =>
+  Prisma.defineExtension({
+    name: 'tenant-scope',
     query: {
       $allModels: {
-        async $allOperations({ args, query, operation, model }) {
-          if (!['findMany', 'findUnique', 'findFirst', 'count', 'aggregate', 'groupBy'].includes(operation)) {
-            return query(args);
+        async $allOperations({ model, operation, args, query }) {
+          if (!TENANT_MODELS.has(model)) return query(args)
+          const a = args as unknown as Args
+          switch (operation) {
+            case 'findUnique': case 'findUniqueOrThrow': case 'findFirst': case 'findFirstOrThrow':
+            case 'findMany': case 'count': case 'aggregate': case 'groupBy':
+            case 'delete': case 'deleteMany':
+              a.where = { ...a.where, tenantId }                  // update/delete by id also match on tenant
+              break
+            case 'update': case 'updateMany': case 'updateManyAndReturn':
+              forbidTenantChange(a.data, tenantId)                // cannot move rows to another tenant
+              a.where = { ...a.where, tenantId }
+              break
+            case 'create': case 'createMany': case 'createManyAndReturn':
+              forbidTenantChange(a.data, tenantId)
+              a.data = withTenantId(a.data, tenantId)             // inject tenantId on insert
+              break
+            case 'upsert':
+              forbidTenantChange(a.create, tenantId)
+              forbidTenantChange(a.update, tenantId)
+              a.where = { ...a.where, tenantId }
+              a.create = { ...a.create, tenantId }
+              break
+            default:
+              throw new Error(`tenant-scope: unsupported operation ${operation}`)
           }
-          const tenantId = getCurrentTenantId();
-          if (!tenantId) throw new Error('Tenant context required');
-          args.where = { ...args.where, tenantId };
-          return query(args);
+          return query(args)
         },
       },
     },
-  });
-}
-
-// src/repositories/order.repository.ts
-import { PrismaClient, Order } from '@prisma/client';
-
-export class OrderRepository {
-  constructor(private readonly prisma: PrismaClient) {}
-
-  async findByUserCursor(userId: string, cursor?: string, take = 20): Promise<Order[]> {
-    return this.prisma.order.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        totalCents: true,
-        status: true,
-        placedAt: true,
-        items: { select: { id: true, name: true, quantity: true } },
-      },
-      take: take + 1,
-      skip: cursor ? 1 : 0,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { placedAt: 'desc' },
-    });
-  }
-}
+  })
 ```
 
-### Example 2: Interactive Transaction with Isolation Level
+Per-transaction database context and retry (same file). `set_config(..., true)` is local to the transaction, so a pooled connection never carries a tenant over; the RLS policies are in the multi-tenancy reference:
 
-```typescript
-// src/services/transfer.service.ts
-import { PrismaClient, Prisma } from '@prisma/client';
+```ts
+const scoped = (tenantId: string) => prisma.$extends(tenantScope(tenantId))
+export type TenantTx = Omit<ReturnType<typeof scoped>, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>
+type TxOptions = { maxWait?: number; timeout?: number; isolationLevel?: Prisma.TransactionIsolationLevel }
 
-export class TransferService {
-  constructor(private readonly prisma: PrismaClient) {}
+export async function withTenant<T>(
+  tenantId: string,                                  // from the verified session, never from the request body
+  work: (db: TenantTx) => Promise<T>,
+  options: TxOptions = { maxWait: 2_000, timeout: 10_000 },
+): Promise<T> {
+  return scoped(tenantId).$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`
+    return work(tx)
+  }, options)
+}
 
-  async transfer(fromId: string, toId: string, amountCents: bigint): Promise<void> {
-    await this.prisma.$transaction(
-      async (tx) => {
-        const from = await tx.account.findUniqueOrThrow({ where: { id: fromId } });
-        if (from.balanceCents < amountCents) {
-          throw new Error('Insufficient funds');
-        }
-        await tx.account.update({
-          where: { id: fromId },
-          data: { balanceCents: { decrement: amountCents } },
-        });
-        await tx.account.update({
-          where: { id: toId },
-          data: { balanceCents: { increment: amountCents } },
-        });
-        await tx.transfer.create({
-          data: { fromId, toId, amountCents, status: 'COMPLETED' },
-        });
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 10_000 },
-    );
+export async function retryable<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn()
+    } catch (e) {
+      const again = e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034'
+      if (!again || i >= attempts) throw e
+      await new Promise((r) => setTimeout(r, 25 * 2 ** i))
+    }
   }
 }
+
+// usage: update({ where: { id } }) is scoped to the tenant, so another tenant's id yields P2025
+// await withTenant(tenantId, (db) => db.invoice.update({ where: { id }, data: { status: 'PAID' } }))
 ```
 
-### Example 3: Raw SQL with Tagged Templates for Analytics
+## 15. Common Mistakes
 
-```typescript
-// src/repositories/analytics.repository.ts
-import { PrismaClient } from '@prisma/client';
+- Tenant filter on reads only, or `update({ where: { id } })` without the tenant: writes and deletes by id cross tenants. Scope every operation and add RLS.
+- Trusting the tenant id from the request body or a caller-supplied parameter instead of the verified session.
+- Application role that owns the tables or has `BYPASSRLS`, which makes RLS a no-op.
+- Using the Prisma 6 setup on Prisma 7: `prisma-client-js` without `output`, `url` in the datasource block, `new PrismaClient()` without an adapter, relying on `.env` autoload, or expecting `migrate dev` to run `generate` and seed.
+- `db push` against a shared or production database instead of reviewed migrations (no history, and it can drop data).
+- Creating a `PrismaClient` per request or per module (connection pool exhaustion); forgetting `$disconnect` in scripts and tests.
+- `include` for everything, unbounded `findMany`, queries inside loops (N+1).
+- Interactive transactions that call external APIs or wait on user input, exceeding `timeout` and holding locks.
+- Interpolating input into `$queryRawUnsafe`; spreading request bodies into `where` or `data`.
+- Plain index creation in a migration on a large live table; use a hand-edited `CREATE INDEX CONCURRENTLY` migration.
+- `dbgenerated("uuidv7()")` (or a custom function default) on a database older than PostgreSQL 18, or a default referencing a function created in a later migration.
+- Floating-point money, `DateTime` without `@db.Timestamptz`, missing `onDelete` rules.
+- Mixing Prisma 7 CLI with a Prisma 8 pre-release in the same repo without reading the upgrade guide.
 
-export class AnalyticsRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+## 16. References
 
-  async dailyRevenue(since: Date): Promise<Array<{ day: Date; totalCents: bigint; orderCount: number }>> {
-    const rows = await this.prisma.$queryRaw<Array<{ day: Date; totalCents: bigint; orderCount: number }>>`
-      SELECT date_trunc('day', placed_at) AS day,
-             SUM(total_cents)             AS total_cents,
-             COUNT(*)                     AS order_count
-        FROM orders
-       WHERE placed_at >= ${since}
-         AND status = 'COMPLETED'
-       GROUP BY day
-       ORDER BY day DESC
-       LIMIT 90;
-    `;
-    return rows.map((row) => ({
-      day: row.day,
-      totalCents: BigInt(row.totalCents),
-      orderCount: Number(row.orderCount),
-    }));
-  }
-}
-```
-
-## 27. Common Mistakes
-
-### 27.1 Using `include` Where `select` Suffices
-**What**: `prisma.user.findUnique({ where: { id }, include: { orders: true } })` when only `order.id` and `order.totalCents` are needed.
-**Why**: Over-fetching payload, larger transfer size, larger memory footprint.
-**How to avoid**: Always use `select` with explicit fields; reserve `include` for full relation loads.
-
-### 27.2 Forgetting `onDelete` Declaration
-**What**: Declaring `orders Order[]` without `onDelete` on the user side; relying on default.
-**Why**: Default behavior is database-dependent; cascading deletes may surprise you.
-**How to avoid**: Always declare `onDelete: Cascade | Restrict | SetNull` explicitly; document the rationale.
-
-### 27.3 N+1 Queries in `forEach` Loops
-**What**: `users.forEach(async (u) => await prisma.order.findMany({ where: { userId: u.id } }))`.
-**Why**: N round-trips; p99 latency explodes; `forEach` does not await.
-**How to avoid**: Use `prisma.user.findMany({ include: { orders: true } })` or batch `findMany({ where: { userId: { in: ids } } })`.
-
-### 27.4 `$queryRawUnsafe` with Template Strings
-**What**: `prisma.$queryRawUnsafe(\`SELECT * FROM users WHERE email = '${email}'\`)`.
-**Why**: SQL injection; bypasses parameterization; type-unsafe.
-**How to avoid**: Use `prisma.$queryRaw\`SELECT * FROM users WHERE email = ${email}\`` tagged template.
-
-### 27.5 `prisma db push` in Staging
-**What**: Using `db push` because "it's faster than migrations".
-**Why**: Loses migration history; cannot roll back; drift undetectable; staging diverges from production.
-**How to avoid**: Always `prisma migrate dev` in staging/dev with persistence; reserve `db push` for throwaway prototypes.
-
-### 27.6 Multiple Prisma Client Instances
-**What**: Instantiating `new PrismaClient()` in every request handler.
-**Why**: Connection leaks; pool exhaustion; unpredictable behavior under load.
-**How to avoid**: Singleton client per process; export from `src/infrastructure/prisma/client.ts`.
-
-## 28. Professional Workflow
-
-1. **Receive request**: schema change, query optimization, or incident.
-2. **Reproduce**: confirm in staging with production-sized dataset.
-3. **Capture baseline**: `prisma:query` log, `pg_stat_statements`, p99 latency.
-4. **Design solution**: update `schema.prisma`, write migration, draft repository method.
-5. **Peer review**: PR enforces checklist; reviewer runs migration in dev environment.
-6. **Test**: unit tests for repository, integration tests for service, snapshot tests for generated SQL.
-7. **Stage deploy**: `prisma migrate deploy` in staging; verify forward and rollback.
-8. **Pre-deploy checks**: confirm PgBouncer capacity, replica health, backup recency, on-call availability.
-9. **Production deploy**: `prisma migrate deploy` in low-traffic window; monitor dashboard live; rollback if metrics regress.
-10. **Post-deploy**: verify `migrations` table state; capture post-deploy metrics; close ticket with before/after.
-11. **Post-mortem**: for incidents, write blameless post-mortem within 48 hours; add alert and runbook.
-
-## 29. Response Style
-
-- Always cite Prisma version (5.x) when proposing syntax; never assume forward compatibility.
-- Always state the access pattern (read/write ratio, cardinality) before recommending `select` vs `include`.
-- Always provide the rollback command alongside every migration.
-- Never use the word "should" — use "must" or "must not".
-- Always quantify expected impact (p99 latency, payload size, query count) before and after a change.
-- Always link to the relevant Prisma documentation page or ADR.
-- Always show the generated SQL when proposing a query change; reasoning from SQL is required.
-- Always declare isolation level when proposing a transaction.
-
-## 30. Output Format
-
-- Every recommendation must include: problem statement, evidence (query log/EXPLAIN), proposed code, expected impact, and rollback plan.
-- TypeScript blocks must be syntactically valid for Prisma 5+ and TypeScript 5+.
-- `schema.prisma` blocks must follow the canonical model field ordering and naming conventions.
-- Migration files must be named `<timestamp>_<snake_case_name>/migration.sql` and include header comment.
-- Extension recommendations must include name, hook type, side effects, and test plan.
-- Performance reports must show before/after query logs with round-trip count and p99 latency.
-- Security recommendations must cite the OWASP or CWE reference and the mitigating control.
-- Incident reports must follow: timeline, impact, root cause, contributing factors, action items with owners and dates.
-- Runbooks must be numbered step-by-step with verification commands at each step.
-- ADRs must follow: context, decision, status, consequences, alternatives considered.
+- [references/schema-and-migrations.md](references/schema-and-migrations.md): schema example, `prisma.config.ts`, migrate commands, hand-edited SQL, expand and contract, Prisma 6 to 7 upgrade.
+- [references/client-extensions-and-multi-tenancy.md](references/client-extensions-and-multi-tenancy.md): `$extends` components, tenant extension details, RLS wiring, tests, nested-write caveats, other isolation models.
+- [references/performance-and-raw-sql.md](references/performance-and-raw-sql.md): query shaping, pagination, transactions, pooling, typed SQL, raw queries, diagnosing slow queries.
+- Prisma docs: https://www.prisma.io/docs ; release notes: https://github.com/prisma/prisma/releases
