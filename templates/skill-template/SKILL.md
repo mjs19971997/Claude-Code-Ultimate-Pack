@@ -1,609 +1,156 @@
 ---
 name: skill-template
-description: >
-  Template for authoring a new Claude Code Agent Skill following the official
-  specification. Copy this folder to skills/<your-skill-name>/ and replace
-  every placeholder with substantive, production-grade content.
-
-  Use this skill as a starting point when creating a new skill — it provides
-  the required YAML frontmatter shape and the 30-section body anatomy.
+description: >-
+  Starting point for a new skill in this pack; copy the folder, rename it and replace every placeholder. Use when creating a skill, updating a skill to the v3.0.0 layout, or checking what a SKILL.md section should contain. Not for the format rules themselves (see docs/skill-structure.md) or the contribution workflow (see CONTRIBUTING.md).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-> **How to use this template**
->
-> 1. Copy this folder to `skills/<your-skill-name>/`:
->    ```bash
->    cp -r templates/skill-template skills/<your-skill-name>
->    ```
-> 2. Rename the folder so it matches your skill's `name` field.
-> 3. Open `SKILL.md` and replace every placeholder (`<...>`) with real content.
-> 4. Validate locally: `python3 scripts/validate_skills.py`
-> 5. Test in Claude Code by invoking `/skill <your-skill-name>` with a real-world prompt.
->
-> **Rules**:
-> - The folder name MUST exactly match the `name` field in YAML frontmatter.
-> - The `name` field MUST match `^[a-z0-9][a-z0-9-]{0,63}$`.
-> - The `description` field MUST describe both **what** the skill does AND **when** to use it.
-> - Every section marked `[MINIMUM: X lines]` must contain at least that many lines of substantive content.
-> - No placeholders, no TODOs, no "implement later". Production-ready content only.
-> - The validator must report `Overall pass: True`.
+# Skill Template
 
----
+Replace this paragraph with two to four sentences: what the skill covers, which technologies and task types it handles, and what it leaves to other skills. Claude reads the frontmatter description first and this body only after the skill has been chosen, so the scope paragraph should orient, not repeat the description.
 
-## Table of Contents
+> Verified against <technology and exact versions, for example "Tool 4.2.x, Library 9.1.x"> (YYYY-MM).
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
----
+## 1. Scope
 
-## 1. Role
+- Covered: list the concrete tasks and technologies, for example "configuring X, writing Y, debugging Z".
+- Not covered: name each neighbouring area and the skill that owns it, for example "container images (docker-expert)". Every name must be an existing folder under `skills/`.
 
-[MINIMUM: 5 lines]
+## 2. Core Expertise
 
-You are a `<Role Name>` with 20+ years of experience building production systems in `<technology/domain>`. You have shipped `<scale indicator: e.g., systems serving 10M+ users, contracts holding $1B+ TVL, applications deployed to 50+ countries>`. You think in terms of trade-offs, failure modes, and long-term maintainability. You are not a tutorial writer — you are a staff engineer producing production-ready artifacts that other engineers will depend on for years.
+A table of facts that are easy to get wrong or that changed recently. Keep each row verifiable against the official documentation.
 
----
+| Area | Key facts |
+|---|---|
+| Placeholder area | Placeholder fact with the exact option name, default value or version where it applies |
+| Another area | Another fact; mention deprecated or removed features and what replaced them |
 
-## 2. Mission
+## 3. Workflow
 
-[MINIMUM: 3 lines]
+Numbered steps that Claude follows for a typical task in this area. Fold any "thinking process" material in here.
 
-Your mission is to `<single, clear purpose>`. You achieve this by `<how you achieve it>`. You deliver `<what you deliver: code, designs, reviews, audits>` that `<quality bar: e.g., passes production checklist, survives security audit, scales to 10x load without rewrites>`.
+1. Clarify the runtime, versions and constraints that change the answer.
+2. Inspect the existing code or configuration before proposing changes.
+3. Make the smallest change that solves the problem and follows the project's conventions.
+4. Verify with the project's own commands (build, test, lint) and state what was run.
+5. Summarise what changed and any follow-up the user must do.
 
----
+## 4. Decision Rules
 
-## 3. Core Expertise
+Use "if X, then Y because Z" statements for choices that come up repeatedly.
 
-[MINIMUM: 10 bullets]
+- If the project already uses option A, keep it; switch to option B only when a stated requirement needs it.
+- Prefer the built-in feature over a third-party package unless the package solves a documented gap.
+- When two approaches trade speed for safety, choose safety by default and say what the faster option costs.
 
-- `<Specific expertise area 1>`
-- `<Specific expertise area 2>`
-- `<Specific expertise area 3>`
-- `<Specific expertise area 4>`
-- `<Specific expertise area 5>`
-- `<Specific expertise area 6>`
-- `<Specific expertise area 7>`
-- `<Specific expertise area 8>`
-- `<Specific expertise area 9>`
-- `<Specific expertise area 10>`
+## 5. Coding Standards
 
----
+Rules a reviewer could check in a diff: naming, formatting, error handling, typing, imports.
 
-## 4. Responsibilities
+- Follow the formatter and linter configured in the repository; do not add a second one.
+- Name things after the domain, not the technology.
+- Handle errors at the layer that can act on them; do not swallow them.
 
-[MINIMUM: 8 bullets]
+## 6. Project Structure
 
-- I am responsible for `<responsibility 1>`
-- I am responsible for `<responsibility 2>`
-- I am responsible for `<responsibility 3>`
-- I am responsible for `<responsibility 4>`
-- I am responsible for `<responsibility 5>`
-- I am responsible for `<responsibility 6>`
-- I am responsible for `<responsibility 7>`
-- I am responsible for `<responsibility 8>`
+A short tree of the layout this skill recommends. Use a language-tagged fence (`text` for trees).
 
----
-
-## 5. Thinking Process
-
-[MINIMUM: 8 steps]
-
-1. **Understand the request** — Restate the request in your own words. Identify the explicit requirements and the implicit constraints.
-2. **Gather context** — Examine relevant files, configurations, and surrounding systems. Never assume; always verify.
-3. **Identify constraints** — Performance, security, scale, timeline, team skill, existing architecture.
-4. **Evaluate options** — List at least 2 viable approaches. Compare on: correctness, performance, security, maintainability, simplicity.
-5. **Make a decision** — Choose the option that best satisfies the constraints. Document the rationale.
-6. **Implement** — Write production-ready code following the Coding Standards and Naming Conventions below.
-7. **Verify** — Run tests, lint, type-check. Confirm the implementation meets the original request.
-8. **Document** — Update documentation, write commit messages, communicate trade-offs.
-
----
-
-## 6. Decision Making Rules
-
-[MINIMUM: 8 rules]
-
-- When `<X>` and `<Y>` conflict, choose `<Z>` because `<reason>`
-- When `<X>` and `<Y>` conflict, choose `<Z>` because `<reason>`
-- When `<X>` and `<Y>` conflict, choose `<Z>` because `<reason>`
-- When `<X>` and `<Y>` conflict, choose `<Z>` because `<reason>`
-- When `<X>` and `<Y>` conflict, choose `<Z>` because `<reason>`
-- When `<X>` and `<Y>` conflict, choose `<Z>` because `<reason>`
-- When `<X>` and `<Y>` conflict, choose `<Z>` because `<reason>`
-- When `<X>` and `<Y>` conflict, choose `<Z>` because `<reason>`
-
----
-
-## 7. Architecture Rules
-
-[MINIMUM: 8 rules]
-
-- `<Architecture rule 1>`
-- `<Architecture rule 2>`
-- `<Architecture rule 3>`
-- `<Architecture rule 4>`
-- `<Architecture rule 5>`
-- `<Architecture rule 6>`
-- `<Architecture rule 7>`
-- `<Architecture rule 8>`
-
----
-
-## 8. Coding Standards
-
-[MINIMUM: 10 rules]
-
-- `<Coding standard 1>`
-- `<Coding standard 2>`
-- `<Coding standard 3>`
-- `<Coding standard 4>`
-- `<Coding standard 5>`
-- `<Coding standard 6>`
-- `<Coding standard 7>`
-- `<Coding standard 8>`
-- `<Coding standard 9>`
-- `<Coding standard 10>`
-
----
-
-## 9. Naming Conventions
-
-[MINIMUM: 10 rules]
-
-- **Variables**: `<rule>`
-- **Functions**: `<rule>`
-- **Classes**: `<rule>`
-- **Interfaces**: `<rule>`
-- **Types**: `<rule>`
-- **Constants**: `<rule>`
-- **Enums**: `<rule>`
-- **Files**: `<rule>`
-- **Directories**: `<rule>`
-- **Tests**: `<rule>`
-
----
-
-## 10. Folder Structure
-
-[MINIMUM: 20 lines including comments]
-
-```
-project-root/
-├── src/                    # Source code
-│   ├── module-a/           # Module A description
-│   ├── module-b/           # Module B description
-│   └── shared/             # Shared utilities and types
-├── tests/                  # Test files
-├── docs/                   # Documentation
-├── config/                 # Configuration files
-└── scripts/                # Build and deployment scripts
+```text
+project/
+├── src/            # application code
+├── tests/          # mirrors src/
+└── config/         # environment-specific settings, no secrets
 ```
 
-`<Paragraph explaining the organization>`
+## 7. Design Patterns
 
----
+- **Pattern name**: when to use it, the problem it solves, and one line on its cost.
+- **Another pattern**: same format. Link a reference file for long examples.
 
-## 11. Project Structure
+## 8. Best Practices
 
-[MINIMUM: 25 lines]
+- Practice stated as an action, with the reason in the same bullet.
+- Keep bullets self-contained; a reader should not need the previous bullet.
 
-`<Full project layout including configuration, environment, and build outputs>`
+## 9. Performance
 
-```
-project-root/
-├── src/
-├── tests/
-├── docs/
-├── config/
-├── scripts/
-├── .env.example
-├── .gitignore
-├── package.json
-├── README.md
-└── ...
-```
+- Name the metric to measure first, then the techniques, for example "measure p95 latency, then add an index".
+- State when an optimisation is not worth its complexity.
 
-`<Paragraph explaining the end-to-end organization>`
+## 10. Security
 
----
+- Name the threat and the control, for example "untrusted input reaches the query, so use parameterised statements".
+- Never include real secrets in examples; use placeholders such as `YOUR_API_KEY` and read values from the environment.
+- Flag insecure defaults in the technology and how to change them.
 
-## 12. Design Patterns
+## 11. Testing
 
-[MINIMUM: 6 patterns]
+- Which test types matter for this area and what each one should cover.
+- The commands to run them.
+- How to test failure paths, not only the happy path.
 
-### Pattern 1: `<Name>`
-- **When to use**: `<condition>`
-- **When not to use**: `<condition>`
-- **Sketch**: `<one-line code sketch>`
+## 12. Review Checklist
 
-### Pattern 2: `<Name>`
-- **When to use**: `<condition>`
-- **When not to use**: `<condition>`
-- **Sketch**: `<one-line code sketch>`
+- [ ] Versions and options match the "Verified against" line.
+- [ ] No secrets, tokens or personal data in code or examples.
+- [ ] Error paths are handled and tested.
+- [ ] The change follows the project's existing conventions.
+- [ ] Documentation or changelog updated when behaviour changed.
 
-`<continue for at least 6 patterns>`
+## 13. Production Notes
 
----
+- Deployment, rollout and rollback considerations.
+- Observability: which logs, metrics and alerts to add.
+- Known limits, deprecations and upgrade paths worth planning for.
 
-## 13. Best Practices
+## 14. Examples
 
-[MINIMUM: 10 practices]
+Include two or three short, runnable examples that follow the rules above. Each needs a one-line introduction saying what it demonstrates.
 
-- `<Best practice 1>`
-- `<Best practice 2>`
-- `<Best practice 3>`
-- `<Best practice 4>`
-- `<Best practice 5>`
-- `<Best practice 6>`
-- `<Best practice 7>`
-- `<Best practice 8>`
-- `<Best practice 9>`
-- `<Best practice 10>`
+A minimal example, with the language tag matching the content:
 
----
-
-## 14. Anti Patterns
-
-[MINIMUM: 5 anti-patterns]
-
-### Anti-Pattern 1: `<Name>`
-- **Why it is wrong**: `<explanation>`
-- **Correct alternative**: `<alternative>`
-
-### Anti-Pattern 2: `<Name>`
-- **Why it is wrong**: `<explanation>`
-- **Correct alternative**: `<alternative>`
-
-`<continue for at least 5 anti-patterns>`
-
----
-
-## 15. Performance Rules
-
-[MINIMUM: 8 rules]
-
-- `<Performance rule 1>`
-- `<Performance rule 2>`
-- `<Performance rule 3>`
-- `<Performance rule 4>`
-- `<Performance rule 5>`
-- `<Performance rule 6>`
-- `<Performance rule 7>`
-- `<Performance rule 8>`
-
----
-
-## 16. Security Rules
-
-[MINIMUM: 8 rules]
-
-- `<Security rule 1>`
-- `<Security rule 2>`
-- `<Security rule 3>`
-- `<Security rule 4>`
-- `<Security rule 5>`
-- `<Security rule 6>`
-- `<Security rule 7>`
-- `<Security rule 8>`
-
----
-
-## 17. Testing Strategy
-
-[MINIMUM: 10 rules]
-
-- `<Testing rule 1>`
-- `<Testing rule 2>`
-- `<Testing rule 3>`
-- `<Testing rule 4>`
-- `<Testing rule 5>`
-- `<Testing rule 6>`
-- `<Testing rule 7>`
-- `<Testing rule 8>`
-- `<Testing rule 9>`
-- `<Testing rule 10>`
-
----
-
-## 18. Documentation Standards
-
-[MINIMUM: 8 rules]
-
-- `<Documentation rule 1>`
-- `<Documentation rule 2>`
-- `<Documentation rule 3>`
-- `<Documentation rule 4>`
-- `<Documentation rule 5>`
-- `<Documentation rule 6>`
-- `<Documentation rule 7>`
-- `<Documentation rule 8>`
-
----
-
-## 19. Code Review Checklist
-
-[MINIMUM: 15 items]
-
-- [ ] `<Checklist item 1>`
-- [ ] `<Checklist item 2>`
-- [ ] `<Checklist item 3>`
-- [ ] `<Checklist item 4>`
-- [ ] `<Checklist item 5>`
-- [ ] `<Checklist item 6>`
-- [ ] `<Checklist item 7>`
-- [ ] `<Checklist item 8>`
-- [ ] `<Checklist item 9>`
-- [ ] `<Checklist item 10>`
-- [ ] `<Checklist item 11>`
-- [ ] `<Checklist item 12>`
-- [ ] `<Checklist item 13>`
-- [ ] `<Checklist item 14>`
-- [ ] `<Checklist item 15>`
-
----
-
-## 20. Refactoring Checklist
-
-[MINIMUM: 10 items]
-
-- [ ] `<Checklist item 1>`
-- [ ] `<Checklist item 2>`
-- [ ] `<Checklist item 3>`
-- [ ] `<Checklist item 4>`
-- [ ] `<Checklist item 5>`
-- [ ] `<Checklist item 6>`
-- [ ] `<Checklist item 7>`
-- [ ] `<Checklist item 8>`
-- [ ] `<Checklist item 9>`
-- [ ] `<Checklist item 10>`
-
----
-
-## 21. Deployment Checklist
-
-[MINIMUM: 15 items]
-
-- [ ] `<Checklist item 1>`
-- [ ] `<Checklist item 2>`
-- [ ] `<Checklist item 3>`
-- [ ] `<Checklist item 4>`
-- [ ] `<Checklist item 5>`
-- [ ] `<Checklist item 6>`
-- [ ] `<Checklist item 7>`
-- [ ] `<Checklist item 8>`
-- [ ] `<Checklist item 9>`
-- [ ] `<Checklist item 10>`
-- [ ] `<Checklist item 11>`
-- [ ] `<Checklist item 12>`
-- [ ] `<Checklist item 13>`
-- [ ] `<Checklist item 14>`
-- [ ] `<Checklist item 15>`
-
----
-
-## 22. Production Checklist
-
-[MINIMUM: 15 items]
-
-- [ ] `<Checklist item 1>`
-- [ ] `<Checklist item 2>`
-- [ ] `<Checklist item 3>`
-- [ ] `<Checklist item 4>`
-- [ ] `<Checklist item 5>`
-- [ ] `<Checklist item 6>`
-- [ ] `<Checklist item 7>`
-- [ ] `<Checklist item 8>`
-- [ ] `<Checklist item 9>`
-- [ ] `<Checklist item 10>`
-- [ ] `<Checklist item 11>`
-- [ ] `<Checklist item 12>`
-- [ ] `<Checklist item 13>`
-- [ ] `<Checklist item 14>`
-- [ ] `<Checklist item 15>`
-
----
-
-## 23. Logging Strategy
-
-[MINIMUM: 10 rules]
-
-- `<Logging rule 1>`
-- `<Logging rule 2>`
-- `<Logging rule 3>`
-- `<Logging rule 4>`
-- `<Logging rule 5>`
-- `<Logging rule 6>`
-- `<Logging rule 7>`
-- `<Logging rule 8>`
-- `<Logging rule 9>`
-- `<Logging rule 10>`
-
----
-
-## 24. Monitoring Strategy
-
-[MINIMUM: 10 rules]
-
-- `<Monitoring rule 1>`
-- `<Monitoring rule 2>`
-- `<Monitoring rule 3>`
-- `<Monitoring rule 4>`
-- `<Monitoring rule 5>`
-- `<Monitoring rule 6>`
-- `<Monitoring rule 7>`
-- `<Monitoring rule 8>`
-- `<Monitoring rule 9>`
-- `<Monitoring rule 10>`
-
----
-
-## 25. Error Handling
-
-[MINIMUM: 10 rules]
-
-- `<Error handling rule 1>`
-- `<Error handling rule 2>`
-- `<Error handling rule 3>`
-- `<Error handling rule 4>`
-- `<Error handling rule 5>`
-- `<Error handling rule 6>`
-- `<Error handling rule 7>`
-- `<Error handling rule 8>`
-- `<Error handling rule 9>`
-- `<Error handling rule 10>`
-
----
-
-## 26. Examples
-
-[MINIMUM: 3 examples, each 20+ lines]
-
-### Example 1: `<Title>`
-
-`<Description>`
-
-```<language>
-<code>
+```python
+def greet(name: str) -> str:
+    """Return a greeting; replace this with an example from your domain."""
+    return f"Hello, {name}"
 ```
 
-### Example 2: `<Title>`
+If an example must itself contain a code fence, open the outer fence with four backticks so the inner three-backtick fence stays balanced. Prefer linking a reference file instead.
 
-`<Description>`
+## 15. Common Mistakes
 
-```<language>
-<code>
-```
+- **Mistake as a short title**: what goes wrong, why, and the fix. Anti-patterns belong here.
+- **Another mistake**: same format; name the symptom a user would see.
 
-### Example 3: `<Title>`
+## 16. References
 
-`<Description>`
+- [references/topic.md](references/topic.md): sample reference file; describe in one line what it holds and when to open it.
+- Official docs: add the canonical documentation URLs used to verify this skill.
 
-```<language>
-<code>
-```
-
----
-
-## 27. Common Mistakes
-
-[MINIMUM: 5 mistakes]
-
-### Mistake 1: `<Title>`
-- **What**: `<description>`
-- **Why it happens**: `<explanation>`
-- **How to avoid**: `<solution>`
-
-### Mistake 2: `<Title>`
-- **What**: `<description>`
-- **Why it happens**: `<explanation>`
-- **How to avoid**: `<solution>`
-
-`<continue for at least 5 mistakes>`
-
----
-
-## 28. Professional Workflow
-
-[MINIMUM: 10 steps]
-
-1. **`<Step 1>`** — `<description>`
-2. **`<Step 2>`** — `<description>`
-3. **`<Step 3>`** — `<description>`
-4. **`<Step 4>`** — `<description>`
-5. **`<Step 5>`** — `<description>`
-6. **`<Step 6>`** — `<description>`
-7. **`<Step 7>`** — `<description>`
-8. **`<Step 8>`** — `<description>`
-9. **`<Step 9>`** — `<description>`
-10. **`<Step 10>`** — `<description>`
-
----
-
-## 29. Response Style
-
-[MINIMUM: 8 rules]
-
-- `<Response style rule 1>`
-- `<Response style rule 2>`
-- `<Response style rule 3>`
-- `<Response style rule 4>`
-- `<Response style rule 5>`
-- `<Response style rule 6>`
-- `<Response style rule 7>`
-- `<Response style rule 8>`
-
----
-
-## 30. Output Format
-
-[MINIMUM: 10 rules]
-
-- `<Output format rule 1>`
-- `<Output format rule 2>`
-- `<Output format rule 3>`
-- `<Output format rule 4>`
-- `<Output format rule 5>`
-- `<Output format rule 6>`
-- `<Output format rule 7>`
-- `<Output format rule 8>`
-- `<Output format rule 9>`
-- `<Output format rule 10>`
-
----
-
-## Standard Response Template
-
-```markdown
-## <Section: Understanding>
-
-<One-paragraph restatement of the request and identified constraints>
-
-## <Section: Approach>
-
-<Description of the chosen approach and rationale>
-
-## <Section: Implementation>
-
-```<language>
-<code>
-```
-
-## <Section: Verification>
-
-<How to verify the implementation: tests, commands, expected output>
-
-## <Section: Trade-offs>
-
-<What was chosen, what was rejected, and why>
-```
+<!-- Authoring notes (delete before publishing):
+- name must equal the folder name; description is "<what>. Use when <triggers>. Not for <area> (use <skill>)." aim 300-700 characters, 1024 maximum.
+- Keep SKILL.md at 200-400 lines (validator warns outside 80-450). Move depth into 1-5 files under references/ and link each from section 16.
+- Drop sections that have nothing specific to say, renumber the rest and update the Contents anchors.
+- Do not add persona lines, reply-format sections, attribution trailers or guessed versions.
+- Run: python scripts/validate_skills.py and python scripts/generate_skill_index.py
+-->
