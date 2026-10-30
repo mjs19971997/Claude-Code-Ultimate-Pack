@@ -1,741 +1,308 @@
 ---
 name: integration-testing-expert
-description: >
-  Designs and writes integration tests that verify multiple units together using Testcontainers, contract testing, and per-test database isolation.
-  
-  Use this skill when writing unit, integration, or end-to-end tests with Vitest, Jest, Playwright, or Cypress.
+description: >-
+  Designs integration tests that run a service against real dependencies: Testcontainers (Node, Java, Python, Go), per-test database isolation (rollback, truncate, template databases), seeding and idempotent test data, HTTP API tests with supertest, consumer-driven contract tests with Pact, stubbing external HTTP with MSW or WireMock, message-broker tests, parallelism, flaky-test control and CI service containers. Use when testing repositories, migrations, API endpoints, queue consumers or service-to-service contracts, or when integration tests are slow, flaky or order-dependent. Not for isolated unit tests with mocks (use unit-testing-expert) or browser end-to-end tests (use e2e-testing-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# Integration Testing Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers tests that exercise a service together with the dependencies it owns: database, cache, broker, HTTP boundaries and other services' contracts. It rewrites the former integration-testing-expert skill from scratch, with working examples for Node and notes for Java, Python and Go. Unit tests and browser journeys are separate skills.
 
----
+> Verified against Testcontainers for Node 12.2.x (Node 22.22 or later), Testcontainers for Java 2.0.x, testcontainers-python 4.15.x, Vitest 5.0.x, supertest 7.3.x, MSW 3.0.x, `@pact-foundation/pact` 17.1.x, WireMock 3.13.x, PostgreSQL 18 and GitHub Actions `checkout`/`setup-node` v7 (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The Integration Testing Expert designs and writes integration tests that verify multiple units work correctly together. The role owns the definition of integration testing (multiple units together), the levels of integration (component, system, E2E — the spectrum), what to mock (external yes, internal usually no), Testcontainers (Go, Java, Python, Node — Postgres, Redis, Kafka, LocalStack, custom), database integration (transactional rollback, schema migrations, fixture loading, seed data, cleanup), API contract testing (Pact, Spring Cloud Contract, consumer-driven), contract vs E2E (cost/benefit), message queue integration (in-memory vs real, embedded brokers), service mesh integration, external services (WireMock, MockServer, Mountebank, stub HTTP, sandbox modes), shared state (per-test isolation, parallel safety, deterministic data), test data (factories, fixtures, builders, snapshots), test databases in CI (speed, parallelization, per-worker), test performance (parallelization, sharding, smoke vs full), CI pipeline placement (every push vs nightly), docker-compose for integration, and microservice integration strategies (per-service with mocks at boundaries).
+## 1. Scope
 
-The expert operates on the principle that integration tests catch the bugs unit tests miss: serialization, schema mismatches, transaction boundaries, and network failure modes. The role demands fluency in Testcontainers, contract testing frameworks, and the operational discipline of keeping integration tests fast and reliable.
+- Covered: the scope and boundaries of integration tests, real dependencies via Testcontainers or CI service containers, database setup and isolation, migrations and seeding, HTTP API tests, contract tests with Pact, stubbing third-party HTTP, message broker tests, parallel execution, flaky-test control.
+- Not covered: isolated unit tests and test doubles for internal collaborators (unit-testing-expert), browser journeys and UI automation (e2e-testing-expert, playwright-expert), load testing (performance-optimization-expert), designing the service boundaries themselves (microservices-expert), Dockerfile and Compose authoring (docker-expert).
 
-The Integration Testing Expert is the final technical authority for integration test architecture. The role reports to engineering leadership and operates through test strategy reviews, code reviews, and direct pairing with implementation teams.
+## 2. Core Expertise
 
-## 2. Mission
+| Area | Key facts |
+|---|---|
+| Scope | One service plus the dependencies it owns, running for real; other teams' services and vendors replaced by stubs or contract tests |
+| Testcontainers | Starts throwaway Docker containers from test code; modules for Postgres, Redis, Kafka, RabbitMQ, MongoDB, LocalStack and more; dynamic ports; Ryuk reaper cleans up |
+| Node packages | `testcontainers` and `@testcontainers/<module>` 12.2.x; Java `testcontainers-<module>` 2.0.x; Python `testcontainers.community.<module>` 4.15.x |
+| DB isolation | Transaction rollback, truncate, unique-data-per-test, template database clone (`CREATE DATABASE ... TEMPLATE`), Postgres container snapshots |
+| HTTP API tests | supertest drives an Express/Koa/Fastify app in process; real database; stubbed outbound HTTP |
+| Contract testing | Pact consumer tests produce a pact file; provider verification replays it with state handlers; Pact Broker `can-i-deploy` gates releases |
+| HTTP stubs | MSW 3 in-process (`onUnhandledFrame` controls unhandled calls), WireMock 3 as a standalone server, nock for small Node stubs |
+| Flake control | Unique data, polling with timeouts instead of sleeps, fixed clocks, no shared mutable state, isolated databases |
+| CI | `services:` containers with health checks, or Testcontainers on runners that have Docker; separate job from unit tests |
 
-The mission of the Integration Testing Expert is to deliver an integration test suite that catches integration defects before production, runs fast enough to gate deploys, and is maintainable as the system evolves. Every test must use real infrastructure (Testcontainers), deterministic data, and clean isolation; flaky tests are defects that must be fixed immediately.
+## 3. Workflow
 
-The expert must refuse any test that mocks internal collaborators. Integration tests must use real components; mocks are reserved for external third-party services that cannot be run in CI.
+1. List the boundaries of the service: what it owns (database, cache, queue) and what it calls (internal services, vendors).
+2. For each owned dependency pick a real instance (Testcontainers locally, service container or Testcontainers in CI). For each external dependency pick a stub or a contract.
+3. Build the test harness once: global container start, migrations into a template database, helpers that create an isolated database or tenant per file.
+4. Expose the app as a factory (`createApp({ pool, paymentsUrl })`) so tests inject real connections and stub URLs without environment tricks.
+5. Write tests per behavior at the seam: request in, persisted state and outbound calls out. Include failure paths (constraint violations, upstream 5xx, timeouts, duplicates).
+6. Add contract tests for service-to-service APIs and publish pacts from CI.
+7. Run in parallel by file with isolated state; measure; fix any test that fails when run alone, in a different order, or twice.
+8. Put the suite in CI as its own job with timeouts, artifacts and a flake report.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- Integration testing definition: multiple units (modules, services, components) tested together to verify their interaction.
-- Levels: component integration (modules within a service), service integration (services together), system integration (the whole system), E2E (through the user interface).
-- What to mock: external third-party services (Stripe, Twilio, government APIs) — yes; internal collaborators — usually no; let internals run real.
-- Testcontainers: Go (testcontainers-go), Java (testcontainers-java), Python (testcontainers-python), Node (testcontainers-node); supports Postgres, MySQL, Redis, Kafka, LocalStack (AWS), Elasticsearch, custom images.
-- Database integration: transactional rollback (per-test transaction, rolled back after), schema migrations (run before tests), fixture loading (seed data), cleanup (truncate or drop).
-- API contract testing: Pact (consumer-driven contracts), Spring Cloud Contract (JVM), consumer-driven contract verification.
-- Contract vs E2E: contract tests verify the API shape (fast, isolated); E2E tests verify the user journey (slow, expensive); use contracts for inter-service integration, E2E for top user journeys.
-- Message queue integration: in-memory (embedded broker, fast but not real), real (Testcontainers Kafka/RabbitMQ, slow but realistic), embedded brokers (EmbeddedKafka, in-process RabbitMQ).
-- Service mesh integration: testing with the mesh (Istio, Linkerd) or with mocks at mesh boundaries.
-- External services: WireMock (Java, flexible), MockServer (cross-language), Mountebank (cross-language, stub HTTP, TCP, SMTP), sandbox modes (Stripe test mode, Twilio test credentials).
-- Shared state: per-test isolation (each test gets its own data), parallel safety (no shared writes), deterministic data (seeded, not random).
-- Test data: factories (programmatic), fixtures (static JSON), builders (fluent), snapshots (captured state).
-- Test databases in CI: per-worker database (each worker gets its own DB), database pooling (reuse across tests), schema caching (cache migrations).
-- Test performance: parallelization (per-file, per-test), sharding (across CI runners), smoke vs full (subset on every push, full nightly).
-- CI pipeline placement: every push (smoke), every PR (medium), nightly (full); balance speed and coverage.
-- docker-compose for integration: spin up dependencies, run tests, tear down; slower than Testcontainers but simpler for complex topologies.
-- Microservice integration strategies: per-service tests with mocks at boundaries (fast), contract tests between services (medium), E2E across services (slow).
+- Real over mock for what you own. A mocked repository cannot catch a wrong column, a missing index, a unique constraint or a migration error; a real PostgreSQL can.
+- Stub what you do not own. Vendors and slow or paid APIs are replaced at the HTTP boundary (MSW or WireMock), not inside your client code.
+- The same database engine and major version as production. SQLite or an in-memory fake hides dialect, locking and JSON/array behavior.
+- Isolation choice: transaction rollback for repository-level tests where code shares one connection; truncate for a database owned by one worker; template clone per file when files run in parallel; container snapshot restore for sequential suites. Details in [references/testcontainers.md](references/testcontainers.md).
+- Contract test versus stub: if you control or can talk to the provider team, use Pact so changes fail the provider build; if not, use a stub and optionally record real responses periodically.
+- WireMock over MSW when the service under test is not Node, when several services share the stubs, or when the stub must be a separate process; MSW otherwise.
+- Testcontainers over a shared dev database always; shared databases make tests depend on other people's data. Use CI service containers when the CI platform already provides them cheaply and a health check is configured.
+- Keep tests in the pyramid's middle: dozens to a few hundred integration tests, each seconds or less; business-rule permutations belong in unit tests.
+- A retry is not a fix. Retries can be a temporary quarantine while the root cause is tracked, never a default.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Design and write integration tests that verify multiple units work together.
-- Configure Testcontainers for the project's stack (Postgres, Redis, Kafka, etc.).
-- Define the integration test strategy: what to mock, what to run real, what level.
-- Maintain the test suite: fix flaky tests immediately, remove obsolete tests, update for refactors.
-- Integrate contract testing (Pact, Spring Cloud Contract) for inter-service APIs.
-- Diagnose and fix flaky tests: timing, ordering, shared state, external dependencies.
-- Benchmark the integration suite; keep under 5 minutes; parallelize if longer.
-- Coach engineers in integration testing patterns through pairing and review.
+- Name tests by behavior: `returns 409 when the email already exists`. One behavior per test; Arrange, Act, Assert visible.
+- Application code exposes a factory or accepts injected dependencies (database pool, clock, base URLs); do not read configuration at import time.
+- Each file creates its own database, tenant or key space; each test creates the rows it needs with factories and unique values.
+- No `sleep`. Wait on conditions (`vi.waitFor`, `expect.poll`, wait strategies on containers) with an explicit timeout.
+- Assert on observable outcomes: response status and body, rows in the database, messages published, requests received by the stub. Do not assert on internal calls.
+- Set explicit timeouts for container start (`hookTimeout`) and tests (`testTimeout`); keep them generous for startup and tight for tests.
+- Type test helpers; share them from `test/helpers/`, not by importing other test files.
+- Tests must not depend on file or test order; run with random ordering (`sequence.shuffle`) periodically to catch it.
 
-## 5. Thinking Process
-
-1. Identify what to test: the integration between units, not the units themselves (those have unit tests).
-2. Identify the integration boundary: which units are together, which are mocked.
-3. Choose the integration level: component, service, system, or E2E.
-4. Choose the infrastructure: Testcontainers (real), WireMock (stub), embedded (in-process).
-5. Choose the test data strategy: factories, fixtures, builders, or snapshots.
-6. Choose the isolation strategy: transactional rollback, per-test database, per-worker database.
-7. Write the test name first: `should <expected> when <condition>` with integration context.
-8. Arrange: set up the test data and the infrastructure; use factories or fixtures.
-9. Act: invoke the integration; one action per test.
-10. Assert: verify the integration outcome; check state and side effects.
-11. Cleanup: roll back the transaction or truncate the tables; ensure no residue.
-12. Run the test in isolation; verify it passes alone.
-13. Run the test in the full suite; verify it passes with others.
-14. Run the test in parallel; verify it does not interfere with other tests.
-
-## 6. Decision Making Rules
-
-- When real (Testcontainers) and mocked both work, choose real because real infrastructure catches integration bugs that mocks hide; mock only external third-party services.
-- When contract test and E2E both verify the integration, choose contract test because it is faster and cheaper; reserve E2E for top user journeys.
-- When transactional rollback and truncate both isolate, choose transactional rollback because it is faster (no DDL); truncate only when the test does DDL itself.
-- When per-worker database and shared database both work, choose per-worker because it enables parallelism without coordination; shared requires serial execution.
-- When embedded broker and real broker (Testcontainers) both work, choose real because the embedded broker may not match production behavior; embedded only for speed when behavior matches.
-- When factory and fixture both produce test data, choose factory when data varies per test and fixture when data is stable across tests.
-- When smoke and full both run in CI, choose smoke on every push (fast feedback) and full nightly (comprehensive coverage).
-- When per-file parallelism and per-test parallelism both work, choose per-file because database state is shared within a file; per-test requires per-test database.
-
-## 7. Architecture Rules
-
-- Every integration test must use real infrastructure (Testcontainers); mocks are reserved for external third-party services only.
-- Every integration test must be deterministic: seeded data, controlled clock, no shared state.
-- Every integration test must be isolated: per-test or per-worker database, cleanup after each test.
-- Every integration test must run in parallel by default; serial execution requires explicit configuration.
-- Every inter-service API must have a contract test (Pact or equivalent).
-- Every integration test must clean up after itself; no database residue between tests.
-- Every integration test must be fast: under 1 second per test for component integration, under 10 seconds for service integration.
-- The integration suite must run in under 5 minutes; parallelize if longer.
-
-## 8. Coding Standards
-
-- All tests must use TypeScript (or the project's language); type the test data and the assertions.
-- All tests must use the AAA pattern: Arrange, Act, Assert (visible through spacing or comments).
-- All tests must use factories or builders for test data; never inline literals across tests.
-- All tests must clean up after themselves: truncate tables, roll back transactions, close connections.
-- All tests must run real infrastructure via Testcontainers; mocks are reserved for external services.
-- All tests must use deterministic data: seeded, not random; controlled clock, not wall-clock.
-- All tests must be isolated: per-test or per-worker database, no shared writes.
-- All tests must run in parallel by default; serial execution requires explicit configuration.
-- All tests must have descriptive names: `should <expected> when <condition>` with integration context.
-- All tests must verify integration outcomes, not internal implementation.
-
-## 9. Naming Conventions
-
-- Test files must be named `<source-name>.integration.test.ts` to distinguish from unit tests.
-- Test descriptions must follow `should <expected> when <condition>` with integration context.
-- describe blocks must name the integration under test: `describe('InvoiceRepository + Postgres')`.
-- it blocks must name the scenario: `it('should persist and retrieve invoice by id')`.
-- Test data factories must be named `<Entity>Factory`: `InvoiceFactory`.
-- Test fixtures must be in `__fixtures__/` directory.
-- Test helpers must be in `__helpers__/` directory.
-- Testcontainers modules must be in `__containers__/` directory.
-- WireMock stubs must be in `__stubs__/` directory.
-- Contract test files must be named `<consumer>-<provider>.contract.test.ts`.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-src/
-  billing/
-    domain/
-      Invoice.ts
-      Invoice.test.ts                          # Unit test
-    application/
-      IssueInvoice.ts
-      IssueInvoice.test.ts                     # Unit test
-    infrastructure/
-      PostgresInvoiceRepository.ts
-      PostgresInvoiceRepository.integration.test.ts  # Integration test
-    api/
-      InvoiceController.ts
-      InvoiceController.integration.test.ts    # Integration test (HTTP)
-    __fixtures__/
-      invoices.json                            # Static fixtures
-    __helpers__/
-      invoiceFactory.ts                        # Programmatic factory
-      dbIsolation.ts                           # Per-test DB isolation
-    __containers__/
-      postgres.container.ts                    # Testcontainers module
-      kafka.container.ts
-      redis.container.ts
-    __stubs__/
-      stripe.wiremock.json                     # WireMock stub for Stripe
-  contracts/                                   # Consumer-driven contracts
-    billing-orders.pact.json
-    billing-shipping.pact.json
+.
+├── src/
+│   ├── app.ts                    # createApp({ pool, paymentsUrl }) factory
+│   └── orders-client.ts          # client of another service (contract consumer)
+├── migrations/                   # SQL applied to the template database
+├── test/
+│   ├── global-setup.ts           # start Postgres (or use TEST_DATABASE_URL), build template DB
+│   ├── helpers/
+│   │   ├── test-db.ts            # clone template database per file, drop afterwards
+│   │   └── factories.ts          # data builders with unique values
+│   ├── orders.api.test.ts        # supertest + MSW
+│   ├── orders-client.pact.test.ts    # consumer contract
+│   └── orders-api.provider.test.ts   # provider verification
+├── pacts/                        # generated pact files (gitignored)
+└── vitest.config.ts              # globalSetup, timeouts, include patterns
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-my-project/
-  apps/
-    api/                                       # Backend service
-      src/
-        billing/
-        shipping/
-      vitest.config.ts                         # Config with projects for unit vs integration
-    web/                                       # Frontend
-      src/
-  packages/
-    domain/                                    # Shared domain
-    contracts/                                 # Shared contract definitions
-      pacts/                                   # Pact files (consumer and provider)
-    testkit/                                   # Shared test utilities
-      src/
-        containers/                            # Shared Testcontainers modules
-        factories/                             # Shared factories
-        isolation/                             # Shared isolation helpers
-  .github/
-    workflows/
-      ci.yml                                   # Unit + smoke integration on every push
-      nightly.yml                              # Full integration + contracts nightly
-  docker-compose.test.yml                      # docker-compose for complex topologies
-  docs/
-    integration-testing-guide.md
-    contract-testing-guide.md
-  .eslintrc.cjs
-  tsconfig.json
-  package.json
-  README.md
-  CONTRIBUTING.md
-```
+- **Global container, template database, per-file clone**: one container start per run, migrations once, a copy per test file. Code in [references/testcontainers.md](references/testcontainers.md).
+- **App factory with injected dependencies**: tests pass real pool plus stub URLs; production passes configuration.
+- **Test data factories**: `makeOrder({ totalCents: 500 })` fills defaults with unique ids; tests override only what matters.
+- **Boundary stubs with strict unhandled-request policy**: MSW `onUnhandledFrame` rejects unexpected outbound calls; handlers capture requests for assertions.
+- **Consumer-driven contract**: consumer tests write a pact; provider verifies it with state handlers that insert the needed rows; broker gates deployment ([references/contract-testing.md](references/contract-testing.md)).
+- **Polling assertions for async work**: `await vi.waitFor(() => expect(...))` with a timeout for queue consumers and background jobs.
+- **Idempotent consumers tested by duplicate delivery**: send the same message twice, assert one effect.
+- **Tenant-per-test for shared databases**: when cloning is not possible, each test creates a tenant and works only inside it.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### 12.1 Testcontainers Module
-**When to use**: When integration tests need real infrastructure (Postgres, Kafka, Redis); Testcontainers spins up Docker containers per test run.
-**When not to use**: When unit tests suffice; Testcontainers adds startup latency.
-**Sketch**: A module exports a function that starts a container, returns the connection, and tears down after tests; tests use the container via beforeAll/afterAll.
+- Pin image versions (`postgres:18`) to match production; update deliberately.
+- Run migrations the same way production does (the migration tool, not hand-written DDL) so migration bugs surface in tests.
+- Test the migration path too: apply the previous release's schema plus data, then the new migration, in a dedicated test or job.
+- Keep seed data to reference tables; tests create everything else.
+- Make error paths first-class tests: unique violations, foreign key failures, upstream timeouts, partial failures, retries with idempotency keys.
+- Capture container logs on failure (`container.logs()`), and keep request/response dumps of stubs when an assertion fails.
+- Use the real HTTP stack (supertest over the actual Express/Fastify app) so middleware, auth, parsing and error handlers are covered.
+- Keep secrets out of tests: throwaway credentials generated per run or fixed CI-only values for local containers; never real API keys.
+- Document how to run the suite locally in one command (`npm run test:integration`) and how to debug a single file.
 
-### 12.2 Per-Test Transactional Rollback
-**When to use**: When integration tests share a database and must not see each other's writes; transactional rollback is the fastest isolation strategy.
-**When not to use**: When the test does DDL (transactions don't isolate DDL); use per-test database instead.
-**Sketch**: beforeAll begins a transaction; the test runs within it; afterAll rolls back; no data persists between tests.
+## 9. Performance
 
-### 12.3 Per-Worker Database
-**When to use**: When integration tests run in parallel and share a database server; each worker gets its own database to avoid conflicts.
-**When not to use**: When tests run serially; a shared database suffices.
-**Sketch**: Each worker (CI runner, Vitest worker) creates a unique database; runs migrations; runs tests; drops the database after.
+- Start containers once per run, not per test; clone databases from a template instead of re-running migrations (milliseconds against seconds).
+- Parallelize by test file (Vitest and Jest workers); each worker needs its own database.
+- Use small databases and indexes that match production, but avoid large seed data in the template.
+- Prefer `TRUNCATE ... RESTART IDENTITY CASCADE` over row-by-row deletes; prefer transaction rollback where the code shares the connection.
+- Pre-pull images in CI and use a registry mirror; cache dependencies.
+- Shard across CI machines by file when the suite exceeds a few minutes; report timings to rebalance.
+- Track suite duration and the slowest tests; set a budget (for example under five minutes) and treat regressions like bugs.
+- Containers with `.withReuse()` speed local loops but must not be used in CI.
 
-### 12.4 Consumer-Driven Contract Test
-**When to use**: When services communicate via API; the consumer defines the expected contract; the provider verifies it.
-**When not to use**: When services communicate via shared database (no API contract); use integration tests instead.
-**Sketch**: Consumer writes a Pact test that defines expected requests and responses; Pact generates a contract file; provider runs the contract against its API; mismatches fail the provider's build.
+## 10. Security
 
-### 12.5 WireMock Stub for External Services
-**When to use**: When integration tests need to call external third-party services (Stripe, Twilio); WireMock stubs the HTTP responses.
-**When not to use**: When the service has a sandbox mode (Stripe test mode); use the sandbox instead.
-**Sketch**: WireMock runs as a container; tests configure stubs via JSON or API; the code under test points at WireMock instead of the real service.
+- Test credentials are throwaway: random passwords per run or CI-only values scoped to a local container; never reuse production secrets, tokens or connection strings.
+- Do not use production databases, queues or accounts for tests. Guard destructive helpers (`TRUNCATE`, `DROP DATABASE`) with a check that the connection string points to a local or test host.
+- Do not copy production data into fixtures. Generate synthetic data; if masked extracts are unavoidable, keep them out of version control.
+- Pass workflow inputs and event data to test scripts through `env:` in CI, never by interpolating `${{ inputs.* }}` or `${{ github.event.* }}` into `run:` lines.
+- Pin third-party GitHub Actions to a version tag (or commit SHA) and grant the job the minimum `permissions:`.
+- Exposed container ports bind to localhost by default; do not publish test databases on public interfaces on shared runners.
+- Pact files and broker credentials: publish pacts only from CI, keep tokens in the secret store, and review pacts for personal data in examples.
 
-### 12.6 Test Data Factory
-**When to use**: When integration tests need complex entities with many fields; factories provide programmatic creation with defaults.
-**When not to use**: When data is simple; inline literals suffice.
-**Sketch**: A factory function creates an entity with default valid values; tests override fields per scenario; the factory persists to the database.
+## 11. Testing
 
-## 13. Best Practices
+- Test the tests: break the code deliberately (remove a constraint, flip a status code) and confirm a test fails.
+- Run each new test alone, then in the full suite, then repeated 20 to 50 times in a loop and in random order before merging.
+- Detect shared state: run files with `--sequence.shuffle` and with different worker counts.
+- Check cleanup: after the suite, no containers remain (`docker ps`), no leftover databases.
+- Verify the strict stub policy works: remove a handler and confirm the test fails on the unhandled request.
+- Verify contract wiring: change a response field on the provider and confirm provider verification fails.
+- Track flakiness: record failures per test in CI; quarantine with an issue and an owner, fix within a deadline.
+- Coverage from integration tests is a by-product; do not gate on it.
 
-- Use real infrastructure (Testcontainers); mocks hide integration bugs.
-- Mock only external third-party services; let internal collaborators run real.
-- Use per-test transactional rollback for database isolation; it is the fastest strategy.
-- Use per-worker database for parallelism; each worker gets its own DB.
-- Use contract tests for inter-service APIs; faster than E2E, catches schema drift.
-- Use factories for test data; inline literals cause duplication.
-- Clean up after every test; no database residue.
-- Run integration tests in parallel by default; serial execution requires explicit configuration.
-- Keep integration tests under 1 second per test for component, under 10 seconds for service.
-- Run smoke integration tests on every push; full integration nightly.
+## 12. Review Checklist
 
-## 14. Anti Patterns
+- [ ] The test exercises a real dependency owned by the service; only unowned systems are stubbed.
+- [ ] Database engine and version match production; migrations are applied by the real tool.
+- [ ] Each file/test has isolated state; no reliance on order or leftover rows.
+- [ ] No `sleep`, no wall-clock assumptions; async waits use polling with a timeout.
+- [ ] Unhandled outbound HTTP fails the test.
+- [ ] Failure paths covered: constraint violation, upstream error and timeout, duplicate request.
+- [ ] Container start has a generous timeout; image tags are pinned.
+- [ ] CI job has a timeout, health-checked services or Testcontainers, logs on failure, and no secrets in `run:` interpolation.
+- [ ] Contract tests exist for service-to-service calls; pacts are published and verified in CI.
+- [ ] Suite runs under its time budget, in random order, and when repeated.
 
-### 14.1 Mocking Internal Collaborators
-**Why wrong**: Mocking internal collaborators in integration tests defeats the purpose; integration bugs are hidden.
-**Correct alternative**: Let internal collaborators run real; mock only external third-party services.
+## 13. Production Notes
 
-### 14.2 Shared Database Without Isolation
-**Why wrong**: Tests interfere with each other; failures are non-deterministic; debugging is painful.
-**Correct alternative**: Per-test transactional rollback or per-worker database; no shared writes.
+- Gate merges on the integration job; gate deployments on `can-i-deploy` when contracts are in use, and record deployments in the broker.
+- Provider verification should run on every provider build and when consumers publish new pacts (broker webhooks), so breaking changes are found before release.
+- Keep a quarantine list with owners and dates; fix or delete within a sprint. Do not let the suite accumulate skipped tests.
+- Budget CI cost: containers per job, parallel shards, and Docker pull limits; use a mirror for base images.
+- Periodically re-record or refresh third-party stubs from the vendor's sandbox, and diff against current stubs.
+- Treat migration tests as release gates for databases with large tables: test the migration against realistic data volumes in a separate job.
+- When a production incident escapes the suite, add the integration test that would have caught it before closing the incident.
 
-### 14.3 No Cleanup
-**Why wrong**: Database residue accumulates; tests fail unpredictably; the suite degrades over time.
-**Correct alternative**: Clean up after every test; truncate tables, roll back transactions, close connections.
+## 14. Examples
 
-### 14.4 E2E for Integration Testing
-**Why wrong**: E2E tests are slow and expensive; using them for integration testing wastes resources.
-**Correct alternative**: Use contract tests for inter-service integration; reserve E2E for top user journeys.
+API test with supertest, a cloned database per file and strict MSW stubs (excerpt; the full harness is in [references/testcontainers.md](references/testcontainers.md)):
 
-### 14.5 Wall-Clock Time in Tests
-**Why wrong**: Tests depend on wall-clock time; CI runners vary in speed; flakiness ensues.
-**Correct alternative**: Inject a controllable clock; use deterministic timestamps in factories.
+```ts
+import { randomUUID } from "node:crypto";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import request from "supertest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createApp } from "../src/app.ts";
+import { createTestDb, type TestDb } from "./helpers/test-db.ts";
 
-### 14.6 Running Migrations Per Test
-**Why wrong**: Running migrations per test is slow; the migration cost dominates the test runtime.
-**Correct alternative**: Run migrations once per test run (beforeAll); use transactional rollback for data isolation.
+const PAYMENTS = "https://payments.example.test";
+const payments = setupServer();
+let db: TestDb;
+let app: ReturnType<typeof createApp>;
 
-## 15. Performance Rules
-
-- Use per-test transactional rollback; it is faster than truncate or per-test database.
-- Run migrations once per test run, not per test.
-- Use per-worker database for parallelism; each worker gets its own DB.
-- Use schema caching; cache the migrated schema to skip migrations on subsequent runs.
-- Keep integration tests under 1 second per test for component, under 10 seconds for service.
-- Keep the integration suite under 5 minutes; parallelize if longer.
-- Use Testcontainers reuse where possible; reuse containers across test files in the same run.
-- Avoid network calls in tests; use WireMock or sandbox modes for external services.
-
-## 16. Security Rules
-
-- Never hardcode credentials in tests; use environment variables or test-only secrets.
-- Test data must be synthetic; production data in tests is forbidden without anonymization.
-- Test databases must be isolated from production; never run integration tests against production.
-- WireMock stubs must not contain real third-party API keys; use test credentials.
-- Testcontainers images must be scanned for CVEs; pin to specific versions.
-- Contract test files (Pact) must not contain PII; synthetic data only.
-- Test users must be synthetic; never use production user accounts.
-- Integration test environments must be isolated from production networks.
-
-## 17. Testing Strategy
-
-- Component integration tests must cover module-to-module interactions within a service.
-- Service integration tests must cover service-to-service interactions via real APIs.
-- Contract tests must verify every inter-service API and event schema.
-- End-to-end tests must cover top user journeys; cap at 20 to keep the suite fast.
-- Tests must run in parallel by default; serial execution requires explicit configuration.
-- Smoke integration tests must run on every push; full integration nightly.
-- Flaky tests must be fixed immediately; flaky tests erode trust in the suite.
-- Tests must be deterministic: seeded data, controlled clock, no shared state.
-- Test data must be via factories or fixtures; inline literals cause duplication.
-- Coverage of integration paths must be measured; gaps indicate missing tests.
-
-## 18. Documentation Standards
-
-- Every integration test must have a descriptive name with integration context.
-- Every test file must document the integration under test in a comment.
-- Testcontainers modules must be documented with usage examples.
-- Factories must be documented with their default values and override patterns.
-- Contract test files must document the consumer and provider.
-- The integration testing guide must document the project's patterns and conventions.
-- The contract testing guide must document the Pact workflow.
-- Test architecture decisions must be documented in ADRs for non-trivial choices.
-
-## 19. Code Review Checklist
-
-- Does the test use real infrastructure (Testcontainers), not mocks for internal collaborators?
-- Is the test deterministic (seeded data, controlled clock, no shared state)?
-- Is the test isolated (per-test transactional rollback or per-worker database)?
-- Does the test clean up after itself (truncate, rollback, close connections)?
-- Is the test fast (under 1 second for component, under 10 seconds for service)?
-- Does the test verify integration outcomes, not internal implementation?
-- Is the test data via factories or fixtures, not inline literals?
-- Does the test run in parallel without interfering with other tests?
-- Is the test name descriptive (`should <expected> when <condition>`)?
-- Are migrations run once per test run, not per test?
-- Is the AAA pattern visible (Arrange, Act, Assert)?
-- Are external services stubbed via WireMock or sandbox mode?
-- Does the test pass when run in isolation and in any order?
-- Is the test added for new integration paths; coverage did not decrease?
-- Is the test verified by running multiple times to detect flakiness?
-
-## 20. Refactoring Checklist
-
-- Is the refactoring motivated by a concrete pain point (slow tests, flaky tests, hard-to-read tests)?
-- Are tests in place to verify behavior preservation?
-- Is the refactoring scoped to one concern?
-- Are commits small enough to review?
-- Is the test suite green before and after each step?
-- Are Testcontainers modules updated when infrastructure changes?
-- Is the test architecture documented in an ADR for significant changes?
-- Is the rollback plan documented?
-- Is the refactoring validated by the full test suite without modification?
-- Is the refactoring reviewed by a second engineer?
-
-## 21. Deployment Checklist
-
-- Is the integration test suite passing in CI on the exact artifact being deployed?
-- Is the integration test suite sharded for parallelism in CI?
-- Is the JUnit reporter configured for test result aggregation?
-- Are Testcontainers images pinned to specific versions?
-- Are flaky tests identified and quarantined before deploy?
-- Is the integration suite speed monitored; regressions investigated?
-- Are test dependencies scanned for CVEs?
-- Is the test environment isolated from production?
-- Is the test data synthetic; no production data in tests?
-- Is the test configuration versioned in the repository?
-- Are contract tests verified on both consumer and provider sides?
-- Are smoke integration tests gating deploys?
-- Are full integration tests run nightly?
-- Are contract test failures blocking the consumer or provider build?
-- Is the integration suite reversible (rollback to previous test version if needed)?
-
-## 22. Production Checklist
-
-- Is the integration test suite running in CI on every push (smoke) and nightly (full)?
-- Are contract tests verifying inter-service APIs and event schemas?
-- Is the integration suite speed trended; regressions investigated?
-- Are flaky tests detected and fixed within one sprint?
-- Is the integration suite sharded for parallelism; total runtime under 5 minutes?
-- Are Testcontainers images pinned and scanned for CVEs?
-- Are integration tests using real infrastructure (not mocks for internal collaborators)?
-- Are integration tests isolated (per-test or per-worker database)?
-- Are integration tests cleaning up after themselves (no database residue)?
-- Are contract test failures blocking the consumer or provider build?
-- Are integration test failures triaged within one business day?
-- Are Testcontainers modules documented and shared across the team?
-- Are factories and fixtures documented with usage examples?
-- Is the integration testing guide maintained and current?
-- Is the contract testing guide maintained and current?
-
-## 23. Logging Strategy
-
-- Tests must log via console.log/console.error only when debugging; remove before merge.
-- Test failures must include enough context to diagnose: inputs, expected, actual, SQL queries.
-- Testcontainers logs must be captured and published for failed tests.
-- WireMock request/response logs must be captured for diagnosis.
-- CI test output must be captured and published for post-failure diagnosis.
-- Test timing must be reported; slow tests surfaced for optimization.
-- Database query logs must be captured for slow test diagnosis.
-- Contract test mismatches must show the expected and actual contract.
-- Flaky test detection must log the failure mode; patterns emerge.
-- Test suite health must be reported to engineering leadership weekly.
-
-## 24. Monitoring Strategy
-
-- Monitor integration suite runtime; regressions indicate slow tests or container startup issues.
-- Monitor integration pass rate; flaky tests erode trust; investigate immediately.
-- Monitor contract test pass rate; mismatches indicate schema drift.
-- Monitor flaky test rate; quarantine and fix within one sprint.
-- Monitor CI queue time; long queues indicate insufficient sharding.
-- Monitor Testcontainers image pull time; cache to reduce CI time.
-- Monitor test database availability; unavailable databases block CI.
-- Monitor contract test publication; ensure consumers and providers are in sync.
-- Monitor integration test coverage of integration paths; gaps indicate missing tests.
-- Review integration metrics monthly; remove or refactor tests that do not add value.
-
-## 25. Error Handling
-
-- Test failures must produce clear error messages: expected vs actual, with SQL queries and HTTP requests.
-- TestContainers startup failures must indicate which container failed and why.
-- Database connection failures must indicate the connection string (redacted) and the error.
-- WireMock stub failures must show the expected and actual request.
-- Contract test mismatches must show the expected and actual contract.
-- Migration failures must indicate which migration failed and why.
-- Timeout failures must indicate which test timed out and the timeout duration.
-- Flaky test detection must capture the failure mode for diagnosis.
-- CI failures must publish artifacts (logs, container logs, database dumps) for diagnosis.
-- Test errors must never silently pass; assertions must verify integration outcomes explicitly.
-
-## 26. Examples
-
-### 26.1 Testcontainers for Postgres
-
-```typescript
-// src/billing/__containers__/postgres.container.ts
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { Client } from 'pg';
-
-export class PostgresTestContainer {
-  private container?: StartedPostgreSqlContainer;
-  private client?: Client;
-
-  async start(): Promise<{ client: Client; connectionString: string }> {
-    this.container = await new PostgreSqlContainer('postgres:16-alpine')
-      .withDatabase('test_db')
-      .withUsername('test_user')
-      .withPassword('test_pass')
-      .withReuse() // Reuse across test files in the same run
-      .start();
-
-    const connectionString = this.container.getConnectionUri();
-    this.client = new Client(connectionString);
-    await this.client.connect();
-
-    // Run migrations
-    await this.runMigrations(this.client);
-
-    return { client: this.client, connectionString };
-  }
-
-  private async runMigrations(client: Client): Promise<void> {
-    const migrationFiles = [
-      '001_create_invoices.sql',
-      '002_create_invoice_lines.sql',
-      '003_add_indexes.sql',
-    ];
-    for (const file of migrationFiles) {
-      const sql = await import(`node:fs`).then((fs) =>
-        fs.promises.readFile(`./migrations/${file}`, 'utf-8'),
-      );
-      await client.query(sql);
-    }
-  }
-
-  async stop(): Promise<void> {
-    if (this.client) await this.client.end();
-    // With withReuse(), the container is not stopped between test files
-    // It is stopped at the end of the test run
-  }
-
-  async truncateAll(): Promise<void> {
-    if (!this.client) throw new Error('Container not started');
-    await this.client.query('TRUNCATE invoices, invoice_lines CASCADE');
-  }
-}
-```
-
-### 26.2 Per-Test Transactional Rollback
-
-```typescript
-// src/billing/infrastructure/PostgresInvoiceRepository.integration.test.ts
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { PostgresTestContainer } from '../__containers__/postgres.container';
-import { PostgresInvoiceRepository } from './PostgresInvoiceRepository';
-import { InvoiceFactory } from '../__helpers__/invoiceFactory';
-import type { PoolClient } from 'pg';
-
-describe('PostgresInvoiceRepository + Postgres', () => {
-  let container: PostgresTestContainer;
-  let repository: PostgresInvoiceRepository;
-  let txClient: PoolClient;
-
-  beforeAll(async () => {
-    container = new PostgresTestContainer();
-    const { client } = await container.start();
-    repository = new PostgresInvoiceRepository(client);
+beforeAll(async () => {
+  db = await createTestDb();                       // clone of the migrated template database
+  app = createApp({ pool: db.pool, paymentsUrl: PAYMENTS });
+  payments.listen({
+    onUnhandledFrame({ frame, defaults }) {        // fail on unexpected outbound calls, allow supertest's loopback
+      const data = frame.data as { request?: Request };
+      const host = data.request ? new URL(data.request.url).hostname : "";
+      if (host === "127.0.0.1" || host === "localhost" || host === "::1") return;
+      defaults.error();
+    },
   });
+});
+afterEach(() => payments.resetHandlers());
+afterAll(async () => { payments.close(); await db.drop(); });
+beforeEach(async () => { await db.pool.query("TRUNCATE orders"); });
 
-  afterAll(async () => {
-    await container.stop();
-  });
+describe("POST /orders", () => {
+  it("returns 402 and persists a failed order when the payment is declined", async () => {
+    payments.use(http.post(`${PAYMENTS}/charges`, () => HttpResponse.json({ error: "declined" }, { status: 402 })));
 
-  beforeEach(async () => {
-    // Begin a transaction for the test
-    txClient = await repository.pool.connect();
-    await txClient.query('BEGIN');
-    repository.setClient(txClient);
-  });
+    const res = await request(app).post("/orders").send({ customerId: randomUUID(), totalCents: 500 }).expect(402);
 
-  afterEach(async () => {
-    // Roll back the transaction; no data persists
-    await txClient.query('ROLLBACK');
-    txClient.release();
-  });
-
-  it('should persist and retrieve invoice by id', async () => {
-    const invoice = new InvoiceFactory().build();
-    await repository.save(invoice);
-
-    const retrieved = await repository.findById(invoice.id);
-    expect(retrieved).not.toBeNull();
-    expect(retrieved?.id).toBe(invoice.id);
-    expect(retrieved?.customerId).toBe(invoice.customerId);
-    expect(retrieved?.total).toBe(invoice.total);
-  });
-
-  it('should return null for non-existent invoice id', async () => {
-    const retrieved = await repository.findById('INV-NONEXISTENT');
-    expect(retrieved).toBeNull();
-  });
-
-  it('should update invoice status', async () => {
-    const invoice = new InvoiceFactory().withStatus('pending').build();
-    await repository.save(invoice);
-
-    await repository.updateStatus(invoice.id, 'paid');
-    const retrieved = await repository.findById(invoice.id);
-    expect(retrieved?.status).toBe('paid');
-  });
-
-  it('should list invoices by customer id', async () => {
-    const customerId = 'CUST-001';
-    await repository.save(new InvoiceFactory().withCustomer(customerId).build());
-    await repository.save(new InvoiceFactory().withCustomer(customerId).build());
-    await repository.save(new InvoiceFactory().withCustomer('CUST-002').build());
-
-    const invoices = await repository.listByCustomer(customerId);
-    expect(invoices).toHaveLength(2);
-    expect(invoices.every((i) => i.customerId === customerId)).toBe(true);
+    const { rows } = await db.pool.query("SELECT status FROM orders WHERE id = $1", [res.body.id]);
+    expect(rows[0].status).toBe("failed");
   });
 });
 ```
 
-### 26.3 Consumer-Driven Contract Test with Pact
+Consumer contract with Pact JS 17 (the generated pact is verified by the provider's own test, see [references/contract-testing.md](references/contract-testing.md)):
 
-```typescript
-// packages/contracts/billing-orders.pact.test.ts (consumer side)
-import { describe, it, expect } from 'vitest';
-import { Pact } from '@pact-foundation/pact';
-import path from 'node:path';
-import { BillingClient } from '../../apps/api/src/billing/BillingClient';
+```ts
+import { MatchersV3, Pact } from "@pact-foundation/pact";
 
-const provider = new Pact({
-  consumer: 'billing-service',
-  provider: 'orders-service',
-  port: 4001,
-  log: path.resolve(__dirname, 'logs', 'pact.log'),
-  dir: path.resolve(__dirname, 'pacts'),
-});
+const { integer, regex, uuid } = MatchersV3;
+const pact = new Pact({ consumer: "checkout-web", provider: "orders-api", dir: "pacts" });
 
-describe('Billing → Orders contract', () => {
-  beforeAll(() => provider.setup());
-  afterAll(() => provider.finalize());
-
-  it('should fetch order by id', async () => {
-    await provider.addInteraction({
-      uponReceiving: 'a request for an order by id',
-      withRequest: {
-        method: 'GET',
-        path: '/orders/ORD-001',
-        headers: { Accept: 'application/json' },
-      },
-      willRespondWith: {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: {
-          id: 'ORD-001',
-          customerId: 'CUST-001',
-          total: 250,
-          currency: 'usd',
-          lines: [],
-        },
-      },
+it("returns an order by id", async () => {
+  await pact
+    .addInteraction()
+    .given("an order exists", { id: "7b0f6f0e-2a0e-4b9e-9a39-0c9b2a1a1111" })
+    .uponReceiving("a request for an order")
+    .withRequest("GET", "/orders/7b0f6f0e-2a0e-4b9e-9a39-0c9b2a1a1111")
+    .willRespondWith(200, (b) =>
+      b.headers({ "content-type": "application/json" }).jsonBody({
+        id: uuid("7b0f6f0e-2a0e-4b9e-9a39-0c9b2a1a1111"),
+        status: regex(/^(pending|paid|failed)$/, "paid"),
+        totalCents: integer(1250),
+      }),
+    )
+    .executeTest(async (mockServer) => {
+      const order = await getOrder(mockServer.url, "7b0f6f0e-2a0e-4b9e-9a39-0c9b2a1a1111");
+      expect(order.status).toBe("paid");
     });
-
-    const client = new BillingClient('http://localhost:4001');
-    const order = await client.getOrder('ORD-001');
-
-    expect(order).toEqual({
-      id: 'ORD-001',
-      customerId: 'CUST-001',
-      total: 250,
-      currency: 'usd',
-      lines: [],
-    });
-  });
-
-  it('should handle order not found', async () => {
-    await provider.addInteraction({
-      uponReceiving: 'a request for a non-existent order',
-      withRequest: {
-        method: 'GET',
-        path: '/orders/ORD-NONEXISTENT',
-        headers: { Accept: 'application/json' },
-      },
-      willRespondWith: {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-        body: { error: 'Order not found' },
-      },
-    });
-
-    const client = new BillingClient('http://localhost:4001');
-    await expect(client.getOrder('ORD-NONEXISTENT')).rejects.toThrow('Order not found');
-  });
-});
-
-// Provider side verification (apps/orders/src/orders.provider.pact.test.ts):
-describe('Orders service pact verification', () => {
-  it('verifies pacts with billing-service', async () => {
-    const opts = {
-      providerBaseUrl: 'http://localhost:3001',
-      pactUrls: [path.resolve(__dirname, '../../../packages/contracts/pacts/billing-service-orders-service.json')],
-    };
-    await new Verifier(opts).verifyProvider();
-  });
 });
 ```
 
-## 27. Common Mistakes
+CI job with a health-checked PostgreSQL service container (inputs and event data stay out of `run:`):
 
-### 27.1 Mocking Internal Collaborators
-**What**: Mocking internal collaborators in integration tests.
-**Why**: Defeats the purpose of integration testing; integration bugs are hidden.
-**How to avoid**: Let internal collaborators run real; mock only external third-party services.
+```yaml
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run test:integration
+        env:
+          TEST_DATABASE_URL: postgres://postgres:ci-only-password@localhost:5432/postgres
+```
 
-### 27.2 Shared Database Without Isolation
-**What**: Integration tests sharing a database without transactional rollback or per-worker isolation.
-**Why**: Tests interfere; failures are non-deterministic; debugging is painful.
-**How to avoid**: Per-test transactional rollback or per-worker database; no shared writes.
+## 15. Common Mistakes
 
-### 27.3 No Cleanup
-**What**: Tests that do not clean up database state.
-**Why**: Database residue accumulates; tests fail unpredictably.
-**How to avoid**: Clean up after every test; truncate, roll back, close connections.
+- **Mocking the database or ORM in an "integration" test**: it then checks only your mock. Use a real engine of the production version.
+- **SQLite or H2 standing in for PostgreSQL or MySQL**: different SQL, types, locking and JSON behavior; bugs reach production.
+- **One shared database for all tests and developers**: tests depend on leftover rows and run order. Use per-run containers and per-file databases.
+- **Running migrations before every test**: seconds per test. Migrate once into a template and clone.
+- **Truncating a database shared by parallel workers**: workers wipe each other's rows. One database per worker or file.
+- **`sleep(2000)` waits**: slow when the system is fast, flaky when it is slow. Poll for a condition with a timeout.
+- **Hardcoded ports and hosts**: collide on shared runners. Use mapped ports from the container object.
+- **Real third-party calls in tests**: slow, flaky, costly and a data leak risk. Stub at the HTTP boundary and verify with contracts.
+- **Pact contracts that copy the full response or assert exact values**: any provider change fails consumers. Use matchers and only the fields the consumer reads.
+- **Retrying failures by default**: hides real race conditions. Fix the cause; use retries only as labeled, temporary quarantine.
+- **Order-dependent tests**: pass in sequence, fail in parallel or in isolation. Create data per test and shuffle order.
+- **Using `${{ inputs.* }}` or event fields inside `run:` lines**: shell injection risk. Pass them via `env:`.
+- **Leaving containers running (reuse enabled, reaper disabled) on CI**: leaks resources and state. Keep reuse for local development only.
+- **Treating coverage as the goal**: integration tests are for wiring risk, not line counts.
 
-### 27.4 E2E for Integration Testing
-**What**: Using E2E tests for integration testing.
-**Why**: E2E tests are slow and expensive; wastes resources.
-**How to avoid**: Use contract tests for inter-service integration; reserve E2E for top user journeys.
+## 16. References
 
-### 27.5 Wall-Clock Time in Tests
-**What**: Tests that depend on wall-clock time.
-**Why**: CI runners vary in speed; flakiness ensues.
-**How to avoid**: Inject a controllable clock; use deterministic timestamps in factories.
-
-### 27.6 Running Migrations Per Test
-**What**: Running database migrations before each test.
-**Why**: Migration cost dominates the test runtime; the suite becomes slow.
-**How to avoid**: Run migrations once per test run (beforeAll); use transactional rollback for data isolation.
-
-## 28. Professional Workflow
-
-1. Identify what to test: the integration between units, not the units themselves.
-2. Identify the integration boundary: which units are together, which are mocked.
-3. Choose the integration level: component, service, system, or E2E.
-4. Choose the infrastructure: Testcontainers (real), WireMock (stub), embedded (in-process).
-5. Choose the test data strategy: factories, fixtures, builders, or snapshots.
-6. Choose the isolation strategy: transactional rollback, per-test database, per-worker database.
-7. Write the test name first: `should <expected> when <condition>` with integration context.
-8. Arrange: set up the test data and the infrastructure.
-9. Act: invoke the integration; one action per test.
-10. Assert: verify the integration outcome; check state and side effects.
-11. Cleanup: roll back the transaction or truncate the tables.
-12. Run the test in isolation; verify it passes alone.
-13. Run the test in the full suite; verify it passes with others.
-14. Run the test in parallel; verify it does not interfere with other tests.
-
-## 29. Response Style
-
-- Begin every integration test answer with the integration boundary and the infrastructure choice.
-- Present the test code; never describe in prose alone.
-- Quantify test properties: runtime, parallelism, isolation.
-- Use authoritative voice: "must", "must not", "always", "never".
-- Cite the tools by name (Testcontainers, Pact, WireMock); the tools are the contract.
-- Surface trade-offs explicitly: real vs mocked, contract vs E2E, transactional vs truncate.
-- When asked "how to test X?", demand the integration boundary and the infrastructure first.
-- Close every response with the next concrete step (write the test, run the suite, fix the flake).
-
-## 30. Output Format
-
-- Use integration test code examples in TypeScript; syntactically valid.
-- Use the AAA pattern: Arrange, Act, Assert; visible through spacing.
-- Use `should <expected> when <condition>` for test names with integration context.
-- Use Testcontainers examples in TypeScript; the configuration is the contract.
-- Use Pact examples for consumer and provider sides; the contract is the artifact.
-- Use bullet lists for rules; numbered lists for sequential steps; tables for tool comparisons.
-- Cross-reference tools by name (Testcontainers, Pact, WireMock).
-- Quantify test properties: runtime, parallelism, isolation.
-- Distinguish between principled rules (real infrastructure) and context-dependent guidance (embedded vs Testcontainers).
-- End every response with a next-step checklist, each with owner and deadline.
-
----
+- [references/testcontainers.md](references/testcontainers.md): module and version matrix, Node harness (global setup, template database, per-file clone, supertest and MSW test), isolation strategies, wait strategies, brokers, Java and Python notes, CI service containers, troubleshooting.
+- [references/contract-testing.md](references/contract-testing.md): Pact consumer and provider tests that were run, Pact Broker CLI flow, MSW versus WireMock versus nock, WireMock admin API, keeping stubs honest.
+- Official docs: https://node.testcontainers.org/ , https://java.testcontainers.org/ , https://testcontainers-python.readthedocs.io/ , https://docs.pact.io/ , https://mswjs.io/docs/ , https://wiremock.org/docs/ , https://vitest.dev/guide/ , https://docs.github.com/en/actions/using-containerized-services/about-service-containers
