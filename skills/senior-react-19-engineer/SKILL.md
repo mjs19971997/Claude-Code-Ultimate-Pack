@@ -1,623 +1,357 @@
 ---
 name: senior-react-19-engineer
-description: >
-  Ships production React 19 applications leveraging Actions, the React Compiler, Server Components, and concurrent primitives without compromising accessibility or performance.
-  
-  Use this skill when building web frontends with React, Next.js, TypeScript, TailwindCSS, shadcn/ui, Framer Motion, or when addressing UI/UX, accessibility, or performance.
+description: >-
+  Builds and reviews React 19 components, hooks and forms: Actions (useActionState, useOptimistic, useFormStatus, use), ref as a prop, Context as provider, document metadata hoisting, Suspense and error boundaries, Server and Client Component boundaries, the React Compiler, Activity, useEffectEvent and ViewTransition. Use when writing .tsx components and custom hooks, handling forms and mutations, upgrading from React 18, configuring babel-plugin-react-compiler or eslint-plugin-react-hooks, deciding what manual memoization to keep, or testing with React Testing Library. Not for Next.js routing, caching, proxy.ts and Server Action deployment details (use nextjs-15-architect), type-level TypeScript design (use typescript-master), or WCAG and ARIA work (use accessibility-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# Senior React 19 Engineer
 
----
+This skill covers writing React 19 the way the current release expects: components that stay pure, state changes expressed as Actions and Transitions, effects only for synchronizing with external systems, and memoization left to the React Compiler. It spans React 19.0 to the current 19.3, noting which feature arrived in which minor, and it treats Server Components and Server Functions as a framework-provided boundary whose security rules apply regardless of framework.
 
-## 1. Role
+> Verified against React and React DOM 19.3.1, babel-plugin-react-compiler 1.0.0, eslint-plugin-react-hooks 7.1.1, @types/react 19.3.0, Vite 8 with @vitejs/plugin-react 6, Testing Library (react 16.3) and Vitest 5 (2026-10).
 
-The Senior React 19 Engineer owns the design, implementation, and evolution of complex React 19 user interfaces inside enterprise applications. This role pairs deep mastery of React 19 primitives — Actions, `useActionState`, `useOptimistic`, `useFormStatus`, `use`, Server Components, Suspense, the React Compiler — with an unwavering commitment to accessibility, performance, and long-term maintainability.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The engineer acts as the technical authority for every React decision: state shape, effect boundaries, suspense placement, hydration strategy, and component composition. They refuse shortcuts that compromise the user experience or the codebase health. They mentor mid-level engineers, enforce architectural rules in code review, and translate product requirements into resilient, observable, and testable component systems.
+## 1. Scope
 
-## 2. Mission
+- Covered: React 19.x APIs and idioms, Actions and forms, concurrent features, Suspense, Effects and Effect Events, refs, Context, resource and metadata rendering, the React Compiler and its lint rules, Server and Client Component rules, testing components.
+- Not covered: Next.js routes, caching, `proxy.ts` and deployment (nextjs-15-architect); advanced TypeScript typing (typescript-master); styling systems (tailwindcss-master, shadcn-ui-expert); animation libraries (framer-motion-expert); ARIA patterns and audits (accessibility-expert); Core Web Vitals diagnosis (core-web-vitals-expert).
 
-Deliver React 19 applications that ship sub-second interactions on mid-tier mobile hardware, survive traffic spikes without degradation, remain accessible to every user, and evolve across years without rewrites. The mission is to make the right way the easy way: every component must default to performance, type safety, and accessibility without requiring engineers to opt in.
+What arrived when (all stable in 19.3.1):
 
-## 3. Core Expertise
+| Release | Additions |
+|---|---|
+| 19.0 | Actions in Transitions, `useActionState`, `useOptimistic`, `useFormStatus`, `use`, `ref` as a prop and ref cleanup functions, `<Context>` as a provider, native `<title>`/`<meta>`/`<link>` hoisting, stylesheet `precedence`, `preload`/`preinit` APIs, `onCaughtError`/`onUncaughtError`, Server Components and Server Functions |
+| 19.2 | `<Activity>`, `useEffectEvent`, `cacheSignal` (Server Components), partial pre-rendering APIs (`prerender` with `resume`/`resumeAndPrerender`), Chrome Performance Tracks, batched Suspense reveals during SSR |
+| 19.3 | `<ViewTransition>` and Fragment refs stable, `use(browser())` from `react-dom` to skip server rendering, Trusted Types integration, Server Components can render a Context imported from a `'use client'` module |
 
-- React 19 Actions and the `useActionState` / `useFormStatus` / `useOptimistic` trio for progressive enhancement form flows.
-- The `use` hook for unwrapping promises and contexts inside render, with strict rules on conditional invocation.
-- React Server Components: server-only modules, the `'use client'` boundary, streaming SSR with Suspense, and selective hydration.
-- The React Compiler's automatic memoization: when it eliminates `useMemo`/`useCallback`/`React.memo`, and where manual memoization still wins.
-- Refs as props, ref callback cleanup functions, and the new `useRef` ergonomics for imperative handles.
-- Document metadata, asset loading, and custom element support directly inside component trees.
-- Hooks discipline: rules of hooks, dependency arrays, `useEffect` pitfalls, `useLayoutEffect` vs `useInsertionEffect`, `useSyncExternalStore` for stores.
-- State management selection: local `useState`/`useReducer`, `useSyncExternalStore`, Context for dependency injection, Zustand for global client state, Jotai for atomic state.
-- Concurrent rendering: `startTransition`, `useDeferredValue`, `useTransition`, and the impact on perceived performance.
-- Testing with React Testing Library: `render`, `screen`, `fireEvent`, `userEvent`, `renderHook`, `act`, and async query patterns.
-- TypeScript patterns: discriminated component props, generic components, exhaustive prop typing, and `React.ReactNode` vs `JSX.Element` discipline.
-- Error boundaries with `error.cause`, recovery strategies, and graceful degradation with Suspense.
-- Strict mode double-invocation semantics and how to write code that survives it.
-- Hydration mismatch debugging: causes, detection, and progressive/selective hydration.
+`forwardRef` still works but is no longer necessary; `Context.Provider` still works and will be deprecated. React 19 removed `propTypes`, `defaultProps` on function components, string refs, legacy context, `ReactDOM.render`/`hydrate`, `findDOMNode` and `react-test-renderer/shallow`.
 
-## 4. Responsibilities
+## 2. Core Expertise
 
-- Define and enforce the React 19 architecture: server/client boundary, component composition, state ownership, and effect boundaries.
-- Author reusable primitives — `Button`, `Dialog`, `DataTable`, `Form` — that compose cleanly and pass accessibility audits.
-- Convert form flows from manual `useState` + `fetch` to Actions with optimistic updates and progressive enhancement.
-- Profile and eliminate render thrash, layout shift, and unnecessary re-renders using React DevTools, the Profiler, and `why-did-you-render` discipline.
-- Audit and migrate legacy patterns: HOCs to hooks, render props to composition, `useEffect` for derived state to direct computation, class components to function components.
-- Lead hydration strategy: identify client-only islands, mark them with Suspense, and prevent mismatch errors.
-- Establish testing standards: every component has unit tests for behavior and integration tests for user flows.
-- Own the upgrade path from React 17/18 to 19, including the React Compiler rollout.
-- Write the documentation that makes the codebase usable for the next engineer: ADRs, component stories, hook references.
-- Participate in on-call rotation for frontend incidents and own performance regressions end to end.
+- **Actions**: async functions passed to `<form action>` or called inside `startTransition`; React tracks pending state, errors, optimistic updates and form reset. See [references/hooks-and-actions.md](references/hooks-and-actions.md).
+- **`useActionState(action, initial, permalink?)`** returns `[state, dispatch, isPending]`; the action receives `(previousState, payload)`.
+- **`useOptimistic(value, reducer?)`** shows temporary state while an Action runs; the setter must be called inside an Action or Transition.
+- **`useFormStatus()`** from `react-dom` reads the parent `<form>` status (`pending`, `data`, `method`, `action`) and must be rendered inside the form.
+- **`use(resource)`** reads a Promise (suspends) or a Context (works in conditions and loops, not in `try/catch`); the Promise must be stable across renders.
+- **Effects**: synchronization with external systems only; `useEffectEvent` separates event-like logic fired from an Effect from the Effect's dependencies.
+- **React Compiler 1.0**: automatic memoization at build time; compiler-powered lint rules ship in `eslint-plugin-react-hooks`. See [references/react-compiler.md](references/react-compiler.md).
+- **Server Components boundary**: `'use client'` starts the client graph, `'use server'` marks Server Functions (public endpoints). See [references/server-components-and-boundaries.md](references/server-components-and-boundaries.md).
+- **UI state APIs**: `<Activity mode="visible" | "hidden">` keeps state of hidden UI and cleans up its Effects; `<ViewTransition>` animates updates inside Transitions; Fragment refs observe a group of siblings.
 
-## 5. Thinking Process
+## 3. Workflow
 
-Every feature begins with a typed contract: define the props, the state shape, and the user-visible states (idle, loading, optimistic, success, error) before writing implementation. The engineer then asks four questions in order: Is this state owned by the server or the client? Does this UI need to stream or render in one shot? Does this interaction need to feel instant (optimistic) or authoritative (await confirmation)? Does this code need to survive Strict Mode double invocation?
+1. Check versions (`react`, `react-dom`, `@types/react`, `eslint-plugin-react-hooks`) and keep `react` and `react-dom` on the same patched 19.x.
+2. Model state: derive what can be derived during render; keep one source of truth; lift state only as far as needed.
+3. Classify each interaction: pure render, event handler, Action (async mutation with pending/error/optimistic state), or Effect (external synchronization).
+4. Write components as pure functions of props and state; do not mutate props, state or module-level values during render.
+5. Put async data behind Suspense (`use(promise)` with a promise created outside render, or a data library) and errors behind error boundaries.
+6. Enable `eslint-plugin-react-hooks` (`recommended`) and fix findings; they mark code the compiler cannot optimize.
+7. Turn on the React Compiler after lint is clean; verify with React DevTools ("Memo" badge). Do not write new `useMemo`/`useCallback` by default; leave existing memoization in place or test carefully before removing it.
+8. Test behavior through the DOM with Testing Library, including pending, error and success paths of Actions.
+9. Review boundaries: what runs on the server, what is serialized to the client, and what each public Server Function checks.
 
-Only after answering those questions does the engineer select primitives. Forms flow through Actions. Async data flows through `use` + Suspense. Cross-component state flows through the smallest possible store. Effects are reserved for synchronization with external systems — never for derived data, never for transformations that belong in render.
+## 4. Decision Rules
 
-The engineer then validates the implementation against four gates: does it pass TypeScript strict? Does it pass the accessibility audit? Does it stay under the INP budget on a throttled CPU? Does it survive the React Profiler without wasted renders?
+- State that can be computed from props or other state is not state; compute it in render (the compiler memoizes it if needed).
+- Mutation with pending/error UI: an Action (`<form action>` or `startTransition(async () => ...)`) with `useActionState`; use `useOptimistic` only when the result is predictable and a rollback is acceptable.
+- Reading async data during render: `use(promise)` inside Suspense. Create the promise in a Server Component, a loader, a cache or a `useMemo`-stable owner, never inline in the consuming render (a new promise every render suspends forever).
+- Subscribing to an external store: `useSyncExternalStore`, not state plus Effect.
+- Effect needed only to reset state when a prop changes: use a `key` on the component instead.
+- Effect reads values that should not retrigger it (theme, callbacks, logging data): `useEffectEvent`. Do not use it to silence the dependency lint rule for values that are truly reactive.
+- Keep UI state while hiding a panel or tab: `<Activity mode="hidden">`; unmount when state should reset or cost matters.
+- Expose a DOM node: accept `ref` as a regular prop; wrap in `forwardRef` only for code that still targets React 18.
+- Shared value for a subtree: `<ThemeContext value={theme}>` (no `.Provider`); for server-originated values in 19.3, a Server Component can render a Context imported from a `'use client'` module.
+- Manual `useMemo`/`useCallback`: in new code rely on the compiler and add them only for precise control (for example a value used as an Effect dependency that must not change identity needlessly, or third-party code relying on stable identity). In existing code, leave them in place; removing them can change compiled output.
+- Class components stay only for error boundaries (or use a library boundary); there is no hook equivalent.
+- Server Component by default in RSC frameworks; `'use client'` for interactivity, state, Effects and browser APIs.
 
-## 6. Decision Making Rules
+## 5. Coding Standards
 
-- When server state and client state conflict, choose server as source of truth because hydration mismatches and stale data cost more than a network round trip.
-- When optimistic updates and authoritative updates conflict, choose optimistic with rollback because perceived latency dominates user satisfaction.
-- When `useEffect` and direct computation conflict, choose direct computation in render because effects run after paint and cause flicker.
-- When Context and a state library conflict, choose Context for dependency injection and a store (Zustand/Jotai) for shared mutable state because Context propagation re-renders every consumer.
-- When `useMemo` and the React Compiler conflict, choose the Compiler because manual memoization is brittle and dependency arrays drift.
-- When Suspense and manual loading state conflict, choose Suspense because it composes across the tree and supports streaming.
-- When class components and function components conflict, choose function components because concurrent features and the Compiler target functions.
-- When HOCs and hooks conflict, choose hooks because HOCs break tree structure, name collision, and ref forwarding.
-- When Server Components and Client Components conflict, choose Server Components by default and mark `'use client'` only when interactivity is required because less JavaScript ships to the user.
-- When `useState` and `useReducer` conflict, choose `useReducer` when state transitions exceed two related fields because reducers centralize logic and are testable in isolation.
+- Function components with named exports; props typed with an interface or type; `ref` typed as `React.Ref<HTMLInputElement>` in props.
+- Use `React.JSX` rather than the removed global `JSX` namespace; `useRef` requires an argument (`useRef<HTMLDivElement>(null)`); ref callbacks must not implicitly return a value (use a block body or return a cleanup function).
+- Keys: stable ids, never array indexes for reorderable lists.
+- Default values with parameter defaults, not `defaultProps`.
+- Never call Hooks conditionally; `use` may be conditional. Effect Events are called only inside Effects or other Effect Events, and are not listed in dependency arrays.
+- Event handlers named `handleX` internally, `onX` as props.
+- Form controls: uncontrolled with `name` and `FormData` by default; controlled only when the UI reacts to every keystroke.
+- Do not read or write `ref.current` during render (lint rule `react-hooks/refs`).
+- Do not call `setState` synchronously inside an Effect to derive state (`react-hooks/set-state-in-effect`); compute it during render.
+- Do not define components inside components (`react-hooks/static-components`).
+- Render at most one `<title>` at a time; stylesheets need `precedence` for hoisting and ordering.
+- Use `react-dom` resource APIs (`preload`, `preinit`, `preconnect`, `prefetchDNS`) instead of hand-managed `<link>` injection in Effects.
 
-## 7. Architecture Rules
-
-- Always colocate server-only modules in directories with `server-only` imports; never leak database or auth code into client bundles.
-- Always default components to Server Components; only mark `'use client'` when the component uses state, effects, event handlers, or browser APIs.
-- Always place Suspense boundaries at route segment and feature boundary level; never wrap every individual async component.
-- Always isolate the data layer behind a typed module interface; components must never call `fetch` directly with raw URLs.
-- Always own state at the lowest common ancestor that needs it; never lift state to a global store out of convenience.
-- Always compose features as self-contained modules with their own components, hooks, types, and tests; never scatter feature code across generic directories.
-- Always treat the `'use client'` boundary as a serialization boundary; never pass non-serializable props (functions, class instances, Dates without serialization) across it.
-- Always define error boundaries per route segment and per feature; never rely on a single root boundary for the entire application.
-- Always prefer passing children over contexts for cross-cutting UI; reserve Context for true dependency injection (theme, locale, auth client).
-- Always structure effects as pure synchronizers with cleanup; never use effects for data transformation, derived state, or user event handling.
-
-## 8. Coding Standards
-
-- Always enable `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `verbatimModuleSyntax` in `tsconfig.json`.
-- Always type component props with `interface` for public APIs and `type` for unions and intersections.
-- Always export components as named exports; default exports are forbidden except for route files in Next.js.
-- Always forward refs using the React 19 ref-as-prop pattern; never use `forwardRef` unless supporting React 18 consumers.
-- Always destructure props in the function signature; never access `props.xxx` inline.
-- Always define hooks with the `use` prefix and validate they follow the Rules of Hooks.
-- Always handle the pending, error, and success states explicitly in async UI; never assume success.
-- Always use `id` props generated by `useId` for label/input association; never hard-code IDs.
-- Always prefer `react-hooks` ESLint preset with `react-hooks/exhaustive-deps` as error.
-- Always use `type` imports for type-only specifiers: `import type { FC } from 'react'`.
-- Always prefer composition over configuration: pass children, not render props, not configuration objects.
-- Always define a single default export only when a framework requires it; otherwise forbid default exports.
-
-## 9. Naming Conventions
-
-- Components: PascalCase (`UserProfile`, `DataTable`).
-- Hooks: camelCase with `use` prefix (`useUserData`, `useDebouncedValue`).
-- Variables and functions: camelCase (`handleSubmit`, `isLoading`).
-- Constants: SCREAMING_SNAKE_CASE for true module constants (`MAX_RETRIES`).
-- Types and interfaces: PascalCase, no `I` prefix (`User`, not `IUser`); suffix union-of-state types with `State` (`FormState`).
-- Enums: PascalCase for the enum, PascalCase for members (`UserRole.Admin`); prefer union types over enums when no runtime behavior is required.
-- Files: `kebab-case.ts` for modules, `PascalCase.tsx` for component files (`user-profile.tsx`).
-- Directories: `kebab-case` for feature folders (`user-profile/`), singular for concept folders (`components/`, `hooks/`).
-- Tests: colocated as `*.test.tsx` or `*.spec.tsx` next to the implementation.
-- Event handlers: `handle<EventName>` for component-internal, `on<EventName>` for prop callbacks.
-- Boolean state: prefix with `is`/`has`/`should`/`can` (`isLoading`, `hasError`).
-- Async state machines: `<Feature>Status` union (`'idle' | 'loading' | 'success' | 'error'`).
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
 src/
-├── app/                      # Next.js App Router or route entry
-│   ├── (marketing)/          # Route group, does not affect URL
-│   ├── (dashboard)/
-│   └── layout.tsx
-├── features/                 # Feature modules, self-contained
-│   ├── auth/
-│   │   ├── components/       # Auth-specific components
-│   │   ├── hooks/            # Auth hooks (useSession, useSignIn)
-│   │   ├── actions.ts        # Server actions for auth
-│   │   ├── api.ts            # Client API calls
-│   │   ├── schemas.ts        # Zod schemas
-│   │   ├── types.ts          # Auth domain types
-│   │   └── index.ts          # Public barrel
-│   └── billing/
-├── components/               # Shared UI primitives
-│   ├── ui/                   # Buttons, inputs, dialogs
-│   ├── data/                 # DataTable, lists
-│   └── feedback/             # Toasts, skeletons
-├── hooks/                    # Shared hooks
-├── lib/                      # Framework-agnostic utilities
-│   ├── api/                  # Typed API client
-│   ├── auth/                 # Session utilities
-│   ├── db/                   # Server-only DB client
-│   └── utils/                # Pure helpers
-├── stores/                   # Zustand/Jotai stores
-├── types/                    # Global type definitions
-├── styles/                   # Global CSS, Tailwind layers
-└── middleware.ts             # Edge middleware
+├── main.tsx                      # createRoot / hydrateRoot with onCaughtError, onUncaughtError
+├── app/
+│   ├── App.tsx
+│   └── providers.tsx             # 'use client' context providers (RSC apps)
+├── features/
+│   └── orders/
+│       ├── OrderList.tsx
+│       ├── OrderForm.tsx         # Action-based form
+│       ├── useOrderFilters.ts    # custom hook, one concern
+│       ├── orders.api.ts         # fetchers; server modules marked server-only in RSC apps
+│       └── OrderList.test.tsx
+├── components/                   # presentational, reusable
+├── lib/                          # pure helpers
+└── test/setup.ts                 # Testing Library setup
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-my-app/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml            # Lint, type-check, test, build
-│       └── lighthouse.yml    # Performance budgets
-├── public/                   # Static assets served as-is
-│   ├── fonts/
-│   └── images/
-├── src/
-│   ├── app/
-│   ├── features/
-│   ├── components/
-│   ├── hooks/
-│   ├── lib/
-│   ├── stores/
-│   ├── types/
-│   └── styles/
-├── tests/
-│   ├── e2e/                  # Playwright specs
-│   ├── integration/          # MSW-based integration tests
-│   └── visual/               # Chromatic snapshots
-├── .env.example
-├── .eslintrc.cjs
-├── .prettierrc
-├── next.config.ts
-├── package.json
-├── playwright.config.ts
-├── tailwind.config.ts
-├── tsconfig.json
-└── vitest.config.ts
-```
+- **Container-free data flow**: a parent creates or receives a promise, passes it to a child that calls `use(promise)` within `<Suspense>`.
+- **Action props**: components expose `action` or `onSubmitAction` props that may be async; they call them in `startTransition` so parents get pending state for free.
+- **Form action state machine**: `{ status: 'idle' | 'error' | 'success', errors?, values? }` returned from the Action and rendered by the form.
+- **Optimistic reducer**: `useOptimistic(items, (current, added) => [...current, { ...added, pending: true }])`; the real data replaces it when the Action settles.
+- **Compound components** with Context for tab, menu and dialog families; `<Context value>` for the provider.
+- **Controlled-by-key resets**: `<Profile key={userId} />` resets internal state without Effects.
+- **Activity for navigation**: render likely-next panels in `hidden` mode to prefetch and keep state of previous panels.
+- **Error boundaries per feature** with a reset path; report through `onCaughtError`/`onUncaughtError` (React 19 no longer re-throws render errors).
+- **Custom hooks** wrap one concern (`useDebouncedValue`, `useMediaQuery` via `useSyncExternalStore`) and return stable, minimal APIs.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Container / Presentational (Modern)
-When to use: separating data orchestration from rendering when the orchestration is non-trivial. When not to use: for simple components where the split doubles the file count without value. Sketch: `UserCardContainer` (server component, fetches data) renders `<UserCard user={user} />` (presentational).
+- Prefer composition (`children`, slots) to prop drilling and to Context for everything.
+- Split Contexts by update rate; the compiler memoizes values but a single hot context still rerenders all consumers.
+- Colocate state with the component that uses it; lift only when two siblings need it.
+- Use `useDeferredValue(value, initialValue?)` for expensive derived UI from fast input; `useTransition` for state updates that may suspend.
+- Wrap route or panel-level Suspense boundaries deliberately; too many boundaries cause popcorn loading, too few block the page.
+- Document metadata can be rendered by any component (`<title>`, `<meta>`, `<link>`); React hoists it into `<head>`. A framework metadata API may be preferable for per-route SEO.
+- Use `<ViewTransition>` for enter/exit/update/share animations triggered by Transitions; updates not wrapped in a Transition do not animate.
+- Report errors through root options and boundaries, not by relying on re-thrown errors.
+- Keep components under one screen of JSX; extract hooks for logic and components for markup.
+- Use Fragment refs (19.3) to attach observers or focus management across siblings without wrapper divs.
 
-### Compound Components
-When to use: components with composable parts (Select, Tabs, Menu). When not to use: one-off components. Sketch: `<Tabs><Tabs.List><Tabs.Trigger value="a"/></Tabs.List><Tabs.Content value="a"/></Tabs>` sharing context internally.
+## 9. Performance
 
-### Render Props via Children
-When to use: when a parent needs to coordinate children without prop drilling. When not to use: when hooks solve it more cleanly. Sketch: `<DataTable data={rows}>{(row) => <Row {...row} />}</DataTable>`.
+- Measure first: React DevTools Profiler and the Chrome Performance Tracks added in 19.2 (Scheduler and Components tracks).
+- Let the compiler memoize: with it enabled, components and hooks that follow the Rules of React get fine-grained memoization, including after early returns.
+- Fix what the compiler cannot fix: large lists (virtualize), expensive work in render (move to a worker or memoized module-level cache), unstable context values from non-compiled code.
+- Keep state local; high-frequency state (pointer, scroll) lives in refs, `useSyncExternalStore` or CSS, not top-level state.
+- Split code with `lazy` and Suspense at route or feature level; preload with `preload`/`preinit` or framework prefetch.
+- Server Components keep large dependencies off the client bundle; do not mark broad parents `'use client'`.
+- StrictMode double-invokes render and Effects in development to expose impure code; do not remove it to silence a warning. In 19.3 hydration also double-invokes Effects in Strict Mode.
 
-### Hooks-based State Machine
-When to use: multi-step UI flows (wizards, onboarding). When not to use: binary toggles. Sketch: `useMachine({ states: { idle, loading, success, error } })` with explicit transitions.
+## 10. Security
 
-### Optimistic Update Pattern
-When to use: mutations where the user expects instant feedback. When not to use: destructive operations or where server authority is critical. Sketch: `useOptimistic` plus a server Action, with automatic rollback on rejection.
+- Do not render untrusted HTML with `dangerouslySetInnerHTML`. When HTML must be rendered, sanitize it with a maintained sanitizer (for example DOMPurify) with an allowlist, ideally on the server, and keep a CSP without `unsafe-inline`. Prefer rendering Markdown or structured content to React elements.
+- URLs from users (`href`, `src`, `action`): parse with `new URL()` and allow only `http:` and `https:` (and `mailto:` if needed); `javascript:` URLs execute on click.
+- No secrets in client code: everything bundled for the browser (including `VITE_*` and `NEXT_PUBLIC_*` variables) is public. Call a server endpoint that holds the key.
+- Store session tokens in `HttpOnly`, `Secure`, `SameSite` cookies, not `localStorage`; cookie-authenticated mutations need CSRF protection (SameSite, Origin checks or tokens) on the server.
+- Server Functions are public HTTP endpoints: validate input with a schema (for example Zod), re-authenticate and authorize inside the function, and scope writes by tenant and owner. Do not trust arguments, closure values or hidden form fields.
+- Never pass raw database rows or secrets from a Server Component to a Client Component; props are serialized to the browser. Mark server modules with `import 'server-only'`.
+- Keep React server packages patched: unauthenticated RCE (CVE-2025-55182) and follow-up denial of service and source exposure issues (CVE-2025-55183, CVE-2025-55184, CVE-2025-67779, CVE-2026-23864) affected `react-server-dom-webpack`, `react-server-dom-parcel` and `react-server-dom-turbopack` in 19.0.0 to 19.2.3; fixes were released as 19.0.4, 19.1.5, 19.2.4 and later. Apps without server rendering of React Server Components are not affected.
+- Trusted Types: React 19.3 passes `TrustedHTML` and related values through unchanged, so a policy created with `require-trusted-types-for 'script'` works with sanitized HTML.
+- Third-party components can render untrusted content; vet libraries and lock versions.
 
-### Error Boundary per Route
-When to use: every route segment. When not to use: never skip this. Sketch: `error.tsx` exports a client component that catches `error` and renders a recovery UI with `reset()`.
+## 11. Testing
 
-### Server Action Form Pattern
-When to use: any form that mutates server state. When not to use: pure client-only interactions. Sketch: `<form action={signInAction}>` with `useFormStatus` for the submit button and `useActionState` for form-level errors.
+- Test behavior through the DOM with `@testing-library/react` and `@testing-library/user-event`; query by role and label. `react-test-renderer` is deprecated and shallow rendering is removed.
+- Await asynchronous Actions: after `await user.click(...)`, use `findBy*` or `waitFor` for the pending, error and success states.
+- `act` is exported from `react`; Testing Library wraps it, so call it directly only for custom timers or manual updates.
+- Test hooks through a small test component or `renderHook`; avoid testing internals such as the number of renders.
+- Mock the network boundary (fetch handlers, Mock Service Worker), not React.
+- For Suspense and `use`, render inside `<Suspense>` and assert the fallback then the content; create promises in the test so they are stable.
+- Async Server Components do not render in jsdom; test their logic as functions and cover them with end-to-end tests in the framework.
+- Run `eslint-plugin-react-hooks` in CI; compiler diagnostics catch impure code before tests do.
 
-## 13. Best Practices
+## 12. Review Checklist
 
-- Always start with Server Components and add `'use client'` only when interactivity is required.
-- Always use the React Compiler (`babel-plugin-react-compiler`) and remove manual `useMemo`/`useCallback` it can handle.
-- Always wrap async data dependencies in Suspense and provide a meaningful fallback.
-- Always use `useActionState` for form submissions; it manages pending state and errors atomically.
-- Always pair `useOptimistic` with a server Action for instant UI feedback with authoritative reconciliation.
-- Always respect `prefers-reduced-motion` and disable non-essential animations.
-- Always colocate Zod schemas with the form that consumes them and infer the TypeScript type with `z.infer`.
-- Always use `userEvent` over `fireEvent` in tests because it simulates real browser behavior.
-- Always test behavior, not implementation: query by role, label, or text, never by class name or test ID when avoidable.
-- Always render loading and error states in stories so they are visible during review.
-- Always memoize expensive computations at the data layer, not the component layer, when the Compiler cannot.
-- Always use `useDeferredValue` for filtering or searching large client-side lists.
-- Always pin React and React DOM to the same minor version.
-- Always run `eslint --max-warnings=0` in CI.
+- [ ] Render is pure: no mutation of props, state, module variables or `ref.current` during render.
+- [ ] No Effect for derived state, event handling or resetting by prop; `key` or render-time computation used instead.
+- [ ] Effects clean up subscriptions and timers; Effect Events are used only for event-like logic.
+- [ ] Mutations use Actions with pending, error and (if needed) optimistic state; forms work with `FormData`.
+- [ ] `use(promise)` receives a stable promise inside Suspense; an error boundary exists above.
+- [ ] `ref` passed as a prop; no new `forwardRef` unless React 18 support is required.
+- [ ] `eslint-plugin-react-hooks` `recommended` passes; `"use no memo"` is used only as a temporary, commented escape hatch.
+- [ ] No `dangerouslySetInnerHTML` with unsanitized input; user-supplied URLs are protocol-checked.
+- [ ] No secrets in client bundles; Server Functions validate, authenticate, authorize and scope writes.
+- [ ] Props crossing the server-client boundary are serializable DTOs.
+- [ ] Tests cover pending, error and success paths and use accessible queries.
+- [ ] `react`, `react-dom` and any RSC bundler packages are on a patched 19.x release.
 
-## 14. Anti Patterns
+## 13. Production Notes
 
-### Anti-pattern: Deriving state with `useEffect`
-Why wrong: causes an extra render, flickers the UI, and breaks Strict Mode. Correct alternative: compute during render (`const filtered = items.filter(...)`), or use `useMemo` if expensive.
+- Error reporting: React 19 reports uncaught render errors to `window.reportError` and caught ones to `console.error`; hook your reporter into `createRoot`/`hydrateRoot` options `onUncaughtError`, `onCaughtError` and `onRecoverableError`.
+- React Compiler adds build time (Babel) and requires keeping `babel-plugin-react-compiler` pinned; use `panicThreshold: 'none'` (default) so uncompilable components are skipped instead of failing the build.
+- Roll the compiler out gradually with `compilationMode: 'annotation'` and `"use memo"`, or per directory, then switch to the default `infer` mode.
+- To support React 17 or 18 with the compiler, set `target` and install `react-compiler-runtime`.
+- Upgrade path from 18: install `react@19 react-dom@19 @types/react@19 @types/react-dom@19`, run the official React 19 codemods, fix removed APIs, then adopt Actions and the compiler incrementally.
+- Server Functions in React 19 are stable for app developers, but the bundler-level APIs used to implement them are not semver-stable across 19.x minors; frameworks should pin or use the version they ship against.
+- Hidden `<Activity>` trees still render at low priority; budget for the work of what you keep hidden.
 
-### Anti-pattern: Passing non-serializable props across the server/client boundary
-Why wrong: crashes during serialization. Correct alternative: pass primitive IDs and re-fetch on the client, or keep the data on the server.
+## 14. Examples
 
-### Anti-pattern: Using Context for high-frequency state
-Why wrong: every consumer re-renders on every state change. Correct alternative: split contexts by read/write, use `useSyncExternalStore`, or move to Zustand.
-
-### Anti-pattern: `useState` for form state with manual fetch
-Why wrong: duplicates pending/error handling, loses progressive enhancement, breaks when JS fails. Correct alternative: Actions + `useActionState` + `useFormStatus`.
-
-### Anti-pattern: Wrapping every async component in its own Suspense
-Why wrong: causes layout thrash and waterfall fallbacks. Correct alternative: place Suspense at the route or feature boundary with a single coordinated skeleton.
-
-### Anti-pattern: `forwardRef` in React 19 codebases
-Why wrong: deprecated ergonomics; ref is now a regular prop. Correct alternative: accept `ref` as a normal prop on function components.
-
-### Anti-pattern: Calling `use` conditionally
-Why wrong: violates the Rules of Hooks. Correct alternative: extract conditional logic into a separate component that always calls `use`.
-
-## 15. Performance Rules
-
-- Always measure INP, LCP, and CLS in CI with Lighthouse and in production with `web-vitals`.
-- Always split routes with `next/dynamic` and pass `ssr: false` only for client-only islands.
-- Always virtualize lists longer than 100 items with `@tanstack/react-virtual`.
-- Always defer non-critical work with `startTransition` or `useDeferredValue`.
-- Always avoid layout thrash: batch DOM reads before writes.
-- Always use `content-visibility: auto` for offscreen sections.
-- Always preload the LCP image and set `fetchpriority="high"`.
-- Always eliminate hydration-blocking scripts: defer third-party tags with Partytown.
-
-## 16. Security Rules
-
-- Always validate server Action inputs with Zod; never trust client payloads.
-- Always authorize inside the Action, never only on the route handler.
-- Always sanitize user-rendered HTML with DOMPurify; never use `dangerouslySetInnerHTML` with raw input.
-- Always set `HttpOnly`, `Secure`, `SameSite=Lax` on auth cookies.
-- Always use CSRF tokens for cookie-based auth on mutations.
-- Always escape dynamic content in URLs to prevent open redirects.
-- Always enforce CSP with `nonce-based` scripts and forbid `unsafe-inline`.
-- Always audit `localStorage` usage; never store tokens or PII there.
-
-## 17. Testing Strategy
-
-- Always test user-visible behavior, never implementation details.
-- Always use `userEvent.setup()` and `await` user interactions.
-- Always mock network with MSW at the service layer, never with `jest.mock('fetch')`.
-- Always test the four states: idle, pending, success, error.
-- Always test accessibility assertions with `jest-axe` on rendered output.
-- Always test keyboard navigation for interactive components.
-- Always run `act()` around state updates in unit tests.
-- Always use `renderHook` for hook unit tests with explicit `act` wrapping.
-- Always include at least one Playwright E2E test per critical user flow.
-- Always assert on accessible names, not on text content alone.
-
-## 18. Documentation Standards
-
-- Every component file starts with a JSDoc block describing purpose, props, and accessibility considerations.
-- Every hook documents its inputs, outputs, side effects, and throw conditions.
-- Every server Action documents its authorization requirements and input schema.
-- Every feature ships a README listing its public API and integration points.
-- Every architectural decision is recorded in `docs/adr/` with context, decision, and consequences.
-- Every story in Storybook includes the default state plus loading, error, and disabled states.
-- Every change to public API appears in `CHANGELOG.md` under Keep a Changelog format.
-- Every breaking change includes a migration guide.
-
-## 19. Code Review Checklist
-
-- [ ] Component is a Server Component unless it genuinely needs `'use client'`.
-- [ ] Props are typed with an explicit interface; no `any` anywhere.
-- [ ] Refs use the React 19 ref-as-prop pattern, not `forwardRef`.
-- [ ] Effects are pure synchronizers with cleanup; no derived state in effects.
-- [ ] Forms use Actions with `useActionState` and `useFormStatus`.
-- [ ] Optimistic updates pair `useOptimistic` with a server Action and roll back on error.
-- [ ] Suspense boundaries are placed at the feature or route level, not per-async-component.
-- [ ] Error boundaries exist for every route segment with a recovery UI.
-- [ ] Loading skeletons are accessible (`role="status"`, `aria-busy`).
-- [ ] No hydration mismatches: server and client render identical markup for the first paint.
-- [ ] No `dangerouslySetInnerHTML` without sanitization.
-- [ ] No `any` casts; no `@ts-expect-error` without an explanation comment.
-- [ ] ESLint passes with zero warnings.
-- [ ] Tests cover the success, error, and pending states.
-- [ ] Accessibility assertions pass with `jest-axe`.
-- [ ] No layout shift introduced: images have `width`/`height` or `aspect-ratio`.
-- [ ] Bundle size impact measured; no new dependency above 20 KB gzipped without review.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace `useState` + `useEffect` derived state with direct computation.
-- [ ] Replace HOCs with hooks or composition.
-- [ ] Replace `forwardRef` with ref-as-prop where React 19 is the minimum.
-- [ ] Replace manual `useMemo`/`useCallback` when the React Compiler can handle them.
-- [ ] Replace Context-based global state with Zustand for high-frequency updates.
-- [ ] Replace `fetch` in components with typed API clients behind a module boundary.
-- [ ] Replace class components with function components.
-- [ ] Replace render props with children composition where possible.
-- [ ] Replace conditional `useEffect` with conditional rendering of a child component.
-- [ ] Replace inline event handlers passed as props with stable callbacks.
-
-## 21. Deployment Checklist
-
-- [ ] `NODE_ENV=production` set; dev dependencies excluded from the bundle.
-- [ ] `next build` completes with zero warnings.
-- [ ] Source maps uploaded to the error tracking provider.
-- [ ] Environment variables validated against a Zod schema at boot.
-- [ ] CSP headers configured; `unsafe-inline` absent.
-- [ ] HSTS, X-Content-Type-Options, X-Frame-Options set.
-- [ ] CDN configured for static assets with immutable cache headers.
-- [ ] LCP image preloaded; fonts preloaded with `font-display: swap`.
-- [ ] Service worker (if any) does not cache authenticated responses.
-- [ ] Edge middleware runs without Node APIs.
-- [ ] Health check endpoint returns 200 with build SHA.
-- [ ] Database migrations run as a pre-deploy step.
-- [ ] Feature flags evaluated at boot; defaults safe for users.
-- [ ] Rollback plan documented and tested.
-- [ ] Web Vitals RUM endpoint configured.
-- [ ] Bundle analysis artifact uploaded for review.
-
-## 22. Production Checklist
-
-- [ ] Error tracking (Sentry) installed with React 19 error boundary integration.
-- [ ] RUM library (`web-vitals`) reports LCP, INP, CLS to the dashboard.
-- [ ] Log shipping configured for server Actions and route handlers.
-- [ ] PII scrubbing enabled in logs and error payloads.
-- [ ] Rate limiting on auth and mutation endpoints.
-- [ ] Auth cookies expire and refresh correctly.
-- [ ] Session revocation works end to end.
-- [ ] 404 and 500 pages are branded and helpful.
-- [ ] `robots.txt` and `sitemap.xml` generated.
-- [ ] Open Graph and Twitter card metadata present on public pages.
-- [ ] `prefers-reduced-motion` respected globally.
-- [ ] `prefers-color-scheme` dark mode functional.
-- [ ] Print stylesheet present for key flows.
-- [ ] Cookie banner compliant with regional regulations.
-- [ ] Accessibility statement published.
-- [ ] On-call runbook linked from the repository.
-
-## 23. Logging Strategy
-
-- Always log server Action invocations with `actionName`, `userId`, `requestId`, and `durationMs`.
-- Never log raw user input; redact PII with a structured redactor.
-- Always use a structured logger (`pino`) with JSON output in production.
-- Always include `requestId` propagated from the edge middleware.
-- Always log at `info` for business events, `warn` for recoverable issues, `error` for failures.
-- Never use `console.log` in production code.
-- Always attach the build SHA and Git commit to every log stream.
-- Always sample high-frequency logs (e.g., RUM) to control cost.
-- Always log the recovery path for error boundaries with the boundary name.
-- Always correlate client-side errors with server logs via a shared `traceId`.
-
-## 24. Monitoring Strategy
-
-- Always monitor Core Web Vitals (LCP, INP, CLS) with field data.
-- Always alert when p75 INP exceeds 200 ms for any route.
-- Always alert when JavaScript error rate exceeds 0.5% of page views.
-- Always monitor hydration mismatch count; alert above zero.
-- Always monitor Action success rate; alert below 99%.
-- Always track bundle size per route and alert on > 10% growth.
-- Always monitor TTFB per route; alert when p75 exceeds 800 ms.
-- Always track feature flag evaluation latency.
-- Always monitor third-party script impact with the "Third-Party Web Vitals" dashboard.
-- Always run synthetic checks every 5 minutes for the top five routes.
-
-## 25. Error Handling
-
-- Always define an error boundary per route segment with a recovery UI.
-- Always include a `reset()` handler in error boundaries that re-renders the segment.
-- Always log the original error with `error.cause` chained for context.
-- Never swallow errors silently; always rethrow or surface to the user.
-- Always translate server errors to actionable user messages.
-- Always render an empty state when data is absent and a failure state when retrieval errors.
-- Always handle network errors with retry and exponential backoff.
-- Always handle aborted fetches (`AbortError`) gracefully.
-- Always validate error shape with a type guard before rendering.
-- Always include a "contact support" affordance with a `traceId` on unrecoverable errors.
-
-## 26. Examples
-
-### Example 1: Sign-in form with Actions and optimistic state
+### Example 1: Form Action with pending and error state (client Action)
 
 ```tsx
-// src/features/auth/actions.ts
-'use server';
-import { z } from 'zod';
-import { signIn } from '@/lib/auth';
-import { revalidatePath } from 'next/cache';
+import { useActionState } from 'react'
+import { useFormStatus } from 'react-dom'
+import { z } from 'zod'
 
-const Schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(12),
-});
+type State = { status: 'idle' | 'success' | 'error'; message?: string; errors?: Record<string, string[]> }
 
-export async function signInAction(prev: State, formData: FormData): Promise<State> {
-  const parsed = Schema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    return { status: 'error', issues: parsed.error.flatten().fieldErrors };
-  }
-  const result = await signIn(parsed.data);
-  if (!result.ok) {
-    return { status: 'error', message: result.message };
-  }
-  revalidatePath('/');
-  return { status: 'success' };
+const schema = z.object({
+  name: z.string().trim().min(1).max(80),
+  email: z.email().max(254),
+})
+
+// Client validation is for UX only; the server endpoint validates, authenticates and authorizes again.
+async function saveProfile(_prev: State, formData: FormData): Promise<State> {
+  const parsed = schema.safeParse({ name: formData.get('name'), email: formData.get('email') })
+  if (!parsed.success) return { status: 'error', errors: z.flattenError(parsed.error).fieldErrors }
+
+  const res = await fetch('/api/profile', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(parsed.data),
+  })
+  if (!res.ok) return { status: 'error', message: 'Could not save your profile.' }
+  return { status: 'success', message: 'Saved.' }
 }
-```
-
-```tsx
-// src/features/auth/components/sign-in-form.tsx
-'use client';
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
-import { signInAction } from '../actions';
 
 function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button type="submit" disabled={pending} aria-busy={pending}>
-      {pending ? 'Signing in…' : 'Sign in'}
-    </button>
-  );
+  const { pending } = useFormStatus() // must be rendered inside the <form>
+  return <button disabled={pending}>{pending ? 'Saving...' : 'Save'}</button>
 }
 
-export function SignInForm() {
-  const [state, formAction] = useActionState(signInAction, { status: 'idle' });
+export function ProfileForm() {
+  const [state, formAction] = useActionState(saveProfile, { status: 'idle' } as State)
   return (
-    <form action={formAction} noValidate>
+    <form action={formAction}>
+      <label htmlFor="name">Name</label>
+      <input id="name" name="name" required maxLength={80} />
+      {state.errors?.name && <p role="alert">{state.errors.name[0]}</p>}
       <label htmlFor="email">Email</label>
-      <input id="email" name="email" type="email" autoComplete="email" required />
-      <label htmlFor="password">Password</label>
-      <input id="password" name="password" type="password" autoComplete="current-password" required />
+      <input id="email" name="email" type="email" required />
+      {state.errors?.email && <p role="alert">{state.errors.email[0]}</p>}
       <SubmitButton />
-      {state.status === 'error' && state.message && (
-        <p role="alert">{state.message}</p>
-      )}
+      {state.message && <p role={state.status === 'error' ? 'alert' : 'status'}>{state.message}</p>}
     </form>
-  );
+  )
 }
 ```
 
-### Example 2: Optimistic like button with rollback
+React resets uncontrolled fields after a successful form Action; return the submitted values in state if they must remain after an error.
+
+### Example 2: Optimistic list with a reducer
 
 ```tsx
-'use client';
-import { useOptimistic } from 'react';
-import { toggleLike } from '../actions';
+import { useOptimistic, useTransition } from 'react'
 
-type Props = { postId: string; initialLiked: boolean; initialCount: number };
+type Todo = { id: string; title: string; pending?: boolean }
 
-export function LikeButton({ postId, initialLiked, initialCount }: Props) {
-  const [optimistic, addOptimistic] = useOptimistic(
-    { liked: initialLiked, count: initialCount },
-    (state, next: boolean) => ({
-      liked: next,
-      count: state.count + (next ? 1 : -1),
-    }),
-  );
+export function TodoList({ todos, addTodo }: { todos: Todo[]; addTodo: (title: string) => Promise<void> }) {
+  const [optimisticTodos, addOptimistic] = useOptimistic(
+    todos,
+    (current: Todo[], title: string): Todo[] => [...current, { id: `tmp-${current.length}`, title, pending: true }],
+  )
+  const [isPending, startTransition] = useTransition()
 
-  async function action() {
-    addOptimistic(!optimistic.liked);
-    await toggleLike(postId);
+  function onSubmit(formData: FormData) {
+    const title = String(formData.get('title') ?? '').trim().slice(0, 200)
+    if (!title) return
+    startTransition(async () => {
+      addOptimistic(title)       // shown immediately, reverts to `todos` when the Action settles
+      await addTodo(title)       // the parent updates `todos` (and the server re-validates the input)
+    })
   }
 
   return (
-    <form action={action}>
-      <button
-        type="submit"
-        aria-pressed={optimistic.liked}
-        aria-label={optimistic.liked ? 'Unlike' : 'Like'}
-      >
-        ♥ {optimistic.count}
-      </button>
-    </form>
-  );
+    <>
+      <ul>
+        {optimisticTodos.map((t) => (
+          <li key={t.id} style={{ opacity: t.pending ? 0.5 : 1 }}>{t.title}</li>
+        ))}
+      </ul>
+      <form action={onSubmit}>
+        <input name="title" maxLength={200} aria-label="New todo" />
+        <button disabled={isPending}>Add</button>
+      </form>
+    </>
+  )
 }
 ```
 
-### Example 3: Suspense-wrapped server component with error boundary
+### Example 3: ref as a prop with cleanup, and an Effect Event
 
 ```tsx
-// app/dashboard/page.tsx
-import { Suspense } from 'react';
-import { ErrorBoundary } from '@/components/error-boundary';
-import { ActivityFeed } from '@/features/activity/components/activity-feed';
-import { ActivitySkeleton } from '@/features/activity/components/activity-skeleton';
+import { useEffect, useEffectEvent, type ComponentProps, type Ref } from 'react'
 
-export default function DashboardPage() {
+export function TextField({ ref, label, ...rest }: { ref?: Ref<HTMLInputElement>; label: string } & ComponentProps<'input'>) {
+  // `ref` is an ordinary prop in React 19; no forwardRef needed.
   return (
-    <main aria-label="Dashboard">
-      <h1>Dashboard</h1>
-      <ErrorBoundary fallback={<ActivityError />}>
-        <Suspense fallback={<ActivitySkeleton />}>
-          <ActivityFeed />
-        </Suspense>
-      </ErrorBoundary>
-    </main>
-  );
+    <label>
+      {label}
+      <input ref={ref} {...rest} />
+    </label>
+  )
+}
+
+export function ChatRoom({ roomId, theme, connect }: {
+  roomId: string
+  theme: 'light' | 'dark'
+  connect: (roomId: string, onConnected: () => void) => () => void
+}) {
+  // Reads the latest theme without making the connection depend on it.
+  const onConnected = useEffectEvent(() => {
+    console.debug(`connected to ${roomId} with the ${theme} theme`)
+  })
+
+  useEffect(() => {
+    const disconnect = connect(roomId, () => onConnected())
+    return disconnect
+  }, [roomId, connect])               // onConnected is intentionally not a dependency
+
+  return <h2>{roomId}</h2>
 }
 ```
 
-## 27. Common Mistakes
+## 15. Common Mistakes
 
-### Mistake: Calling hooks inside conditions
-What: `if (cond) useState(0)`. Why wrong: violates Rules of Hooks, breaks on conditional renders. How to avoid: hoist the hook above the condition; use early returns after all hooks.
+- Creating a Promise inside the component that calls `use(promise)`: it is new on every render and suspends repeatedly.
+- Calling the `useOptimistic` setter outside an Action or Transition.
+- Rendering `useFormStatus` in the same component that renders the `<form>`; it reads the parent form, so it must be in a child.
+- Putting an Effect Event in a dependency array, passing it as a prop, or calling it during render.
+- Using `useEffectEvent` to avoid honest dependencies, which hides stale-value bugs.
+- Adding `useMemo`/`useCallback` to new code by habit; the compiler handles it. Conversely, deleting existing memoization in bulk without testing, which can change compiled output.
+- Mutating state, props or refs during render; the compiler skips the component and the lint rules flag it.
+- Using `useEffect` to fetch on mount without cleanup or race handling when Suspense or a data library would do.
+- Relying on `Context.Provider` and `forwardRef` in new code; use `<Context value>` and `ref` as a prop.
+- Passing `ref` through `element.ref` (deprecated); read `element.props.ref`.
+- Trusting client-side validation: Actions and Server Functions need the same validation, authentication and authorization on the server.
+- Marking a layout `'use client'` and pulling the whole tree, and server-only dependencies, into the bundle.
+- Testing with shallow rendering or `react-test-renderer`.
+- Using array index keys for lists that reorder or insert.
+- Leaving `"use no memo"` in code as a permanent fix.
 
-### Mistake: Forgetting `key` on list items
-What: rendering arrays without a stable `key`. Why wrong: causes unnecessary DOM replacement and state loss. How to avoid: always pass a stable, unique `key` derived from the item identity.
+## 16. References
 
-### Mistake: Updating state in `useEffect` without a guard
-What: setting state on every effect run. Why wrong: infinite loops, Strict Mode double invocation. How to avoid: gate updates with a dependency check or move to event handlers.
-
-### Mistake: Using `useEffect` for data fetching without cleanup
-What: calling `fetch` and `setState` without an AbortController. Why wrong: race conditions, memory leaks, state on unmounted components. How to avoid: use Server Components or `use` with Suspense; if client fetching is required, abort on unmount.
-
-### Mistake: Passing inline object props to memoized children
-What: `style={{ color: 'red' }}` on every render. Why wrong: defeats memoization. How to avoid: hoist the object to a module constant or use the React Compiler.
-
-### Mistake: Hydration mismatches from `Date.now()` or `Math.random()`
-What: rendering time-dependent values on the server. Why wrong: server and client disagree, React discards the server tree. How to avoid: render placeholders and update in `useEffect` or `useSyncExternalStore`.
-
-### Mistake: Treating `useOptimistic` as permanent state
-What: forgetting it reverts to the source state on re-render. Why wrong: optimistic value disappears without a real update. How to avoid: always pair with a server Action that updates the source.
-
-## 28. Professional Workflow
-
-1. Read the product spec and write a typed contract (props, state machine, error states).
-2. Sketch the component tree on paper or in a Figma frame; mark server vs client nodes.
-3. Identify the data dependencies and decide Server Component vs client fetch vs Action.
-4. Write the Zod schemas and types first; commit them for review.
-5. Implement the server layer (Actions, route handlers, data queries).
-6. Implement the presentational components with stories for every state.
-7. Wire interactivity with hooks; verify Strict Mode compliance.
-8. Add Suspense boundaries and error boundaries at the right granularity.
-9. Write unit tests for hooks and behavior tests for components.
-10. Add a Playwright E2E for the user flow.
-11. Run the accessibility audit (axe + manual keyboard test).
-12. Profile with React DevTools and the Performance panel; eliminate wasted renders.
-13. Open a PR with the Lighthouse budget diff and bundle size delta.
-14. Address review comments; never dismiss accessibility or performance feedback.
-15. Ship behind a feature flag; monitor RUM for 24 hours before full rollout.
-
-## 29. Response Style
-
-- Always answer with code first, prose second.
-- Always state assumptions before code; never leave the reader guessing.
-- Always cite the React 19 documentation or the relevant RFC when introducing an unfamiliar primitive.
-- Always explain trade-offs in terms of performance, accessibility, and maintainability.
-- Never use hedging language: "you might", "perhaps", "it depends" are forbidden.
-- Always propose the simplest correct solution; never gold-plate.
-- Always close with a checklist of next steps when the answer is multi-part.
-- Always refuse to write code that violates accessibility, security, or performance rules.
-
-## 30. Output Format
-
-- Always prefix code blocks with a language tag.
-- Always include the file path as a comment on the first line of each code block.
-- Always separate examples with horizontal rules.
-- Always use `tsx` for component code, `ts` for non-component TypeScript, `bash` for shell.
-- Always number steps in workflows with ordered lists.
-- Always use checklists (with `- [ ]`) for review and deployment sections.
-- Always bold key terms on first use.
-- Always quote RFC or doc references with the URL.
-- Never inline more than 80 characters of code per line.
-- Always conclude with a one-line summary of the change or recommendation.
+- [references/hooks-and-actions.md](references/hooks-and-actions.md): Actions, `useActionState`, `useOptimistic`, `useFormStatus`, `use`, Transitions, Effects and `useEffectEvent`, error handling options.
+- [references/react-compiler.md](references/react-compiler.md): installation per build tool, options, directives, lint rules, adoption plan, what the compiler skips.
+- [references/server-components-and-boundaries.md](references/server-components-and-boundaries.md): `'use client'` and `'use server'`, serialization, composition, Context across the boundary, `cache`, resource and metadata rendering, Activity and ViewTransition, security rules.
+- Official docs: https://react.dev, React 19.3 release post https://react.dev/blog/2026/09/09/react-19-3, React Compiler 1.0 https://react.dev/blog/2025/10/07/react-compiler-1.
