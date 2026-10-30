@@ -1,685 +1,273 @@
 ---
 name: system-design-expert
-description: >
-  Designs distributed systems that satisfy CAP/PACELC trade-offs, partitioning, replication, consensus, and consistency models under internet-scale workloads.
-  
-  Use this skill when making system-design, scalability, refactoring, code-review, or enterprise-architecture decisions.
+description: >-
+  Designs the internals of distributed systems: consistency models, CAP and PACELC trade-offs, partitioning, replication and quorums, consensus (Raft, Paxos), isolation levels, distributed transactions (saga, outbox), idempotency and exactly-once effects, queues vs logs, cache correctness and failure-mode analysis, with back-of-envelope estimates. Use when answering a system design question, choosing a datastore or replication scheme, picking a partition key, reasoning about stale reads or lost writes, designing an idempotent consumer, configuring Kafka durability, or enumerating failure modes. Not for org-wide or vendor-level solution design (use solution-architect), service boundaries and inter-service contracts (use microservices-expert), capacity, autoscaling and profiling (use scalability-expert), or domain modeling (use ddd-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# System Design Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers how distributed systems behave under concurrency and partial failure, and how to choose consistency, partitioning, replication and messaging so a design meets its correctness, availability, latency and durability targets. It includes estimation and failure-mode analysis for design interviews and real design reviews. It does not cover vendor selection and cost (solution-architect), service decomposition (microservices-expert) or load testing and autoscaling (scalability-expert).
 
----
+> Verified against Kleppmann, Designing Data-Intensive Applications; Abadi's PACELC formulation; the Raft paper (Ongaro and Ousterhout); the PostgreSQL 18 documentation on transaction isolation; and the Apache Kafka documentation on producer and broker durability settings (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Design Standards](#5-design-standards)
+6. [Design Document Structure](#6-design-document-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The System Design Expert designs distributed systems that operate correctly under partial failure, network partitions, geographic distribution, and internet-scale traffic. This role owns the technical design of systems where correctness cannot be verified by reading a single machine's logs and where the cost of a wrong call is measured in customer-visible outages.
+## 1. Scope
 
-The role demands fluency in CAP and PACELC trade-offs, consistency models (strong, sequential, causal, eventual, read-your-writes, monotonic reads), partitioning (range, hash, consistent hashing with virtual nodes, directory-based), replication (single-leader, multi-leader, leaderless, quorum-based with W+R>N), consensus (Paxos, Raft, Zab), isolation levels, distributed transactions (2PC, 3PC, Saga, outbox, eventual consistency), idempotency, message queues vs streams, and observability for distributed systems.
+- Requirements and estimation: traffic, data volume, read/write ratio, latency and durability targets.
+- Data distribution: partitioning, replication, quorums, rebalancing, hot keys.
+- Coordination: consensus, leader election, leases, fencing tokens, distributed locks.
+- Consistency: models, isolation levels, anomalies, transactions across services.
+- Messaging: queues vs logs, delivery semantics, ordering, idempotency.
+- Failure: partitions, crashes, slow nodes, clock skew, retries and their side effects.
 
-The System Design Expert is the final technical authority for non-trivial distributed systems design. The role reports to engineering leadership and operates through design reviews, ADRs, and direct pairing with implementation teams.
+## 2. Core Expertise
 
-## 2. Mission
+- **CAP and PACELC.** During a network partition (P) a system chooses availability (A) or consistency (C); else (E), in normal operation, it trades latency (L) against consistency (C). PACELC is the more useful lens because partitions are rare and latency is constant.
+- **Consistency models**, strongest to weakest: linearizable, sequential, causal, then session guarantees (read-your-writes, monotonic reads, monotonic writes, writes-follow-reads), then eventual. State which one each client-facing operation gets.
+- **Isolation levels and anomalies:** read committed prevents dirty reads and writes; snapshot isolation (PostgreSQL REPEATABLE READ) also prevents non-repeatable reads and read skew but allows write skew; SERIALIZABLE (PostgreSQL uses serializable snapshot isolation) prevents write skew at the cost of retryable serialization failures.
+- **Partitioning:** hash (even spread, no range scans), range (range scans, hot spots on sequential keys), consistent hashing with virtual nodes (adding a node moves about 1/N of the keys), directory or lookup table (flexible, extra hop and a component to keep available).
+- **Replication:** single-leader (simple, write bottleneck, failover risk), multi-leader (local writes, conflict resolution), leaderless with quorums (W + R > N gives read/write overlap, but sloppy quorums and concurrent writes still need conflict handling such as version vectors or last-writer-wins with its data loss).
+- **Consensus:** Raft and Multi-Paxos replicate a log across 2f + 1 nodes to tolerate f failures. Use a consensus-backed store (etcd, ZooKeeper, a Raft-based database) for leader election, configuration and locks rather than writing your own.
+- **Leases and fencing:** a lock holder can pause (GC, VM migration) past its lease; protect the resource with a monotonically increasing fencing token that the storage layer checks.
+- **Clocks:** wall clocks jump and drift; do not order events across machines by wall-clock timestamps. Use logical clocks, version numbers, or a database sequence.
+- **Distributed transactions:** two-phase commit blocks if the coordinator fails and couples availability of all participants; sagas use local transactions plus compensations; the transactional outbox makes "change state and publish event" atomic.
+- **Delivery semantics:** networks give at-most-once or at-least-once; "exactly once" in practice means at-least-once delivery plus idempotent processing (deduplication or idempotent writes).
+- **Queues vs logs:** queues (SQS, RabbitMQ) distribute work and delete on acknowledge; logs (Kafka, Pulsar, Kinesis) retain ordered records per partition and support replay and multiple independent consumer groups.
 
-The mission of the System Design Expert is to deliver distributed system designs that satisfy stated consistency, availability, latency, and durability requirements under realistic failure modes, with the smallest complexity that meets the bar. Every design must be testable against the stated quality attributes; untestable designs are incomplete.
+## 3. Workflow
 
-The expert must refuse any design that assumes the network is reliable, clocks are synchronized, or nodes do not fail. Every design must explicitly enumerate failure modes and the system's response to each.
+1. **Clarify functional scope** and the top three or four use cases; say what is out of scope.
+2. **Quantify:** daily active users, requests per second (average and peak), read/write ratio, object sizes, retention, growth. Do the arithmetic out loud (see Examples).
+3. **State the targets:** latency percentiles per operation, availability, RPO and RTO, and the consistency each operation needs.
+4. **Sketch the high-level design:** clients, edge, services, datastores, queues, caches; then the request path for each main use case.
+5. **Choose the data model and datastore** from access patterns, not habit; pick partition keys that keep each request on one partition.
+6. **Choose replication and consistency** per dataset; write down what a client can observe during failover.
+7. **Design messaging:** which interactions are synchronous, which are events; ordering keys; idempotency keys.
+8. **Enumerate failure modes** per component (crash, slow, partitioned, corrupted, overloaded) and the system's response to each; check that retries cannot duplicate side effects.
+9. **Identify bottlenecks and hot spots;** hand detailed capacity planning to scalability-expert.
+10. **Write it up** with the trade-offs and the alternatives rejected; verify with failure-injection and consistency tests.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- CAP theorem and PACELC extension: in partition or else latency/consistency trade-off; design implications for every datastore choice.
-- Consistency models: strong, sequential, causal, read-your-writes, monotonic reads, monotonic writes, eventual — with client-visible semantics and cost.
-- Partitioning: range-based (hotspots on ordered keys), hash-based (lookups require routing), consistent hashing with virtual nodes (rebalance minimization), directory-based (centralized routing).
-- Replication: single-leader (strong consistency, leader bottleneck), multi-leader (write availability, conflict resolution), leaderless (Dynamo-style, quorum-based W+R>N), sloppy quorums with hinted handoff.
-- Consensus: Paxos (correctness-proof), Raft (understandable, leader-based), Zab (ZooKeeper), viewstamped replication — for configuration, leader election, atomic broadcast.
-- Isolation levels: read uncommitted, read committed, repeatable read, snapshot isolation, serializable — with anomalies prevented at each level.
-- Distributed transactions: 2PC (blocking), 3PC (non-blocking with fail-stop), Saga (compensating actions), outbox pattern (atomic DB+event), eventual consistency (idempotent consumers).
-- Idempotency and exactly-once: idempotency keys, transactional outbox, deduplication at consumer, at-least-once with idempotent application.
-- Message queues vs streams: SQS/RabbitMQ/NATS (queue, point-to-point, transient), Kafka/Pulsar/Kinesis (stream, log, replayable, ordered per partition).
-- Backpressure, circuit breakers, bulkheads, rate limiting at scale: load shedding vs queueing, adaptive concurrency limits.
-- Caching: write-through, write-behind, cache-aside, stampede/thundering herd/dogpile prevention, probabilistic early expiration, single-flight, cache invalidation, TTL strategies.
-- CDN, edge, DNS, load balancing: L4 vs L7, algorithms (round-robin, least-connections, consistent hashing, p2c, EWMA), anycast vs unicast.
-- Capacity planning: Little's Law (L = λW), queueing theory (M/M/1, M/M/c), universal scalability law (α, β coefficients).
-- Database selection: OLTP (PostgreSQL, MySQL), OLAP (ClickHouse, BigQuery, Snowflake), HTAP (TiDB, CockroachDB), row vs column, time-series (TimescaleDB, InfluxDB), graph (Neo4j, Dgraph).
-- Observability for distributed systems: OpenTelemetry, distributed tracing, span propagation, sampling strategies, tail latency analysis, percentile aggregation.
+- Choose the **weakest consistency that the business rule tolerates,** per operation: balances and inventory reservations often need linearizable writes; feeds and counters rarely do.
+- **Single-leader relational database first.** It covers a large range of workloads; move to partitioned or leaderless stores when write volume, data size or availability targets exceed what one primary with replicas can deliver.
+- **Hash partitioning** for point lookups with uniform access; **range partitioning** when range scans dominate, combined with a prefix or bucket to avoid sequential hot spots.
+- **Saga over two-phase commit** across services; keep 2PC to a single database or tightly coupled resources that support XA and accept its blocking behaviour.
+- **Log (Kafka-style)** when multiple consumers need the same events, ordering per key matters, or replay is needed; **queue** for task distribution with independent jobs.
+- **Synchronous call** when the caller needs the result to answer its own client; otherwise publish an event and let consumers react.
+- **Cache** only data whose staleness bound is known and acceptable; write down the bound.
+- **Leader election and locks** come from a consensus system with fencing; never from a TTL key alone when correctness depends on mutual exclusion.
 
-## 4. Responsibilities
+## 5. Design Standards
 
-- Design distributed systems satisfying stated CAP, latency, and durability requirements.
-- Document every design as an ADR with consistency model, partitioning scheme, replication topology, and failure mode analysis.
-- Conduct design reviews with engineering, operations, and security stakeholders; ratify or reject.
-- Define the consistency model contract: what clients can observe under what conditions.
-- Select partitioning and replication schemes; quantify rebalance cost, hotspot risk, and quorum availability.
-- Define failure mode responses: partition, node crash, network glitch, clock skew, slow dependency.
-- Define the observability strategy: metrics, traces, logs, and the sampling that controls cost.
-- Capacity-plan using Little's Law and queueing models; defend estimates with measurements.
+- Every write that crosses a process boundary carries an idempotency key or is naturally idempotent (upsert by key, conditional update on version).
+- Every remote call has a deadline; deadlines propagate so downstream work stops when the caller has given up.
+- Retries are bounded, use exponential backoff with jitter, and only target operations that are safe to retry.
+- Every datastore has a documented partition key, replication factor and consistency setting.
+- Every consumer commits its position only after its side effects are durable.
+- Event schemas are versioned and evolve compatibly (add optional fields; never reuse or repurpose a field).
+- Ordering guarantees are stated per key, never assumed globally.
+- Names: topics `<domain>.<entity>.<event>.v<N>` (`orders.order.placed.v1`); metrics follow Prometheus conventions with base-unit suffixes (`_seconds`, `_bytes`, `_total`); span names follow OpenTelemetry semantic conventions.
 
-## 5. Thinking Process
-
-1. Clarify the consistency, availability, latency, and durability requirements; quantify each (e.g., p99 latency, RPO, availability target).
-2. Identify the workload shape: read-heavy, write-heavy, mixed, bursty, sustained; transactions per second, data size, growth rate.
-3. Enumerate failure modes: network partition, node crash, disk failure, clock skew, slow dependency, Byzantine behavior.
-4. Choose the consistency model that satisfies the requirements with the smallest cost; never over-consistent.
-5. Choose the partitioning scheme that distributes load evenly and minimizes cross-partition operations.
-6. Choose the replication scheme that satisfies the durability and availability requirements; quantify quorum availability under failures.
-7. Choose the consensus protocol for any strongly consistent coordination need; quantify the leader election and failover cost.
-8. Design the failure mode response for each enumerated failure; the system must degrade gracefully, never catastrophically.
-9. Design the observability strategy: what to measure, what to trace, what to log, sampling to control cost.
-10. Capacity-plan using Little's Law (L = λW) and queueing models; defend estimates with measurements on analogous systems.
-11. Document the design as an ADR; conduct design review; ratify or iterate.
-12. Define the test plan: chaos tests for each failure mode, load tests at 2x peak, consistency verification.
-13. Pair with implementation through the first iteration; calibrate the design against reality.
-14. Post-launch, verify quality attributes are met in production; capture lessons; iterate.
-
-## 6. Decision Making Rules
-
-- When strong consistency and high availability conflict under partition, choose based on the business tolerance; never silently compromise either.
-- When single-leader and leaderless replication both satisfy durability, choose single-leader when strong consistency is required, leaderless when write availability dominates.
-- When 2PC and Saga both coordinate multi-service transactions, choose Saga when participants can tolerate eventual consistency; choose 2PC only when participants support it natively.
-- When range and hash partitioning both distribute load, choose hash when access is uniform, range when range scans dominate.
-- When consistent hashing and directory-based partitioning both work, choose consistent hashing when rebalance cost dominates, directory when centralized routing is acceptable.
-- When caching and not caching both satisfy latency, choose caching when read-heavy with stable keys; never cache write-heavy workloads without invalidation discipline.
-- When queues and streams both satisfy messaging, choose queues for transient point-to-point, streams for replayable ordered logs.
-- When synchronous and asynchronous processing both work, choose synchronous when the caller needs the result, asynchronous when the producer must remain decoupled.
-
-## 7. Architecture Rules
-
-- Every distributed system must explicitly state its consistency model; implicit consistency is forbidden.
-- Every write that crosses a process boundary must be idempotent; the network will retry.
-- Every external dependency must have a circuit breaker, timeout, and fallback; unmitigated dependencies are forbidden.
-- Every datastore must have its partitioning scheme documented; unpartitioned datastores must justify why they will not exceed single-node capacity.
-- Every strongly consistent operation must quantify its availability cost; strong consistency is never free.
-- Every distributed transaction must enumerate its failure modes and the system's response to each.
-- Every cache must have an explicit invalidation strategy; cache-without-invalidation is forbidden.
-- Every system must define its SLOs and the error budget; systems without SLOs cannot be operated.
-
-## 8. Coding Standards
-
-- All inter-service calls must include a correlation ID propagated through headers.
-- All retries must use exponential backoff with jitter; fixed intervals are forbidden.
-- All write operations crossing process boundaries must accept an idempotency key.
-- All external calls must have explicit timeouts configured at the call site.
-- All circuit breakers must be configured with failure threshold, recovery timeout, and half-open state.
-- All async operations must support cancellation via context or equivalent.
-- All queue consumers must be idempotent; the broker will deliver at-least-once.
-- All stream consumers must checkpoint offsets explicitly; auto-commit is forbidden in production.
-- All database access must use parameterized queries; string concatenation is forbidden.
-- All structured logs must include trace ID, span ID, and timestamp in RFC3339.
-
-## 9. Naming Conventions
-
-- Services must be named after the bounded context (`billing-service`, `inventory-service`).
-- Topics must be named `<domain>.<entity>.<event-type>.<version>` (`orders.order.created.v1`).
-- Partitions must be assigned by hash of a stable key (e.g., `orderId`); never by timestamp alone.
-- Idempotency keys must be UUIDv4 generated by the client; never server-generated.
-- Replicas must be named `<service>-<replica-index>` (e.g., `billing-0`, `billing-1`).
-- Quorum configurations must be named `<cluster>-quorum-<n>` (e.g., `billing-quorum-3`).
-- Circuit breakers must be named after the protected dependency (`breaker.stripe.api`).
-- Cache keys must be namespaced `<service>:<entity>:<id>` (`billing:invoice:INV-001`).
-- Traces must use OpenTelemetry semantic conventions for span names (HTTP method + route).
-- Metrics must follow Prometheus naming (snake_case, base unit suffix: `_seconds`, `_bytes`).
-
-## 10. Folder Structure
+## 6. Design Document Structure
 
 ```
-billing-service/
-  src/
-    domain/                          # Pure domain model
-      Invoice.ts
-      InvoiceLine.ts
-      InvoiceRepository.ts           # Repository port
-    application/                     # Use cases
-      IssueInvoice.ts
-      PayInvoice.ts
-    infrastructure/
-      postgres/
-        PostgresInvoiceRepository.ts
-        migrations/                  # Forward-only migrations
-      kafka/
-        InvoiceEventProducer.ts
-        InvoiceEventConsumer.ts
-      redis/
-        InvoiceCache.ts
-      outbox/
-        OutboxRelay.ts               # Outbox pattern implementation
-    api/
-      InvoiceController.ts
-      routes.ts
-    consensus/                       # Raft/coordinator integration
-      LeaderElection.ts
-    observability/
-      metrics.ts
-      tracing.ts
-      logger.ts
-    config/
-      configuration.ts
-    tests/
-      unit/
-      integration/                   # Testcontainers-backed
-      chaos/                         # Failure injection tests
-      load/                          # k6 / Locust scripts
-  infrastructure/
-    terraform/
-      main.tf
-      variables.tf
-    helm/
-      Chart.yaml
-      values.yaml
-  docs/
-    adr/
-      0001-adopt-cqrs.md
-      0002-event-sourcing-for-invoice.md
-    system-design.md
-    runbooks/
-  scripts/
-    seed-dev.sh
-    chaos-test.sh
-  README.md
+system-design.md
+  1. Problem and scope            # Use cases in and out of scope
+  2. Requirements                 # Functional; NFR targets per operation
+  3. Estimates                    # Traffic, storage, bandwidth, concurrency
+  4. API                          # Main endpoints or RPCs and events
+  5. Data model                   # Entities, access patterns, partition keys
+  6. High-level design            # Diagram and request paths
+  7. Consistency and replication  # Per dataset; behaviour during failover
+  8. Failure modes                # Table: component, failure, detection, response
+  9. Bottlenecks and evolution    # What breaks first at 10x and what we do then
+  10. Alternatives considered     # And why they were rejected
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-billing-platform/
-  services/
-    billing-api/                     # HTTP entry point
-    billing-worker/                  # Async processor
-    billing-aggregator/              # Read model projector
-  packages/
-    contracts/
-      openapi/billing.yaml
-      asyncapi/billing-events.yaml
-      avro/
-        InvoiceIssued.v1.avsc
-        InvoicePaid.v1.avsc
-    domain/                          # Shared domain kernel
-    testkit/                         # Test utilities
-  infrastructure/
-    terraform/
-      modules/
-        vpc/
-        rds/
-        kafka/
-        redis/
-        s3/
-      environments/
-        dev/
-        staging/
-        prod/
-    helm/
-      billing-api/
-      billing-worker/
-      billing-aggregator/
-  observability/
-    dashboards/
-      slo-dashboard.json
-      latency-dashboard.json
-      cost-dashboard.json
-    alerts/
-      billing-slo-alerts.yaml
-    synthetic-checks/
-      billing-journey.yaml
-  pipelines/
-    ci.yml
-    cd-dev.yml
-    cd-staging.yml
-    cd-prod.yml
-  load-tests/
-    k6/
-      checkout-flow.js
-      invoice-issuance.js
-  chaos-tests/
-    network-partition.yaml
-    node-crash.yaml
-    clock-skew.yaml
-  docs/
-    system-design.md
-    adr/
-    runbooks/
-    capacity-plan.md
-  .github/
-    workflows/
-    CODEOWNERS
-  README.md
-  CHANGELOG.md
-  SECURITY.md
-  LICENSE
-```
+| Pattern | Problem it solves | Watch out for |
+|---------|-------------------|---------------|
+| Transactional outbox | Atomically change state and publish an event | Relay must be idempotent; consumers deduplicate |
+| Idempotent consumer | At-least-once delivery without duplicate effects | Deduplication table growth; scope keys per consumer |
+| Saga (orchestrated or choreographed) | Business transaction across services | Compensations are business actions, not rollbacks; isolation is lost between steps |
+| Consistent hashing with virtual nodes | Rebalancing with minimal key movement | Hot keys still land on one node |
+| Quorum reads and writes | Tunable consistency in leaderless stores | Not linearizable under sloppy quorums or concurrent writes |
+| Read repair and anti-entropy | Converging divergent replicas (Merkle trees in Dynamo-style stores) | Background repair load |
+| Fencing tokens | Safe mutual exclusion despite paused lock holders | Storage must check the token |
+| Change data capture | Derive search indexes, caches and analytics from the database log | Schema changes propagate downstream |
+| CQRS read models | Read shapes that differ from the write model | Eventual consistency; projection rebuilds |
+| Circuit breaker and bulkhead | Stop cascading failure from a slow dependency | Tune thresholds from real latency data |
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### 12.1 Consistent Hashing with Virtual Nodes
-**When to use**: When distributing data across a dynamic set of nodes with minimal rebalancing.
-**When not to use**: When the node set is fixed and small; simple modulo hashing is sufficient.
-**Sketch**: Hash both nodes (with V virtual nodes each) and keys onto a ring; each key maps to the next clockwise virtual node; adding or removing a node only moves 1/V of the keys.
+- Do the estimate before choosing technology; one order of magnitude changes the design.
+- Keep the request path short: every synchronous hop multiplies failure probability and adds tail latency.
+- Make ordering explicit with a partition key; one key per entity whose events must stay in order.
+- Prefer conditional writes (`UPDATE ... WHERE version = $n`) or database constraints to application-level check-then-act.
+- Treat replicas as stale by default; route read-your-writes reads to the leader or wait for the replica to reach the client's last written position.
+- Design for replay: consumers rebuild state from the log, so handlers must be deterministic and idempotent.
+- Keep the deduplication window at least as long as the maximum redelivery delay.
 
-### 12.2 Quorum-Based Replication (W + R > N)
-**When to use**: When strong consistency is required from a leaderless datastore.
-**When not to use**: When latency dominates (quorum reads add latency); when strong consistency is not required.
-**Sketch**: Write to W of N replicas; read from R of N replicas; if W+R > N, the read always sees the latest write. Tune W and R for write-heavy (W low, R high) or read-heavy (W high, R low).
+## 9. Performance
 
-### 12.3 Saga with Compensating Actions
-**When to use**: When a business transaction spans multiple services and 2PC is unavailable.
-**When not to use**: When the transaction fits in one service's database; the Saga's complexity is unjustified.
-**Sketch**: Each step emits an event triggering the next; failures trigger compensating events that semantically undo prior steps; never use 2PC for compensation — compensation is application-level.
+- Tail latency compounds with fan-out: if one backend call has a 1% chance of being slow, a request that calls 100 backends in parallel is slow most of the time. Use hedged or backup requests and timeouts for fan-out paths.
+- Batch small writes and use pipelining on the wire; one round trip per item dominates at scale.
+- Choose replication acknowledgment deliberately: waiting for more replicas raises durability and write latency together.
+- Cross-region synchronous replication adds at least one inter-region round trip to every write.
+- Detailed profiling, load testing and autoscaling are covered in scalability-expert.
 
-### 12.4 Transactional Outbox
-**When to use**: When an operation must atomically update a database and publish an event without distributed transactions.
-**When not to use**: When the database and broker support true 2PC (rare) or when eventual consistency is unacceptable.
-**Sketch**: The transaction writes business state and an outbox row in the same DB transaction; a relay reads the outbox and publishes to the broker; consumers are idempotent.
+## 10. Security
 
-### 12.5 Circuit Breaker
-**When to use**: When a dependency may fail and cascading failure must be prevented.
-**When not to use**: When the dependency is local and in-process; the overhead exceeds the benefit.
-**Sketch**: Track failures; when threshold exceeded, open the circuit and fail fast; after timeout, enter half-open and test with a single request; close if successful, open if failed.
+- Authenticate service-to-service calls (mTLS or signed workload tokens) and authorize per operation.
+- Authenticate producers and consumers on brokers; restrict topics with ACLs.
+- Treat messages as untrusted input: validate schemas at the consumer, bound sizes, and reject unknown versions safely.
+- Idempotency keys must be scoped to the caller (tenant or user) so one client cannot replay or block another's operations.
+- Encrypt replicas, backups and logs; deleting personal data must reach every replica, log and derived store.
 
-### 12.6 Read Repair and Anti-Entropy
-**When to use**: In leaderless datastores to repair stale replicas after reads or in the background.
-**When not to use**: In single-leader datastores where the leader is the source of truth; read repair is unnecessary.
-**Sketch**: On read, if replicas return divergent values, the coordinator writes the latest back to stale replicas (read repair); a background process (anti-entropy) periodically compares replicas and repairs divergences (Merkle trees in Dynamo/Cassandra).
+## 11. Testing
 
-## 13. Best Practices
+- Failure injection: kill leaders, partition the network, add latency, skew clocks, and fill disks in a staging environment; check the documented response for each failure mode.
+- Consistency checks: run concurrent clients and verify the stated model with a history checker (Jepsen-style tooling and its Elle checker are the reference approach).
+- Duplicate and reorder messages deliberately in consumer tests; assert the end state is unchanged.
+- Test failover end to end and measure the achieved RTO and RPO.
+- Use real infrastructure in integration tests (Testcontainers) for brokers and databases; mocks hide delivery and isolation behaviour.
 
-- Quantify every consistency, availability, latency, and durability requirement before designing.
-- Choose the weakest consistency model that satisfies the requirements; stronger is more expensive.
-- Make every cross-boundary write idempotent; the network will retry.
-- Use circuit breakers, timeouts, and bulkheads on every external dependency.
-- Design for graceful degradation: define what the system does when each dependency fails.
-- Use probabilistic early expiration and single-flight to prevent cache stampedes.
-- Use Little's Law to capacity-plan; defend estimates with measurements.
-- Use distributed tracing from day one; retrofitting tracing is painful.
-- Run chaos tests in staging weekly; verify the failure mode response of every design.
-- Define SLOs and error budgets; systems without SLOs cannot be operated or improved.
+## 12. Review Checklist
 
-## 14. Anti Patterns
+- [ ] Estimates are written down and drive the choices.
+- [ ] Consistency is stated per operation, including what clients see during failover.
+- [ ] Partition keys keep hot paths on one partition; hot keys have a mitigation.
+- [ ] Every cross-boundary write is idempotent; retries cannot double-charge, double-ship or double-email.
+- [ ] Consumers commit offsets after side effects; a crash mid-processing is safe.
+- [ ] No mutual exclusion relies on a TTL lock without fencing.
+- [ ] No ordering relies on wall-clock timestamps across machines.
+- [ ] Every remote call has a deadline and a bounded retry policy.
+- [ ] The failure-mode table covers crash, slowness, partition and overload for each component.
+- [ ] Alternatives and trade-offs are recorded.
 
-### 14.1 Distributed Monolith
-**Why wrong**: Services that look independent but must deploy together, share a database, or call synchronously across bounded contexts; the complexity of distribution without the autonomy.
-**Correct alternative**: Define bounded contexts with independent datastores; communicate via events; deploy independently; never share a database across services.
+## 13. Production Notes
 
-### 14.2 Shared Database Across Services
-**Why wrong**: Couples services through schema changes; one service's migration breaks another; the database becomes a single point of failure for all services.
-**Correct alternative**: Each service owns its data; share data via API or materialized view; never allow direct cross-service database access.
+- Monitor replication lag, consumer lag, in-sync replica count, leader elections, retry rates and dead-letter queue depth; they are the early signals of the failure modes in the design.
+- Keep deduplication and outbox tables pruned on a schedule with an index on the age column.
+- Run failover exercises regularly; leader election timing and client reconnection behaviour change with versions and configuration.
 
-### 14.3 Synchronous Chain Across Bounded Contexts
-**Why wrong**: A user request traverses multiple services synchronously; any failure cascades; latency compounds.
-**Correct alternative**: Use async events for cross-context communication; use materialized views for read paths; use BFFs to aggregate for the frontend.
+## 14. Examples
 
-### 14.4 Caching Without Invalidation
-**Why wrong**: Cached data drifts from the source of truth; users see stale data; debugging is painful.
-**Correct alternative**: Define explicit invalidation (TTL, write-through, event-driven invalidation); never cache without a strategy.
-
-### 14.5 Two-Phase Commit Across Microservices
-**Why wrong**: 2PC blocks under participant failure; availability collapses; latency compounds.
-**Correct alternative**: Use Saga with compensating actions; use the outbox pattern; design for eventual consistency with idempotent consumers.
-
-### 14.6 Auto-Commit Kafka Offsets
-**Why wrong**: Auto-commit can commit offsets before processing completes; a crash loses messages silently.
-**Correct alternative**: Disable auto-commit; commit offsets after processing succeeds; consumers must be idempotent for at-least-once.
-
-## 15. Performance Rules
-
-- Define latency budgets end-to-end and allocate to each hop; never exceed without waiver.
-- Use histograms (HDRHistogram), not averages, for latency; averages hide tail latency.
-- Quantify and alert on p99 and p99.9; p50 is misleading for user experience.
-- Cache aggressively for read-heavy workloads with stable keys; never cache write-heavy without invalidation.
-- Batch database writes and external calls; single-row inserts in loops are forbidden.
-- Use connection pools sized to the database capacity; undersized pools cause artificial latency.
-- Use async I/O for all network operations; synchronous I/O in a request path is a defect.
-- Capacity-plan with Little's Law (L = λW); defend estimates with measurements.
-
-## 16. Security Rules
-
-- Every service must authenticate callers via mTLS or signed JWT; anonymous internal traffic is forbidden.
-- Every service must authorize operations at the resource level, not just the endpoint.
-- Every secret must be retrieved from a secrets manager at runtime; hardcoded secrets are forbidden.
-- Every PII field must be encrypted at rest with KMS-managed keys.
-- Every inter-service call must propagate identity end-to-end.
-- Every dependency must be scanned for CVEs in CI; critical CVEs block the merge.
-- Every queue and stream must enforce producer and consumer authentication.
-- Every API must have rate limiting; unbounded APIs are forbidden.
-
-## 17. Testing Strategy
-
-- Unit tests must cover every domain rule and pure function; 80% coverage on domain code is the floor.
-- Integration tests must use Testcontainers for real infrastructure (PostgreSQL, Kafka, Redis).
-- Contract tests must verify every inter-service API and event schema.
-- Chaos tests must inject network partitions, node crashes, clock skew, and slow dependencies.
-- Load tests must run at 2x expected peak and verify SLOs hold.
-- Consistency tests must verify the stated consistency model under concurrency and failure.
-- Failover tests must verify leader election and recovery within the stated RTO.
-- End-to-end tests must cover the top user journeys; cap at 20 to keep the suite fast.
-- Tests must run in parallel by default; serial execution requires explicit justification.
-- Performance regressions detected in CI must block the merge.
-
-## 18. Documentation Standards
-
-- Every system must have a System Design Document (SDD) covering: requirements, consistency model, partitioning, replication, failure modes, observability, capacity.
-- Every architectural decision must be recorded as an ADR with context, decision, alternatives, consequences.
-- Every API must be documented in OpenAPI; every event in AsyncAPI or CloudEvents.
-- Every SLO must be documented with SLI, target, error budget, and alert.
-- Every runbook must include: trigger, prerequisites, steps, verification, rollback, escalation.
-- Every failure mode must be documented with the system's response.
-- Capacity plans must be documented with assumptions and updated quarterly.
-- Consistency model contracts must be documented in client-visible language.
-
-## 19. Code Review Checklist
-
-- Does the change respect bounded context boundaries?
-- Are new external dependencies justified by an ADR?
-- Are cross-boundary writes idempotent with idempotency keys?
-- Are circuit breakers, timeouts, and bulkheads configured for external calls?
-- Are retries using exponential backoff with jitter?
-- Are errors classified (transient, permanent, systemic) and handled appropriately?
-- Are correlation IDs propagated across service boundaries?
-- Are database migrations forward-only and backwards-compatible?
-- Are tests added at the appropriate level (unit, integration, contract, chaos)?
-- Are new metrics, traces, and logs added for observability?
-- Are SLOs updated or confirmed to remain valid?
-- Are secrets retrieved from the secrets manager, never hardcoded?
-- Are new endpoints authenticated and authorized?
-- Are PII fields tagged and protected?
-- Is the change tested under failure (chaos test) for critical paths?
-
-## 20. Refactoring Checklist
-
-- Are characterization tests in place before refactoring?
-- Is the refactor scoped to a single concern?
-- Are renames done in separate commits from logic changes?
-- Are migrations forward-only with backward-compatible code paths?
-- Are deprecated APIs marked with a removal date and migration path?
-- Is the rollback plan documented and tested?
-- Are capacity impacts measured before and after?
-- Is the refactor validated by the full test suite without modification?
-- Are private members refactored through public API tests?
-- Is the refactor motivated by a concrete pain point?
-
-## 21. Deployment Checklist
-
-- Is the deployment automated through CI/CD?
-- Is the deployment using blue-green, canary, or ring topology?
-- Are health checks defined (liveness and readiness)?
-- Is the deployment gated by successful CI on the exact artifact?
-- Are database migrations forward-only and backwards-compatible?
-- Is the deployment observed by on-call for 15 minutes?
-- Is the rollback procedure documented and tested within 30 days?
-- Are feature flags used to decouple deploy from release?
-- Are dependent services notified of contract changes?
-- Are smoke tests run post-deploy before traffic shift?
-- Is the deployment audit-logged?
-- Are capacity headroom checks passed?
-- Is the deployment approved by the change advisory board?
-- Are secrets rotated as needed?
-- Is the deployment reversible within the rollback SLO (5 minutes)?
-
-## 22. Production Checklist
-
-- Is the system observable (metrics, logs, traces) with SLO dashboards?
-- Are SLOs defined and alerted on (error budget burn rate)?
-- Is the on-call rotation defined with escalation paths?
-- Are runbooks linked from every alert?
-- Is capacity planning performed monthly with 6-month forward look?
-- Is the DR procedure tested quarterly with documented RTO/RPO?
-- Are chaos tests run weekly in staging?
-- Are security incident drills conducted annually?
-- Is the dependency tree monitored for EOL and CVEs?
-- Are access controls reviewed quarterly; orphaned accounts removed?
-- Is data retention enforced automatically; manual deletion forbidden.
-- Is the system fault-tolerant across availability zones?
-- Are rate limits and circuit breakers configured for all dependencies?
-- Is cost tracked monthly with variance review; variances over 10% are incidents?
-- Is the system registered in the service catalog with owner, SLA, dependencies?
-
-## 23. Logging Strategy
-
-- Logs must be structured JSON with stable schema; unstructured logs are forbidden.
-- Every log entry must include trace ID, span ID, and correlation ID.
-- PII must be redacted at the logging boundary.
-- Log levels: ERROR (actionable failure), WARN (degraded), INFO (lifecycle), DEBUG (dev only).
-- Error logs must include stack trace, sanitized input context, and the failed operation.
-- Logs must be sampled at high volume to control cost.
-- Logs must be shipped to a central platform within seconds.
-- Audit logs must capture every privileged action; tamper-evident; retained per compliance.
-- Every service must emit a startup log with version, config hash, instance ID.
-- Log retention must match compliance; indefinite retention is forbidden.
-
-## 24. Monitoring Strategy
-
-- Monitor SLOs (user-facing reliability), not just infrastructure metrics.
-- Define SLIs as good/total ratios; alert on error budget burn rate.
-- Use RED (Rate, Errors, Duration) for services; USE (Utilization, Saturation, Errors) for resources.
-- Use histograms, not averages; alert on p99 and p99.9.
-- Dashboards must show user impact first, drill to component metrics.
-- Alerts must be actionable; alerts without runbooks are forbidden.
-- Synthetic checks must monitor top user journeys from outside the network.
-- Distributed tracing must be enabled across all service boundaries.
-- Capacity metrics must be trended with predictive alerts.
-- Dependency health must be monitored with circuit breakers tripping on failure.
-
-## 25. Error Handling
-
-- Errors must be modeled as values within the domain; exceptions for infrastructure failure only.
-- Every error must be classified: transient (retryable), permanent (caller error), systemic (operator action).
-- Retry logic must use exponential backoff with jitter.
-- Circuit breakers must protect every external dependency.
-- Timeouts must be configured for every external call; defaults must be aggressive.
-- Errors at boundaries must be translated to caller-appropriate types.
-- Idempotency keys must accompany every retryable write.
-- Error responses must include a correlation ID; never expose stack traces.
-- Bulkheads must isolate critical paths from non-critical.
-- Dead-letter queues must capture failed messages with full context; silent drops forbidden.
-
-## 26. Examples
-
-### 26.1 Quorum Configuration Analysis
+### Back-of-envelope estimate
 
 ```text
-Cluster: billing-events (Kafka, replication factor 3)
-Topic: orders.order.created.v1, partitions: 12, RF: 3
-
-Availability analysis:
-- min.insync.replicas = 2, acks = all
-- Write requires 2 of 3 replicas to acknowledge
-- Tolerates 1 node failure for writes (2 remain in sync)
-- Tolerates 2 node failures for reads (1 replica serves)
-
-Failure scenarios:
-- 1 broker down: writes succeed (2 ISR remain), reads succeed
-- 2 brokers down: writes fail (1 ISR < minISR=2), reads succeed
-- Network partition isolating leader: leadership moves to ISR, writes continue
-
-Trade-off:
-- minISR=2 + acks=all: strong durability, 1-node failure tolerance
-- Alternative minISR=1 + acks=1: higher availability, risk of data loss on leader failure
-- Decision: minISR=2 — orders are financial, durability > availability
+10M daily active users x 20 requests/day   = 200M requests/day
+200M / 86,400 s                             ~ 2,300 requests/s average
+Peak factor 3                               ~ 7,000 requests/s
+Writes are 10% of requests                  ~ 700 writes/s at peak
+Object size 1 KB, 20M new objects/day       ~ 20 GB/day ~ 7.3 TB/year before replication
+Replication factor 3                        ~ 22 TB/year raw
+Concurrency at peak (Little's Law, 50 ms)   7,000 x 0.05 = 350 requests in flight
 ```
 
-### 26.2 Saga with Compensating Actions
+### Kafka durability for order events
+
+```properties
+# Topic: replication factor 3, at least 2 in-sync replicas must acknowledge
+replication.factor=3
+min.insync.replicas=2
+unclean.leader.election.enable=false
+
+# Producer
+acks=all
+enable.idempotence=true
+# Consumer
+enable.auto.commit=false
+```
+
+```text
+1 broker down:  writes and reads continue (2 in-sync replicas remain).
+2 brokers down: writes fail with NotEnoughReplicas; reads continue only if the
+                surviving replica is in sync and becomes leader.
+Trade-off:      acks=1 or min.insync.replicas=1 keeps writes available with one
+                broker left, but a leader failure can lose acknowledged writes.
+Decision:       orders are financial records; durability over write availability.
+```
+
+### Idempotent consumer with PostgreSQL
+
+```sql
+CREATE TABLE processed_events (
+  consumer     text        NOT NULL,
+  event_id     uuid        NOT NULL,
+  processed_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (consumer, event_id)
+);
+```
 
 ```typescript
-// Order placement saga: reserve inventory -> charge payment -> confirm order
-// Each step emits an event; failures trigger compensations.
+import { Pool } from 'pg';
 
-class PlaceOrderSaga {
-  async handle(command: PlaceOrder): Promise<OrderId> {
-    const sagaId = SagaId.generate();
-    const orderId = OrderId.generate();
+const pool = new Pool(); // connection settings from PG* environment variables
 
-    await this.outbox.write([
-      this.events.inventoryReserved(sagaId, orderId, command.items),
-    ]);
-
-    // InventoryReserved event triggers next step (orchestrator or choreography)
-    return orderId;
-  }
-
-  async onInventoryReserved(event: InventoryReserved): Promise<void> {
-    try {
-      await this.paymentGateway.charge(event.orderId, event.total);
-      await this.outbox.write([this.events.paymentCharged(event.sagaId, event.orderId)]);
-    } catch (err) {
-      // Compensation: release reserved inventory
-      await this.outbox.write([
-        this.events.inventoryReleased(event.sagaId, event.orderId, 'payment_failed'),
-      ]);
+export async function onPaymentCaptured(event: { eventId: string; orderId: string }): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const dedup = await client.query(
+      'INSERT INTO processed_events (consumer, event_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      ['order-service', event.eventId],
+    );
+    if (dedup.rowCount === 1) {
+      // First delivery: apply the effect. Conditional update keeps it safe even without dedup.
+      await client.query(
+        "UPDATE orders SET status = 'paid' WHERE id = $1 AND status = 'placed'",
+        [event.orderId],
+      );
     }
-  }
-
-  async onPaymentCharged(event: PaymentCharged): Promise<void> {
-    await this.outbox.write([this.events.orderConfirmed(event.sagaId, event.orderId)]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err; // the caller does not commit the offset, so the message is redelivered
+  } finally {
+    client.release();
   }
 }
 ```
 
-### 26.3 Cache Stampede Prevention (Single-Flight + Probabilistic Early Expiration)
+The consumer commits its Kafka offset only after `onPaymentCaptured` resolves.
 
-```typescript
-class InvoiceCache {
-  private inflight = new Map<string, Promise<Invoice>>();
+## 15. Common Mistakes
 
-  async get(id: InvoiceId, ttlMs: number = 60_000): Promise<Invoice> {
-    const key = id.toString();
-    const cached = this.redis.get(key);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      // Probabilistic early expiration: refresh early to avoid stampede
-      const age = Date.now() - parsed.cachedAt;
-      const remainingTtl = ttlMs - age;
-      if (remainingTtl < ttlMs * 0.1 && Math.random() < 0.1) {
-        this.refreshInBackground(key, id).catch(() => {});
-      }
-      return parsed.value;
-    }
-    // Single-flight: coalesce concurrent fetches for the same key
-    if (this.inflight.has(key)) return this.inflight.get(key)!;
-    const promise = this.loadFromDatabase(id)
-      .then((invoice) => {
-        this.redis.set(key, JSON.stringify({ value: invoice, cachedAt: Date.now() }), 'PX', ttlMs);
-        return invoice;
-      })
-      .finally(() => this.inflight.delete(key));
-    this.inflight.set(key, promise);
-    return promise;
-  }
+- **Assuming a reliable network.** No deadlines, unbounded retries, no failure handling. Every call needs a deadline, bounded retries and a defined fallback.
+- **Strong consistency everywhere.** It costs latency and availability for operations that do not need it. Decide per operation.
+- **Two-phase commit across microservices.** It blocks on coordinator failure and couples availability. Use a saga with an outbox.
+- **Dual writes.** Writing to the database and then publishing to the broker loses or duplicates events on crash. Use an outbox or change data capture.
+- **Auto-committed consumer offsets.** A crash after commit but before processing loses messages. Commit after the side effect is durable.
+- **Retrying non-idempotent operations.** Retries turn timeouts into duplicate payments. Add idempotency keys first.
+- **TTL locks for correctness.** A paused process outlives its lease and two writers proceed. Use fencing tokens or a conditional write.
+- **Ordering by wall-clock time.** Clock skew reorders events and last-writer-wins drops data. Use versions or sequences.
+- **Modulo hashing for a growing cluster.** Changing N remaps almost every key. Use consistent hashing or a fixed large number of logical partitions mapped to nodes.
+- **Shared database across services.** It couples schemas and deployments. Each service owns its data and exposes it through an API or events.
+- **No failure-mode table.** Unanticipated failures cascade. Enumerate them per component and test them.
 
-  private async refreshInBackground(key: string, id: InvoiceId): Promise<void> {
-    if (this.inflight.has(key)) return;
-    const promise = this.loadFromDatabase(id).then((invoice) => {
-      this.redis.set(key, JSON.stringify({ value: invoice, cachedAt: Date.now() }), 'PX', 60_000);
-    });
-    this.inflight.set(key, promise);
-    promise.finally(() => this.inflight.delete(key));
-  }
+## 16. References
 
-  private async loadFromDatabase(id: InvoiceId): Promise<Invoice> {
-    return this.repo.findById(id);
-  }
-}
-```
-
-## 27. Common Mistakes
-
-### 27.1 Assuming the Network is Reliable
-**What**: Designing as if network calls succeed; no retries, no timeouts, no circuit breakers.
-**Why**: Network partitions, packet loss, and slow dependencies are routine; designs without defenses fail catastrophically.
-**How to avoid**: Every external call has timeout, retry with jitter, circuit breaker; chaos tests verify behavior under partition.
-
-### 27.2 Over-Consistent by Default
-**What**: Choosing strong consistency when eventual consistency would suffice.
-**Why**: Strong consistency has availability and latency costs disproportionate to many use cases; over-consistency limits scale.
-**How to avoid**: Choose the weakest consistency model that satisfies the requirement; document the consistency contract.
-
-### 27.3 Distributed Transactions via 2PC
-**What**: Using 2PC across microservices for transactional consistency.
-**Why**: 2PC blocks under participant failure; availability collapses; latency compounds; the complexity is rarely justified.
-**How to avoid**: Use Saga with compensating actions; use the outbox pattern; design for eventual consistency with idempotent consumers.
-
-### 27.4 Caching Without Invalidation
-**What**: Adding a cache without an invalidation strategy.
-**Why**: Cached data drifts; users see stale data; debugging is painful; the cache becomes a liability.
-**How to avoid**: Define invalidation upfront (TTL, write-through, event-driven); never cache without a strategy.
-
-### 27.5 Averages for Latency
-**What**: Reporting average latency instead of percentiles.
-**Why**: Averages hide tail latency; p99 and p99.9 dominate user experience; averages mask the worst cases.
-**How to avoid**: Use histograms (HDRHistogram); report and alert on p99 and p99.9; never average percentiles.
-
-### 27.6 No Failure Mode Analysis
-**What**: Designing without enumerating failure modes and the system's response to each.
-**Why**: Unanticipated failures cause cascading outages; the system fails catastrophically instead of degrading gracefully.
-**How to avoid**: Enumerate failure modes (partition, crash, clock skew, slow dependency); document the system's response; verify with chaos tests.
-
-## 28. Professional Workflow
-
-1. Clarify consistency, availability, latency, durability requirements; quantify each.
-2. Identify workload shape: read-heavy, write-heavy, mixed; transactions per second; data size; growth rate.
-3. Enumerate failure modes: partition, node crash, disk failure, clock skew, slow dependency, Byzantine.
-4. Choose the consistency model that satisfies requirements with smallest cost.
-5. Choose partitioning scheme; quantify rebalance cost and hotspot risk.
-6. Choose replication scheme; quantify quorum availability under failures.
-7. Choose consensus protocol for any strong consistency coordination need.
-8. Design failure mode response for each enumerated failure.
-9. Design observability strategy: metrics, traces, logs, sampling.
-10. Capacity-plan with Little's Law and queueing models; defend estimates.
-11. Document design as ADR; conduct design review; ratify or iterate.
-12. Define test plan: chaos tests, load tests at 2x peak, consistency verification.
-13. Pair with implementation through first iteration; calibrate design against reality.
-14. Post-launch, verify quality attributes; capture lessons; iterate.
-
-## 29. Response Style
-
-- Begin every system design answer with the requirements and constraints.
-- Present at least two design options before recommending one.
-- Quantify trade-offs: latency, availability, consistency, cost.
-- Use authoritative voice: "must", "must not", "always", "never".
-- Cite the theorem, pattern, or measurement that drives each recommendation.
-- Surface failure modes explicitly; never design as if the network is reliable.
-- When asked "which database?", demand the workload profile first.
-- Close every response with the next concrete step (ADR, prototype, load test).
-
-## 30. Output Format
-
-- Use ADRs for every design decision; the ADR template is mandatory.
-- Use System Design Documents (SDD) for system-level design.
-- Use diagrams for topology (C4 component diagrams preferred).
-- Quantify every claim: "p99 < 200ms", "99.9% availability", "RPO 0".
-- Use code sketches in TypeScript by default; switch languages only when demanded.
-- Use bullet lists for rules; numbered lists for sequential steps; tables for comparative data.
-- Cross-reference ADRs, patterns, and tests by ID.
-- Every diagram must have a legend; every arrow must have a label.
-- Distinguish between principled rules (CAP) and context-dependent guidance.
-- End every response with next-step checklist, each with owner and deadline.
-
----
+- [references/consistency-and-replication.md](references/consistency-and-replication.md): isolation anomalies table, replication lag guarantees, quorum math, outbox relay and saga sketches, consistent hashing implementation.

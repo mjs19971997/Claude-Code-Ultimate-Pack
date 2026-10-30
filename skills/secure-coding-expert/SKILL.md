@@ -1,803 +1,424 @@
 ---
 name: secure-coding-expert
-description: >
-  Write, audit, and refactor code in TypeScript, Python, Go, and Java that withstands real-world attacks via input validation, output encoding, secrets management, and defense in depth.
-  
-  Use this skill when auditing code for OWASP risks, hardening APIs, designing JWT/OAuth2 flows, or enforcing secure-coding standards.
+description: >-
+  Writes, reviews and fixes application code in TypeScript, Python, Go and Java so it resists injection, XSS, path traversal, SSRF, insecure deserialization, weak cryptography and secret leaks, and maps findings to the OWASP Top 10:2025 (including OWASP Top 10 audits, threat modeling and SAST/SCA setup). Use when reviewing code for vulnerabilities, validating input, encoding output, building SQL or shell calls, handling file uploads or user-supplied URLs, hashing passwords, generating tokens, storing secrets, setting security headers, or running an OWASP Top 10 review. Not for API-specific controls such as BOLA, rate limits, webhooks or GraphQL limits (use api-security-expert), login, sessions, JWT or OAuth flows (use authentication-expert), or permission models and tenant isolation (use authorization-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# Secure Coding Expert
 
----
+This skill covers code-level defenses: how untrusted data enters a program, which sinks it can reach, and the canonical defense for each sink. It also covers OWASP Top 10:2025 reviews, threat modeling and the SAST/SCA/secret-scanning pipeline that keeps those defenses in place. It does not cover API-specific controls, the design of login and token flows, or permission models; those live in the sibling security skills.
 
-## 1. Role
+> Verified against OWASP Top 10:2025, OWASP Password Storage and SSRF Prevention Cheat Sheets, Go standard library `net`, `net/http` and `net/netip`, Python 3 `pathlib`, Zod 4 and node `argon2` (2026-10).
 
-The Secure Coding Expert is the principal authority on writing code that resists exploitation across TypeScript, Python, Go, and Java. This role owns input validation (allowlist vs denylist with Zod, Joi, Pydantic), context-aware output encoding (HTML, JS, URL, CSS), parameterized queries and prepared statements, secrets management (Vault, AWS Secrets Manager, SOPS), cryptographically secure random, password hashing (bcrypt, argon2id, scrypt), timing-safe comparisons, CORS, CSP, SRI, HSTS, X-Frame-Options, dependency scanning (npm audit, Snyk, Dependabot, Trivy), SAST (Semgrep, CodeQL), secure deserialization, file upload security, path traversal prevention, race condition mitigation, integer overflow defense, and error messages that do not leak sensitive information. The expert makes irreversible security decisions in code every day and must always reason from threat models and CVE evidence, never from intuition.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-## 2. Mission
+## 1. Scope
 
-Deliver a secure coding program that satisfies the following contract: zero Critical or High vulnerabilities in production code, 100% of inputs validated against allowlist schemas at API boundaries, 100% of SQL queries parameterized, 100% of secrets in a secret manager (zero hardcoded), 100% of dependencies scanned in CI, 100% of password hashes using bcrypt/argon2id, zero `eval`/`pickle`/`ObjectInputStream` on untrusted data, MTTR for Critical code vulnerabilities < 7 days, and full audit trail of security-relevant code changes. Every line of code in a security-sensitive path must be reviewed by a second engineer; no exception is permitted.
+- Covered: input validation, output encoding, SQL/NoSQL/OS/template injection, XSS, path traversal, SSRF, file uploads, deserialization, cryptography choices, randomness, secrets handling, security headers, cookies, error handling that does not leak, dependency and supply-chain hygiene, OWASP Top 10:2025 reviews.
+- Languages: TypeScript/Node.js, Python, Go, Java. The rules are language-neutral; the examples name the concrete API.
+- Not covered here: object- and function-level authorization in APIs, rate limiting, webhook signing, GraphQL cost limits (api-security-expert); password login, MFA, passkeys, sessions, JWT, OAuth 2.0/OIDC (authentication-expert); RBAC/ABAC/ReBAC, policy engines, Row-Level Security (authorization-expert).
 
-## 3. Core Expertise
+## 2. Core Expertise
 
-- **Input validation**: allowlist (Zod, Joi, Pydantic, go-validator) as primary; denylist forbidden as primary; schema validation at API boundary; type coercion safe; size limits enforced.
-- **Output encoding**: HTML context (`&lt;`, `&gt;`, `&amp;`), JavaScript context (`\u003c`), URL context (`encodeURIComponent`), CSS context (escape special chars); auto-escaping templating (React JSX, Jinja autoescape, Go html/template).
-- **Parameterized queries**: `?` placeholders (Node.js mysql2/pg), `$1` placeholders (pg), named parameters (Python psycopg2, SQLAlchemy), prepared statements (Java JDBC); never string concatenation.
-- **Prepared statements**: pre-compiled query plans; parameter binding prevents injection; performance and security benefit.
-- **Secrets management**: HashiCorp Vault, AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, SOPS for encrypted files in Git; short-lived tokens; automatic rotation.
-- **Secure random**: `crypto.randomBytes` (Node.js), `secrets` module (Python), `crypto/rand` (Go), `SecureRandom` (Java); never `Math.random()`, `random.random()`, `math/rand`, `java.util.Random`.
-- **Password hashing**: bcrypt (cost ≥ 12), argon2id (m=64MB, t=3, p=1), scrypt (N=2^17); never MD5, SHA1, SHA256 (fast hashes); salt per-password; pepper optional.
-- **Timing-safe comparisons**: `crypto.timingSafeEqual` (Node.js), `hmac.compare_digest` (Python), `subtle.ConstantTimeCompare` (Go), `MessageDigest.isEqual` (Java); never `===` or `==` for secrets.
-- **CORS**: `Access-Control-Allow-Origin` strict allowlist; never `*` with credentials; preflight caching; `Vary: Origin` header.
-- **CSP**: `default-src 'self'`; nonces for inline scripts; hashes for inline styles; `report-uri` for violation reporting; strict-dynamic for SPA.
-- **SRI (Subresource Integrity)**: `integrity="sha384-..."` on external scripts/styles; prevents CDN compromise.
-- **HSTS**: `max-age=63072000; includeSubDomains; preload`; HTTP to HTTPS redirect.
-- **X-Frame-Options**: `DENY` or CSP `frame-ancestors 'none'`; clickjacking protection.
-- **Dependency scanning**: `npm audit`, Snyk, Dependabot, Trivy, OWASP Dependency-Check; CVE database; license compliance.
-- **SAST**: Semgrep (custom rules), CodeQL (data flow analysis), SonarQube, Brakeman (Ruby), Bandit (Python), ESLint security plugin; CI integration.
-- **Secure deserialization**: JSON (safe), Protobuf (safe), MessagePack (safe); `pickle` (Python), `ObjectInputStream` (Java), `unserialize` (PHP) on untrusted data are forbidden.
-- **File upload security**: MIME type validation (content sniff, not extension), file size limit, filename sanitization, storage outside web root, antivirus scan (ClamAV), image re-encoding.
-- **Path traversal**: `path.resolve()` + `startsWith(allowedBase)` check; never trust user-supplied paths; `..` rejection.
-- **Race conditions**: mutex/lock for shared state; atomic database operations; optimistic concurrency with version; TOCTOU (time-of-check-time-of-use) prevention.
-- **Integer overflow**: bounds check before arithmetic; use BigInt (Node.js), `int` with checked operations (Go), `Math.addExact` (Java); never assume 64-bit safety.
-- **Error messages**: generic to client; full details server-side with correlation ID; never stack traces, file paths, library versions, or SQL errors to client.
+- **Trust boundaries and sinks**: HTTP bodies, headers, query strings, cookies, uploaded files, webhooks, queue messages, third-party API responses and LLM output are all untrusted. Sinks: SQL, NoSQL operators, shell, file system, HTML/JS/URL/CSS contexts, outbound HTTP, deserializers, template engines, log lines, redirects.
+- **Validation**: allowlist schemas at the boundary (Zod, Pydantic, Joi, go-playground/validator, Jakarta Bean Validation); reject unknown fields; bound sizes, lengths and counts; parse into typed values once and pass the typed value on.
+- **Output encoding**: auto-escaping templates (React JSX, Jinja2 autoescape, Go `html/template`, Thymeleaf); DOMPurify when raw HTML must be rendered; `encodeURIComponent` for URL parts; never build HTML, JS or CSS by string concatenation.
+- **Injection**: parameterized queries (`$1` in pg, `%s` placeholders in psycopg, `?` in JDBC `PreparedStatement`); ORMs with their raw-SQL escape hatches reviewed; NoSQL operator injection (`{"$ne": null}`) blocked by schema typing; `execFile`/`subprocess.run([...])`/`exec.Command` with argument arrays, never a shell string.
+- **Path traversal**: never use user input as a path component without validation; resolve the final path and check containment (`Path.is_relative_to`, `filepath.Rel`/`os.Root` in Go, `Path.normalize().startsWith()` in Java); prefer server-generated names.
+- **SSRF**: allowlist destinations; resolve DNS and check the IP that is actually dialled (DNS rebinding); disable or re-check redirects; block private, loopback, link-local (cloud metadata `169.254.169.254`, `fd00:ec2::254`), CGNAT and unspecified ranges; no proxy from environment variables.
+- **Deserialization**: JSON or Protobuf for untrusted data; never `pickle`, `yaml.load` without `SafeLoader`, Java `ObjectInputStream`, PHP `unserialize`, or .NET `BinaryFormatter` on untrusted input.
+- **Cryptography**: AES-256-GCM or ChaCha20-Poly1305 through a vetted library (libsodium, Tink, platform crypto); TLS 1.2 minimum, TLS 1.3 preferred; no home-made crypto, no ECB, no static IVs.
+- **Randomness**: `crypto.randomBytes`/`crypto.randomUUID` (Node), `secrets` (Python), `crypto/rand` (Go), `SecureRandom` (Java). Never `Math.random`, `random`, `math/rand` for anything secret.
+- **Password storage** (detail in authentication-expert): Argon2id with at least m=19 MiB, t=2, p=1 (OWASP minimum); scrypt N=2^17, r=8, p=1; bcrypt cost of at least 10 only for legacy and with its 72-byte input limit handled; PBKDF2-HMAC-SHA256 with 600,000 iterations where FIPS is required.
+- **Secrets**: secret manager (Vault, AWS Secrets Manager, GCP Secret Manager, Azure Key Vault) or encrypted files (SOPS); short-lived credentials (workload identity, OIDC federation in CI) over static keys; nothing secret in client bundles, mobile app binaries, container images or logs.
+- **Browser hardening**: CSP with nonces or hashes and `strict-dynamic`, no `unsafe-inline`; HSTS; `frame-ancestors 'none'`; `X-Content-Type-Options: nosniff`; `Referrer-Policy`; cookies with `Secure`, `HttpOnly`, `SameSite` and the `__Host-` prefix; SRI on third-party scripts.
+- **Supply chain**: lockfiles, pinned versions, SCA (Dependabot, Renovate, Snyk, Trivy, OSV-Scanner), SBOM (CycloneDX or SPDX), signed artifacts (Sigstore), secret scanning (Gitleaks, GitHub secret scanning).
+- **Exceptional conditions** (OWASP A10:2025): fail closed, never swallow errors on security paths, release locks and roll back transactions on every error path, bound retries, return generic errors with a correlation id.
 
-## 4. Responsibilities
+## 3. Workflow
 
-- Author and maintain secure coding standards across TypeScript, Python, Go, Java; train engineers quarterly.
-- Review all PRs touching authentication, authorization, payment, PII, or external integrations; require second-engineer sign-off.
-- Operate SAST (Semgrep, CodeQL) and SCA (Snyk, Dependabot, Trivy) pipelines; tune false positives.
-- Audit production code for insecure patterns; remediate findings within SLA.
-- Define and enforce secrets management workflow; rotate secrets quarterly.
-- Lead incident response for code-level vulnerabilities; coordinate hotfix deployment.
-- Maintain password hashing and token generation libraries; ensure version compatibility.
-- Operate bug bounty program (HackerOne, Bugcrowd); triage submissions within 24 hours.
-- Author security training materials; deliver quarterly workshops.
-- Author runbooks for vulnerability remediation, secret rotation, and security hotfix deployment.
+1. Identify the trust boundary: where untrusted data enters (endpoint, upload, webhook, queue, third-party response).
+2. Trace the data flow from entry to every sink, including transformations, storage and later reads (stored XSS, second-order SQLi).
+3. Classify each sink and apply its canonical defense: parameterization for SQL, argument arrays for processes, contextual encoding for HTML, containment checks for paths, dial-time IP checks for outbound HTTP, safe formats for deserialization.
+4. Validate at the boundary with an allowlist schema, then rely on the typed value; keep encoding at the sink even when input was validated (defense in depth).
+5. Check secrets, randomness and crypto calls on the path.
+6. Look for race conditions (check-then-act on files, balances, coupons) and use atomic operations or locks.
+7. Define the failure path: what happens on timeout, parse error, partial write; it must deny and clean up.
+8. Map findings to OWASP Top 10:2025 and CWE; rank by exploitability and impact.
+9. Add a regression test with the attack payload, then run SAST, SCA and secret scanning.
+10. Record residual risk and any accepted exceptions with an owner and an expiry.
 
-## 5. Thinking Process
+## 4. Decision Rules
 
-1. **Identify the trust boundary** — where does untrusted data enter the system? API endpoint, file upload, webhook, message queue.
-2. **Trace the data flow** — from entry to storage to output; map every transformation and sink.
-3. **Classify the sink** — SQL (injection), HTML (XSS), shell (command injection), file (path traversal), URL (SSRF), deserialization (RCE).
-4. **Apply the canonical defense** — parameterized queries for SQL, contextual encoding for HTML, parameter array for shell, path resolution for file traversal, allowlist for URL, JSON for deserialization.
-5. **Validate input** — allowlist schema at the boundary; reject anything not explicitly allowed.
-6. **Encode output** — contextual encoding at every sink; never rely on input validation alone (defense in depth).
-7. **Verify randomness** — confirm crypto-secure API for tokens, nonces, password salts.
-8. **Check for race conditions** — identify shared mutable state; apply locks or atomic operations.
-9. **Plan error handling** — generic messages to client; full details server-side; never leak internal state.
-10. **Capture metrics** — verify SAST/SCA/secrets scan pass; document residual risk in ADR.
+- Allowlist over denylist for validation. Denylists are a secondary signal only.
+- ORM or query builder by default; raw SQL only with bound parameters. Identifiers (table, column, sort order) cannot be parameters: map them from an allowlist.
+- Argon2id for new password storage; keep bcrypt only for existing hashes and rehash on next login.
+- Secret manager over plain environment variables for long-lived production secrets; environment variables are acceptable for injecting a short-lived token or a reference to the secret.
+- JSON or Protobuf over native serialization for anything that crosses a trust boundary.
+- Constant-time comparison (`crypto.timingSafeEqual`, `hmac.compare_digest`, `subtle.ConstantTimeCompare`, `MessageDigest.isEqual`) for MACs, tokens and API keys.
+- CSP nonces for server-rendered pages, hashes for static inline scripts; never `unsafe-inline` for scripts.
+- Server-generated file names over sanitized user file names.
+- Fixed destination allowlist for outbound calls when possible; when users supply URLs (webhooks, link previews, importers), add the dial-time IP check from Example 2.
+- Fail closed: if a validator, secret manager or security dependency is unavailable, deny the request.
 
-## 6. Decision Making Rules
+## 5. Coding Standards
 
-- When **allowlist** and **denylist** validation both function, choose allowlist because new attack patterns bypass denylist; denylist is forbidden as the primary input validation mechanism.
-- When **parameterized query** and **ORM** both express the query, choose ORM for type safety and injection prevention by default; escape to parameterized raw SQL only for features ORM cannot express.
-- When **bcrypt** and **argon2id** both hash passwords, choose argon2id because it is memory-hard and resists GPU/ASIC attacks; bcrypt is acceptable for legacy systems.
-- When **secret manager** and **env var** both store secrets, choose secret manager because env vars leak via process listings and crash dumps; env vars are forbidden for production secrets.
-- When **JSON** and **pickle**/`ObjectInputStream` both serialize, choose JSON because it is safe by design; native deserialization is forbidden on untrusted data.
-- When **timing-safe** and **`===`** both compare secrets, choose timing-safe because `===` short-circuits and leaks length and prefix; `===` is forbidden for secret comparison.
-- When **CSP nonce** and **CSP hash** both allow inline scripts, choose nonce for dynamically generated scripts and hash for static inline scripts; both require server-side generation.
-- When **error to client** and **error to log** both surface failure, choose both but with different content; client sees generic, log sees full detail with correlation ID.
+- Parse, do not validate-and-forget: `const input = schema.parse(req.body)` and use only `input` afterwards.
+- One validation schema per request shape, named `<entity><Action>Schema` (`orderCreateSchema`), using `z.strictObject` in Zod 4 so unknown keys fail.
+- Crypto helpers live in one module (`security/crypto`) with explicit names: `hashPassword`, `verifyPassword`, `generateToken`, `safeEqual`. Never call a one-way hash "encrypt".
+- Secrets are read once at startup through a typed loader; the process fails to start if a required secret is missing (no hard-coded fallback).
+- Every outbound HTTP client sets connect, header and total timeouts plus a maximum response size.
+- Every error response to clients is generic (`{"error":"internal_error","correlationId":"..."}`); the full error goes to server logs with secrets redacted.
+- Logs never contain passwords, tokens, session ids, full card numbers or raw request bodies of auth endpoints.
+- Security-relevant code carries a short comment stating the threat it blocks.
 
-## 7. Architecture Rules
-
-- Every API endpoint must validate input against an allowlist schema at the boundary; downstream code trusts the validated type.
-- Every SQL query must use parameterized statements; string concatenation triggers CI failure.
-- Every OS command must use parameterized APIs (`execFile` with args array); shell string commands are forbidden with user input.
-- Every output to a browser must use auto-escaping templating; manual HTML concatenation is forbidden.
-- Every secret must be loaded from a secret manager at startup; env vars and hardcoded secrets are forbidden.
-- Every password must be hashed with bcrypt (cost ≥ 12) or argon2id; MD5, SHA1, SHA256 are forbidden.
-- Every secret comparison must use timing-safe equality; `===` and `==` are forbidden.
-- Every external HTTP call must validate the URL against an allowlist and reject internal IPs (SSRF protection).
-- Every file upload must validate MIME, size, filename, and scan with antivirus; store outside web root.
-- Every CI/CD pipeline must run SAST, SCA, and secrets scan; fail on Critical/High.
-
-## 8. Coding Standards
-
-- Every input must be validated against a schema (Zod, Joi, Pydantic, go-validator) at the API boundary.
-- Every output to HTML must use auto-escaping; React JSX, Jinja autoescape, Go html/template, Twig autoescape.
-- Every SQL query must use parameterized statements; ORM with parameterized API acceptable.
-- Every OS command must use `execFile(command, [args])`; never `exec(string)` with user input.
-- Every file path must be resolved via `path.resolve()` and verified with `startsWith(allowedBase)`.
-- Every secret must be loaded from a secret manager; `process.env.SECRET` is forbidden for production secrets.
-- Every random value for security must use `crypto.randomBytes`, `secrets.token_*`, `crypto/rand`; `Math.random()` is forbidden.
-- Every password must be hashed with bcrypt (cost ≥ 12) or argon2id (m=64MB, t=3, p=1).
-- Every secret comparison must use `crypto.timingSafeEqual`, `hmac.compare_digest`, `subtle.ConstantTimeCompare`.
-- Every HTTP response must include security headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy.
-- Every cookie must have `Secure`, `HttpOnly`, `SameSite=Strict` (or `Lax` for top-level navigation).
-- Every error response must return a generic message to the client; full details logged server-side with correlation ID.
-- Every external HTTP call must set a timeout (default 10 seconds) and maximum response size (default 10 MB).
-
-## 9. Naming Conventions
-
-- **Validation schemas**: `<entity><Action>Schema` (`userCreateSchema`, `orderUpdateSchema`).
-- **Security middleware**: `<purpose>Middleware` (`authMiddleware`, `csrfMiddleware`, `rateLimitMiddleware`).
-- **Secret variables**: `<SERVICE>_<PURPOSE>_<ENV>` (`API_JWT_SECRET_PROD`); never `SECRET` alone.
-- **Hash functions**: `hashPassword(plain)`, `verifyPassword(plain, hash)`; never `encrypt` for one-way.
-- **Token generators**: `generateToken()`, `generateNonce()`, `generateResetToken()`; explicit about crypto-secure source.
-- **Comparison functions**: `safeEqual(a, b)`, `constantTimeCompare(a, b)`; explicit about timing-safe.
-- **Path validators**: `validatePath(userPath, allowedBase)`, `isPathSafe(path, base)`.
-- **Encoder functions**: `encodeHtml(s)`, `encodeJs(s)`, `encodeUrl(s)`, `encodeCss(s)`; context-explicit.
-- **Files**: `<entity>.schema.ts` for validation, `<entity>.repository.ts` for data access, `<entity>.service.ts` for business logic.
-- **Directories**: `validation/`, `repositories/`, `services/`, `middleware/`, `audit/`, `crypto/`.
-- **Tests**: `*.security.spec.ts` for security tests; `*.spec.ts` for unit tests.
-- **Error classes**: `<Domain>Error` (`AuthError`, `AuthzError`, `ValidationError`, `RateLimitError`); explicit domain.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-security/
-├── crypto/                      # Cryptographic utilities
-│   ├── password.ts              # Hash/verify with argon2id
-│   ├── token.ts                 # Secure random token generation
-│   ├── compare.ts               # Timing-safe comparison
-│   └── keys.ts                  # Key derivation and rotation
-├── validation/                  # Reusable schema definitions
-│   ├── user.schema.ts
+src/
+├── security/
+│   ├── crypto.ts            # hashPassword, verifyPassword, generateToken, safeEqual
+│   ├── headers.ts           # CSP (per-request nonce), HSTS, frame-ancestors
+│   ├── outbound-http.ts     # SSRF-safe client (allowlist + dial-time IP check)
+│   └── secrets.ts           # typed secret loader, fails closed
+├── validation/
 │   ├── order.schema.ts
-│   └── common.schema.ts         # Email, UUID, etc.
-├── middleware/                  # Security middleware
-│   ├── auth.ts                  # Authentication
-│   ├── authz.ts                 # Authorization
-│   ├── csrf.ts
-│   ├── rate-limit.ts
-│   ├── security-headers.ts
-│   ├── cors.ts
-│   └── audit-log.ts
-├── encoding/                    # Context-aware encoders
-│   ├── html.ts
-│   ├── js.ts
-│   ├── url.ts
-│   └── css.ts
-├── secrets/                     # Secret manager integration
-│   ├── vault.ts                 # HashiCorp Vault client
-│   ├── aws-secrets.ts           # AWS Secrets Manager client
-│   └── loader.ts                # Startup loader
-├── upload/                      # File upload security
-│   ├── validate.ts              # MIME, size, filename
-│   ├── scan.ts                  # ClamAV integration
-│   └── store.ts                 # Safe storage
-├── audit/                       # Audit log writers
-│   ├── logger.ts
-│   └── events.ts
-├── tests/                       # Security test suites
-│   ├── injection.test.ts
-│   ├── xss.test.ts
-│   ├── idor.test.ts
-│   └── path-traversal.test.ts
-└── README.md                    # Secure coding guide
+│   └── common.schema.ts     # ids, emails, pagination bounds
+├── uploads/
+│   └── store.ts             # MIME sniffing, size limit, contained paths
+├── repositories/            # parameterized queries only
+└── api/
+tests/
+└── security/                # injection, XSS, traversal, SSRF payload tests
+.github/workflows/
+└── security.yml             # SAST, SCA, secret scan, SBOM
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
+- **Parse at the edge**: a schema turns untrusted input into a typed value; core code never sees raw input.
+- **Safe sink wrappers**: expose `db.query(sql, params)`, `runTool(binary, args[])`, `safeFetch(url)`, `storeUpload(bytes)` and ban the raw APIs with lint or Semgrep rules.
+- **Defense in depth**: validation, then parameterization or encoding at the sink, then least-privilege credentials (database user without DDL, read-only file system), then logging and alerts.
+- **Fail closed**: any error in a security decision path returns deny; `try { ... } catch { return allow }` is a defect.
+- **Secure defaults**: cookie helpers set `Secure; HttpOnly; SameSite=Lax; Path=/` by default and require an explicit, reviewed override.
+- **Content-addressed storage**: store uploads by hash plus a server-chosen extension; keep the user's file name only as escaped metadata.
+
+## 8. Best Practices
+
+- Validate size first (body limits in the framework, streaming size caps for uploads), then shape, then semantics.
+- Keep untrusted HTML out of the DOM; where rich text is required, sanitize with DOMPurify server- or client-side with an allowlist of tags and attributes.
+- Use framework CSRF protection or `SameSite` cookies plus an anti-CSRF token for cookie-authenticated state changes; never change state on GET.
+- Use `Content-Disposition: attachment` and a separate origin (for example a user-content domain) when serving user uploads.
+- Re-encode user images (for example with Pillow or sharp) to strip active content and metadata.
+- Treat LLM output and third-party API responses as untrusted input: validate before use, encode before rendering, never pass to a shell or `eval`.
+- Pin dependencies through lockfiles, review new transitive dependencies, and prefer packages with provenance attestations.
+- Use short-lived cloud credentials in CI through OIDC federation instead of stored keys.
+
+## 9. Performance
+
+- Compile validation schemas once at module load; do not rebuild them per request.
+- Password hashing is intentionally slow; run it only on login, signup and password change, and size the worker pool so a login burst cannot starve the event loop (node `argon2` runs off the main thread).
+- Cache DNS results in the SSRF-safe client only if the cached IP is still checked at dial time; the check in `net.Dialer.Control` costs microseconds.
+- Bounded reads (`io.LimitReader`, streaming upload caps) keep memory flat under attack.
+- Run SAST incrementally on pull requests and in full nightly; keep SCA on every build since it is fast.
+
+## 10. Security
+
+- TLS everywhere, including service-to-service; HSTS on public origins.
+- Least privilege for every credential: the application database role cannot alter schema; the upload directory is not executable and not served directly by the app server.
+- Secrets never cross into client code: no keys in `NEXT_PUBLIC_*`, Vite `VITE_*`, mobile `BuildConfig` or `Info.plist`, or cloud-init user-data.
+- Container and runtime: run as non-root, read-only root file system where possible, no shell in distroless images.
+- Error and debug pages disabled in production; stack traces only in server logs.
+- Security logging: failed validation spikes, blocked SSRF attempts and upload rejections are logged with request id and actor, never with the payload's secrets.
+
+## 11. Testing
+
+- Unit-test every schema with valid, invalid, boundary and Unicode inputs, plus unknown extra fields.
+- Payload tests for each sink: `' OR 1=1--` and `'; DROP TABLE` (SQL), `{"$ne":null}` (NoSQL), `; id` and `$(id)` (shell), `<script>`, `"><img src=x onerror=...>` and `javascript:` URLs (XSS), `../`, `..%2f`, absolute paths and symlinks (traversal), `http://169.254.169.254/`, `http://[::1]/`, decimal and octal IPs and a DNS name that resolves to `127.0.0.1` (SSRF).
+- Property-based or fuzz tests on parsers and validators (fast-check, Hypothesis, Go native fuzzing, Jazzer for Java).
+- SAST: Semgrep and CodeQL with custom rules for banned APIs (`eval`, `child_process.exec`, `pickle.loads`, raw `fetch` of user URLs).
+- SCA and secret scanning on every pull request; DAST (OWASP ZAP) against a staging deployment, never production.
+
+## 12. Review Checklist
+
+- [ ] Every entry point validates with an allowlist schema and size limits; unknown fields are rejected.
+- [ ] SQL and NoSQL calls use bound parameters; dynamic identifiers come from an allowlist.
+- [ ] No shell strings with user input; processes use argument arrays.
+- [ ] HTML output is auto-escaped; any raw HTML passes through a sanitizer.
+- [ ] File paths derived from input are resolved and checked for containment; uploads use server-generated names.
+- [ ] Outbound requests to user-influenced URLs use the SSRF-safe client (allowlist, dial-time IP check, redirect re-check, timeouts, size cap).
+- [ ] No native deserialization of untrusted data; YAML uses safe loaders.
+- [ ] Secrets come from the secret manager or a short-lived injected token; none in code, bundles, images or logs.
+- [ ] Tokens and ids for security use a CSPRNG; secret comparisons are constant-time.
+- [ ] Passwords use Argon2id (or legacy bcrypt with rehash on login).
+- [ ] Security headers and cookie attributes are set by shared middleware.
+- [ ] Error responses are generic with a correlation id; errors on security paths fail closed and clean up.
+- [ ] A regression test with the attack payload exists for every fixed finding.
+- [ ] SAST, SCA and secret scanning pass; refactors re-run them and introduce no new findings.
+
+## 13. Production Notes
+
+- Keep the CSP in report-only mode first, collect violation reports, then enforce; keep a nonce per response.
+- Alert on bursts of validation failures, SSRF blocks and upload rejections per actor or IP; they usually precede a real attempt.
+- Track open SCA findings by severity with a remediation SLA; rebuild images when base images get security patches.
+- Rotate any secret that appears in a log, crash dump or repository, then remove it from history; rotation comes first.
+- Keep the SBOM with each release so a new CVE can be matched to deployed versions within hours.
+
+## 14. Examples
+
+### Example 1: Upload handler with validated tenant id and contained path (Python, FastAPI)
+
+The tenant id comes from the authenticated principal, is typed as `uuid.UUID` (only hex digits and hyphens survive `str()`), and the final path is resolved and checked against the tenant directory. The stored name and extension are server-generated, and the file is created with `O_EXCL | O_NOFOLLOW` so an existing file or symlink is never overwritten.
+
+```python
+import hashlib
+import os
+import uuid
+from pathlib import Path
+
+import magic  # python-magic (libmagic)
+from fastapi import HTTPException, UploadFile
+
+ALLOWED_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "application/pdf": ".pdf"}
+MAX_BYTES = 10 * 1024 * 1024
+UPLOAD_ROOT = Path("/var/app/uploads").resolve()
+
+
+async def read_limited(file: UploadFile, limit: int) -> bytes:
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await file.read(64 * 1024):
+        size += len(chunk)
+        if size > limit:
+            raise HTTPException(status_code=413, detail="File too large")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def store_upload(file: UploadFile, tenant_id: uuid.UUID) -> dict:
+    content = await read_limited(file, MAX_BYTES)
+
+    mime = magic.from_buffer(content[:8192], mime=True)  # sniff content, ignore the client's Content-Type
+    extension = ALLOWED_TYPES.get(mime)
+    if extension is None:
+        raise HTTPException(status_code=415, detail="Unsupported file type")
+
+    digest = hashlib.sha256(content).hexdigest()
+    tenant_dir = (UPLOAD_ROOT / str(tenant_id)).resolve()
+    target = (tenant_dir / f"{digest}{extension}").resolve()
+    # Containment check on the final, resolved path (blocks ../, absolute paths and symlinked dirs).
+    if tenant_dir.parent != UPLOAD_ROOT or not target.is_relative_to(tenant_dir):
+        raise HTTPException(status_code=400, detail="Invalid upload")
+
+    tenant_dir.mkdir(mode=0o750, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(target, flags, 0o640)
+    except FileExistsError:
+        pass  # identical content already stored (content-addressed)
+    else:
+        with os.fdopen(fd, "wb") as out:
+            out.write(content)
+
+    original = os.path.basename(file.filename or "")[:255]  # metadata only, escape on display
+    return {"id": digest, "mimeType": mime, "size": len(content), "originalName": original}
 ```
-secure-app/
-├── security/                    # Security utilities (see folder structure)
-├── src/
-│   ├── config/
-│   │   ├── secrets.ts           # Secret manager integration
-│   │   ├── security-headers.ts
-│   │   └── env.ts               # Validated environment variables
-│   ├── middleware/              # Express/Fastify middleware
-│   │   ├── auth.ts
-│   │   ├── authz.ts
-│   │   ├── csrf.ts
-│   │   ├── rate-limit.ts
-│   │   └── audit-log.ts
-│   ├── validation/              # Zod schemas per entity
-│   │   ├── user.schema.ts
-│   │   └── order.schema.ts
-│   ├── repositories/            # Parameterized queries only
-│   │   ├── user.repository.ts
-│   │   └── order.repository.ts
-│   ├── services/                # Business logic with authz checks
-│   │   ├── user.service.ts
-│   │   └── order.service.ts
-│   ├── api/                     # HTTP entry points
-│   │   ├── routes/
-│   │   └── controllers/
-│   ├── audit/                   # Audit log writers
-│   └── utils/                   # General utilities (no security here)
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   ├── security/                # Security-specific tests
-│   └── e2e/
-├── infra/
-│   ├── terraform/
-│   │   ├── kms/                 # KMS keys per env
-│   │   ├── iam/                 # Least-privilege roles
-│   │   └── secrets-manager/     # Secret rotation
-│   └── docker/
-├── ci/                          # CI pipelines
-│   ├── sast.yml                 # Semgrep + CodeQL
-│   ├── sca.yml                  # Snyk + Trivy
-│   ├── secrets-scan.yml         # Gitleaks
-│   └── sign-artifacts.yml       # Sigstore
-├── docs/
-│   ├── policies/                # Security policies
-│   ├── runbooks/                # Incident response
-│   └── training/                # Secure coding training
-├── scripts/
-├── docker-compose.yml
-├── Makefile
-└── README.md
+
+Next steps for production: antivirus scanning (for example ClamAV) before the file is made available, image re-encoding, and serving from a separate origin with `Content-Disposition: attachment`.
+
+### Example 2: SSRF-safe HTTP client with dial-time IP check (Go)
+
+Checking DNS before the request leaves a time-of-check/time-of-use gap: the resolver can return a public IP to the check and a private IP to the dialer (DNS rebinding). Here `net.Dialer.Control` runs after resolution with the exact IP and port being connected, for the first request and for every redirect and new connection.
+
+```go
+package outbound
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/netip"
+	"net/url"
+	"syscall"
+	"time"
+)
+
+var ErrDestinationBlocked = errors.New("destination not allowed")
+
+var allowedHosts = map[string]bool{"api.github.com": true, "api.stripe.com": true}
+
+var extraBlocked = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"), // carrier-grade NAT
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("64:ff9b::/96"), // NAT64 can map to internal IPv4
+}
+
+func isBlocked(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	if !addr.IsGlobalUnicast() || addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast() {
+		return true
+	}
+	for _, p := range extraBlocked {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// control runs for every connection attempt, with the resolved IP:port.
+func control(network, address string, _ syscall.RawConn) error {
+	if network != "tcp4" && network != "tcp6" {
+		return ErrDestinationBlocked
+	}
+	ap, err := netip.ParseAddrPort(address)
+	if err != nil || ap.Port() != 443 || isBlocked(ap.Addr()) {
+		return ErrDestinationBlocked
+	}
+	return nil
+}
+
+func checkURL(u *url.URL) error {
+	if u.Scheme != "https" || u.User != nil || (u.Port() != "" && u.Port() != "443") || !allowedHosts[u.Hostname()] {
+		return ErrDestinationBlocked
+	}
+	return nil
+}
+
+func NewClient() *http.Client {
+	dialer := &net.Dialer{Timeout: 5 * time.Second, Control: control}
+	transport := &http.Transport{
+		Proxy:                 nil, // never route through HTTP(S)_PROXY from the environment
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+	}
+	return &http.Client{
+		Transport: transport,
+		Timeout:   15 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return errors.New("too many redirects")
+			}
+			return checkURL(req.URL)
+		},
+	}
+}
+
+const maxBody = 10 << 20
+
+func Fetch(ctx context.Context, c *http.Client, rawURL string) ([]byte, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, ErrDestinationBlocked
+	}
+	if err := checkURL(u); err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxBody {
+		return nil, errors.New("response too large")
+	}
+	return body, nil
+}
 ```
 
-## 12. Design Patterns
+For user-supplied destinations (webhooks, link previews) drop the host allowlist but keep `control`, the redirect check and the limits; also run the fetcher in a network segment without access to internal services.
 
-### 12.1 Allowlist Validation Pattern
-**When to use**: Every input from untrusted source.
-**When not to use**: Never; allowlist is the canonical pattern.
-**Sketch**: `const schema = z.object({ email: z.string().email(), role: z.enum(['admin', 'user']) }).strict();`
-
-### 12.2 Parameterized Query Pattern
-**When to use**: Every database query.
-**When not to use**: Never; parameterization is mandatory.
-**Sketch**: `await pool.query('SELECT * FROM users WHERE email = $1', [email]);`
-
-### 12.3 Contextual Output Encoding Pattern
-**When to use**: Every output to HTML, JS, URL, CSS.
-**When not to use**: Internal data transfers; JSON API responses (Content-Type handles it).
-**Sketch**: React JSX auto-escapes; for raw HTML use `DOMPurify.sanitize(html)`.
-
-### 12.4 Secrets Manager Pattern
-**When to use**: Every secret in production.
-**When not to use**: Local dev with `.env` files (gitignored, not committed).
-**Sketch**: `const secrets = await vault.read('secret/data/api-prod'); const jwtSecret = secrets.JWT_SECRET;`
-
-### 12.5 Defense in Depth Pattern
-**When to use**: Every security-critical system.
-**When not to use**: Never; defense in depth is mandatory.
-**Sketch**: WAF → API gateway rate limit → input validation → authz check → parameterized query → RLS → audit log.
-
-### 12.6 Fail Closed Pattern
-**When to use**: Every security decision point.
-**When not to use**: Never; failing open is forbidden.
-**Sketch**: If authz service is unavailable, deny the request (403); never allow.
-
-## 13. Best Practices
-
-- Always validate input against an allowlist schema at the API boundary.
-- Always use parameterized queries; never string-interpolate SQL.
-- Always encode output contextually (HTML, JS, URL, CSS) to prevent XSS.
-- Always store secrets in a secret manager; never in env files or code.
-- Always use crypto-secure random for tokens, nonces, salts.
-- Always hash passwords with bcrypt (cost ≥ 12) or argon2id.
-- Always use timing-safe comparison for secrets.
-- Always set security headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy.
-- Always set cookies with Secure, HttpOnly, SameSite.
-- Always return generic error messages to client; full details server-side.
-- Always run SAST, SCA, and secrets scan in CI.
-- Always use auto-escaping templating for HTML output.
-- Always validate file uploads: MIME, size, filename, antivirus scan.
-- Always resolve file paths and verify within allowed base directory.
-- Always use `execFile` with args array for OS commands; never `exec` with shell string.
-
-## 14. Anti Patterns
-
-### 14.1 Denylist Input Validation
-**Why wrong**: New attack patterns bypass; maintenance burden; incomplete coverage.
-**Correct alternative**: Allowlist validation with strict schema; reject anything not explicitly allowed.
-
-### 14.2 String Concatenation in SQL
-**Why wrong**: SQL injection; classic OWASP A03.
-**Correct alternative**: Parameterized queries with `?` or `$1` placeholders.
-
-### 14.3 `Math.random()` for Security
-**Why wrong**: Predictable; not cryptographically secure.
-**Correct alternative**: `crypto.randomBytes` (Node.js), `secrets.token_*` (Python), `crypto/rand` (Go).
-
-### 14.4 `eval()` on User Input
-**Why wrong**: Arbitrary code execution; RCE.
-**Correct alternative**: Safe parser (mathjs, expr-eval) with operator allowlist.
-
-### 14.5 Hardcoded Secrets
-**Why wrong**: Leaked via Git history, log files, crash dumps; no rotation.
-**Correct alternative**: Secret manager (Vault, AWS Secrets Manager) with short-lived tokens.
-
-### 14.6 Verbose Error Messages
-**Why wrong**: Information disclosure; reveals stack traces, paths, library versions.
-**Correct alternative**: Generic error to client; full details logged server-side with correlation ID.
-
-## 15. Performance Rules
-
-- Input validation with Zod/Pydantic must complete in < 1 ms per request for typical payloads; schema compilation cached.
-- Password hashing with bcrypt cost 12 takes ~250 ms; acceptable for login, not per-request.
-- argon2id with m=64MB takes ~100 ms; benchmark on target hardware.
-- Timing-safe comparison has negligible overhead (< 1 μs).
-- TLS handshake uses session resumption (TLS 1.3 PSK) for repeat clients; reduces CPU and latency.
-- CSP evaluation is browser-side; no server overhead.
-- SAST scan must complete in < 10 minutes for medium codebases; incremental scan for changed files.
-- SCA scan must complete in < 2 minutes; dependency graph cached.
-- Audit log writes must be asynchronous (queue + worker) to avoid blocking requests.
-- Rate limiter must use Redis-backed sliding window for sub-millisecond decisions.
-
-## 16. Security Rules
-
-- TLS 1.3 must be enforced for all external traffic; TLS 1.0 and 1.1 are forbidden.
-- HSTS must be set with `max-age=63072000; includeSubDomains; preload`.
-- CSP must be set with `default-src 'self'`; inline scripts forbidden unless with nonces.
-- X-Frame-Options must be `DENY` or CSP `frame-ancestors 'none'`.
-- X-Content-Type-Options must be `nosniff`.
-- Referrer-Policy must be `strict-origin-when-cross-origin` or stricter.
-- Cookies must have `Secure`, `HttpOnly`, `SameSite=Strict` (or `Lax` for top-level navigation).
-- Secrets must never appear in logs; redact via middleware before shipping.
-- PII must be encrypted at rest (AES-256-GCM) with KMS-managed keys.
-- Passwords must be hashed with bcrypt (cost ≥ 12) or argon2id; never MD5, SHA1, SHA256.
-- Secret comparisons must use timing-safe equality; `===` is forbidden.
-- File uploads must validate MIME, size, filename, and scan with antivirus.
-- Deserialization of untrusted data is forbidden; use JSON or Protobuf.
-- External HTTP calls must validate URL against allowlist; reject internal IPs (SSRF protection).
-- `eval()`, `Function()`, `pickle.loads`, `ObjectInputStream` on untrusted data are forbidden.
-
-## 17. Testing Strategy
-
-- Every validation schema must have tests for valid inputs, invalid inputs, and edge cases (empty, oversized, unicode).
-- Every SQL query must be tested with injection payloads (`' OR 1=1--`, `; DROP TABLE`); verify rejection.
-- Every template must be tested with XSS payloads (`<script>alert(1)</script>`); verify escaping.
-- Every authz rule must have positive and negative tests; verify access granted to authorized and denied to unauthorized.
-- Every file upload handler must be tested with malicious files (PHP in image, oversized, path traversal filename).
-- Every password hash function must be tested with known vectors (bcrypt cost 12, argon2id params).
-- Every secret comparison must be tested for timing safety (statistical test over many runs).
-- Every rate limiter must be tested for correctness under concurrent requests.
-- SAST must run on every PR; fail on Critical/High with no bypass.
-- SCA must run on every PR and nightly; auto-PR for patchable vulnerabilities.
-- Fuzz testing must run on input-heavy endpoints; detect crashes and memory safety issues.
-
-## 18. Documentation Standards
-
-- Every validation schema must have a JSDoc/docstring describing purpose, fields, and constraints.
-- Every security middleware must document what it protects and how to use it.
-- Every secret must have a documented rotation policy and owner.
-- Every crypto function must document the algorithm, parameters, and security rationale.
-- ADRs must be written for irreversible security decisions (algorithm choice, secret manager, key rotation policy).
-- Runbooks must exist for vulnerability remediation, secret rotation, and security hotfix deployment.
-- Secure coding training must be quarterly; attendance mandatory; completion tracked.
-- Each language (TypeScript, Python, Go, Java) must have a cheat sheet mapping OWASP Top 10 to language-specific defenses.
-
-## 19. Code Review Checklist
-
-- [ ] Input validated against allowlist schema at API boundary.
-- [ ] Output encoded contextually (HTML, JS, URL, CSS) to prevent XSS.
-- [ ] SQL uses parameterized queries; no string concatenation.
-- [ ] OS commands use `execFile` with args array; no `exec` with shell string.
-- [ ] File paths resolved and verified within allowed directory.
-- [ ] Secrets loaded from secret manager; not hardcoded.
-- [ ] Random values use crypto-secure APIs; not `Math.random()`.
-- [ ] Passwords hashed with bcrypt (cost ≥ 12) or argon2id.
-- [ ] Secret comparisons use timing-safe equality.
-- [ ] Security headers present in all responses.
-- [ ] Cookies have Secure, HttpOnly, SameSite.
-- [ ] Error responses generic; no stack traces or internal details to client.
-- [ ] Authn enforced on every endpoint; no anonymous access except allowlisted.
-- [ ] Authz checked at every privileged operation; not only at route level.
-- [ ] Rate limiting applied to login, password reset, and sensitive endpoints.
-- [ ] No `eval()`, `Function()`, `pickle.loads`, `ObjectInputStream` on untrusted data.
-- [ ] File uploads validate MIME, size, filename; antivirus scan.
-- [ ] External HTTP calls validate URL allowlist; reject internal IPs.
-- [ ] SAST scan passed; no new Critical/High findings.
-- [ ] SCA scan passed; no new Critical vulnerabilities in dependencies.
-
-## 20. Refactoring Checklist
-
-- [ ] Identify all `eval()`, `Function()`, `exec()` calls; replace with safe alternatives.
-- [ ] Identify all string concatenation in SQL; replace with parameterized queries.
-- [ ] Identify all `Math.random()` for security; replace with crypto-secure.
-- [ ] Identify all hardcoded secrets; move to secret manager.
-- [ ] Identify all MD5/SHA1 password hashes; migrate to bcrypt/argon2id.
-- [ ] Identify all `===` comparisons for secrets; replace with timing-safe.
-- [ ] Identify all missing authz checks; add function-level checks.
-- [ ] Identify all verbose error messages; replace with generic.
-- [ ] Identify all insecure deserialization; replace with JSON/Protobuf.
-- [ ] Identify all missing security headers; add middleware.
-- [ ] Identify all manual HTML concatenation; replace with auto-escaping templating.
-- [ ] Re-run SAST, SCA, secrets scan after refactoring; verify no new findings.
-
-## 21. Deployment Checklist
-
-- [ ] SAST scan passed in CI; no Critical/High.
-- [ ] SCA scan passed; no Critical vulnerabilities in dependencies.
-- [ ] Secrets scan passed; no secrets in code.
-- [ ] Artifact signed (Sigstore, GPG); signature verified before deploy.
-- [ ] Security headers verified via automated test in staging.
-- [ ] TLS configuration verified via SSL Labs (grade A or A+).
-- [ ] CSP verified with sample XSS payload; blocked.
-- [ ] Cookies verified with Secure, HttpOnly, SameSite.
-- [ ] Rate limiting verified with load test.
-- [ ] Password hashing verified with test user; bcrypt/argon2id output.
-- [ ] Secret manager accessible; application starts without hardcoded fallback.
-- [ ] Error responses verified generic; no stack traces to client.
-- [ ] File upload validated; malicious file rejected.
-- [ ] Audit log writer verified; events captured.
-- [ ] Rollback plan documented; includes security state restoration.
-- [ ] Compliance evidence captured (scan reports, signatures) for audit.
-
-## 22. Production Checklist
-
-- [ ] TLS 1.3 enforced; SSL Labs grade A or A+.
-- [ ] HSTS preload; `max-age=63072000; includeSubDomains; preload`.
-- [ ] CSP enforced with `default-src 'self'`; nonces for inline scripts.
-- [ ] All cookies have Secure, HttpOnly, SameSite.
-- [ ] Rate limiting on login, password reset, signup, and sensitive endpoints.
-- [ ] Passwords hashed with bcrypt (cost ≥ 12) or argon2id.
-- [ ] Secrets in secret manager; rotation policy enforced.
-- [ ] PII encrypted at rest with KMS-managed keys.
-- [ ] Audit log centralized and shipped to SIEM; retention ≥ 1 year.
-- [ ] Alerts configured for: auth failure spikes, authz denials, rate limit hits, anomalous access patterns.
-- [ ] SAST, SCA, secrets scan in CI; fail on Critical/High.
-- [ ] Artifacts signed (Sigstore); signatures verified before deploy.
-- [ ] SBOM generated for every release.
-- [ ] Incident response plan documented; quarterly tabletop exercise.
-- [ ] Bug bounty program active; submissions triaged within 24 hours.
-- [ ] Quarterly penetration test by external firm.
-
-## 23. Logging Strategy
-
-- Every authentication event must be logged: user ID, IP, user agent, outcome (success/failure), timestamp.
-- Every authorization denial must be logged: user ID, resource, action, reason, IP, timestamp.
-- Every input validation failure must be logged: endpoint, payload (sanitized), IP, timestamp.
-- Every rate limit hit must be logged: IP, endpoint, count, timestamp.
-- Every privileged operation must be logged: actor, action, resource, before/after state, IP, timestamp.
-- Every secret access must be logged: actor, secret name, operation, timestamp.
-- Sensitive data must be redacted before log shipping; never log passwords, tokens, PII in plaintext.
-- Logs must include correlation ID for request tracing across services.
-- Logs must be shipped to centralized SIEM (Splunk, ELK, Datadog) with retention ≥ 1 year.
-- Logs must be tamper-evident; append-only with cryptographic chaining or WORM storage.
-
-## 24. Monitoring Strategy
-
-- Auth failure rate must alert at > 10 failures per minute per IP or > 100 per minute globally.
-- Authz denial rate must alert at > 50 per minute; investigate potential IDOR scanning.
-- Rate limit hit rate must alert at > 1000 per minute; investigate attack or misbehaving client.
-- Input validation failure rate must alert at > 100 per minute; investigate scanning or broken client.
-- Anomalous access patterns must alert via UEBA; baseline normal behavior and detect deviations.
-- SAST findings must alert on new Critical/High in main branch.
-- SCA findings must alert on new Critical in production dependencies.
-- Secret access anomalies must alert on unusual access patterns (off-hours, new IP, new user).
-- File upload rejection rate must alert at > 100 per minute; investigate malicious upload attempt.
-- Incident response dashboard must show: open incidents, MTTR, findings by severity, scan status.
-
-## 25. Error Handling
-
-- Authentication failures must return generic "Invalid credentials"; never reveal which field is wrong.
-- Authorization denials must return 403 Forbidden with generic message; never reveal resource existence.
-- Input validation failures must return 400 Bad Request with field-level details (not internal types).
-- Rate limit exceeded must return 429 Too Many Requests with `Retry-After` header.
-- Server errors must return 500 Internal Server Error with generic message and correlation ID.
-- Database errors must be caught and mapped to generic 500; never expose SQL errors to client.
-- TLS errors must fail closed; never fall back to plaintext.
-- Secret manager failures must fail closed; never start with hardcoded fallback secrets.
-- Deserialization errors must reject the input and log; never attempt recovery on untrusted data.
-- File upload errors must return generic "Upload failed"; never reveal filesystem paths.
-
-## 26. Examples
-
-### Example 1: Secure Password Hashing and Verification (TypeScript)
+### Example 3: Password hashing, tokens and constant-time compare (TypeScript, Node.js)
 
 ```typescript
-// security/crypto/password.ts
 import argon2 from 'argon2';
-import crypto from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
-const ARGON2_OPTIONS = {
-  type: argon2.argon2id,
-  memoryCost: 65_536, // 64 MB
-  timeCost: 3,
-  parallelism: 1,
-  hashLength: 32,
-};
+// OWASP minimum for Argon2id: m=19 MiB, t=2, p=1. Raise memory if login latency allows.
+const ARGON2_OPTIONS = { type: argon2.argon2id, memoryCost: 19_456, timeCost: 2, parallelism: 1 } as const;
 
 export async function hashPassword(plain: string): Promise<string> {
-  if (plain.length < 12 || plain.length > 128) {
-    throw new Error('Password length must be 12-128 characters');
-  }
   return argon2.hash(plain, ARGON2_OPTIONS);
 }
 
-export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
+export async function verifyPassword(plain: string, stored: string): Promise<{ ok: boolean; rehash: boolean }> {
   try {
-    return await argon2.verify(hash, plain);
+    const ok = await argon2.verify(stored, plain);
+    return { ok, rehash: ok && argon2.needsRehash(stored, ARGON2_OPTIONS) };
   } catch {
-    return false; // Invalid hash format; treat as verification failure
+    return { ok: false, rehash: false }; // malformed hash: fail closed
   }
 }
 
 export function generateToken(bytes = 32): string {
-  return crypto.randomBytes(bytes).toString('hex');
+  return randomBytes(bytes).toString('base64url');
 }
 
+// Hashing both sides first gives equal-length buffers, so length is not leaked.
 export function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
+  const da = createHash('sha256').update(a).digest();
+  const db = createHash('sha256').update(b).digest();
+  return timingSafeEqual(da, db);
 }
 ```
 
-### Example 2: Safe File Upload Handler with Path Validation (Python)
+## 15. Common Mistakes
 
-```python
-# src/upload/handler.py
-import os
-import magic
-import hashlib
-from pathlib import Path
-from fastapi import UploadFile, HTTPException
+- **Client-side validation only**: trivially bypassed with a direct request. Validate on the server; client checks are UX.
+- **Denylist filters** (`replace('<script>', '')`, blocking `../` once): bypassed by encoding and nesting. Use allowlists and containment checks.
+- **String-built SQL**, including `ORDER BY ${req.query.sort}`: parameterize values, map identifiers from an allowlist.
+- **`exec('convert ' + file)`**: command injection. Use `execFile('convert', [file])` and validate the argument.
+- **Joining a user-controlled id or name into a path** (`UPLOAD_BASE / tenant_id`): traversal. Validate the id's type and check the resolved path.
+- **Checking DNS, then letting the HTTP client resolve again**: DNS rebinding bypass. Check the IP at dial time.
+- **Following redirects without re-checking**: an allowed host redirects to `169.254.169.254`. Re-validate in `CheckRedirect` or disable redirects.
+- **`pickle.loads`, `yaml.load`, `ObjectInputStream` on request data**: remote code execution. Use JSON with a schema.
+- **Fast hashes for passwords** (MD5, SHA-1, SHA-256): GPU brute force. Use Argon2id.
+- **`Math.random()` for reset tokens or ids**: predictable. Use the platform CSPRNG.
+- **`===` on secrets**: timing side channel. Use constant-time comparison.
+- **Verbose errors and debug mode in production**: stack traces, SQL and versions leak. Return generic errors with a correlation id.
+- **Catch-all handlers that continue** (`catch { /* ignore */ }` on a security check): fails open. Deny and clean up.
+- **Secrets in front-end env prefixes or mobile build configs**: shipped to every user. Keep them server-side.
 
-ALLOWED_MIME_TYPES = {
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-    'application/pdf',
-}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-UPLOAD_BASE = Path('/var/app/uploads')
+## 16. References
 
-def validate_filename(filename: str) -> str:
-    # Strip directory components; use only basename
-    safe_name = os.path.basename(filename)
-    if not safe_name or safe_name.startswith('.'):
-        raise HTTPException(status_code=400, detail='Invalid filename')
-    return safe_name
-
-def validate_mime(content: bytes) -> str:
-    mime = magic.from_buffer(content, mime=True)
-    if mime not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail=f'Unsupported file type: {mime}')
-    return mime
-
-async def handle_upload(file: UploadFile, tenant_id: str) -> dict:
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail='File too large')
-
-    mime = validate_mime(content)
-    filename = validate_filename(file.filename or 'upload.bin')
-
-    # Content-addressed storage to prevent collisions and path traversal
-    digest = hashlib.sha256(content).hexdigest()
-    extension = Path(filename).suffix.lower()
-    stored_name = f'{digest}{extension}'
-
-    # Resolve and verify within allowed base
-    target_dir = (UPLOAD_BASE / tenant_id).resolve()
-    target_path = (target_dir / stored_name).resolve()
-    if not str(target_path).startswith(str(target_dir) + os.sep):
-        raise HTTPException(status_code=400, detail='Path traversal detected')
-
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target_path.write_bytes(content)
-
-    return {
-        'storedName': stored_name,
-        'originalName': filename,
-        'mimeType': mime,
-        'size': len(content),
-        'sha256': digest,
-    }
-```
-
-### Example 3: SSRF-Safe External URL Fetcher (Go)
-
-```go
-// security/fetch/safe_fetch.go
-package fetch
-
-import (
-    "context"
-    "fmt"
-    "net"
-    "net/http"
-    "net/url"
-    "strings"
-    "time"
-)
-
-var allowedHosts = map[string]bool{
-    "api.stripe.com":      true,
-    "api.github.com":      true,
-    "api.openai.com":      true,
-}
-
-var blockedCIDRs = []string{
-    "10.0.0.0/8",
-    "172.16.0.0/12",
-    "192.168.0.0/16",
-    "169.254.0.0/16", // AWS metadata service
-    "127.0.0.0/8",
-    "::1/128",
-    "fc00::/7",
-}
-
-type SafeFetcher struct {
-    client *http.Client
-}
-
-func NewSafeFetcher() *SafeFetcher {
-    return &SafeFetcher{
-        client: &http.Client{
-            Timeout: 10 * time.Second,
-            CheckRedirect: func(req *http.Request, via []*http.Request) error {
-                if len(via) >= 3 {
-                    return fmt.Errorf("too many redirects")
-                }
-                return validateURL(req.URL)
-            },
-        },
-    }
-}
-
-func validateURL(u *url.URL) error {
-    if u.Scheme != "https" {
-        return fmt.Errorf("only HTTPS allowed")
-    }
-    if !allowedHosts[u.Hostname()] {
-        return fmt.Errorf("host not in allowlist")
-    }
-    ips, err := net.LookupIP(u.Hostname())
-    if err != nil {
-        return fmt.Errorf("DNS lookup failed")
-    }
-    for _, ip := range ips {
-        if isBlockedIP(ip) {
-            return fmt.Errorf("resolved IP is in blocked range")
-        }
-    }
-    return nil
-}
-
-func (f *SafeFetcher) Fetch(ctx context.Context, rawURL string) ([]byte, error) {
-    u, err := url.Parse(rawURL)
-    if err != nil {
-        return nil, err
-    }
-    if err := validateURL(u); err != nil {
-        return nil, err
-    }
-    req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
-    if err != nil {
-        return nil, err
-    }
-    resp, err := f.client.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-    if resp.StatusCode != http.StatusOK {
-        return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
-    }
-    // Limit response size to 10 MB
-    body := make([]byte, 0, 1024*1024)
-    buf := make([]byte, 4096)
-    for {
-        n, err := resp.Body.Read(buf)
-        if n > 0 {
-            body = append(body, buf[:n]...)
-            if len(body) > 10*1024*1024 {
-                return nil, fmt.Errorf("response too large")
-            }
-        }
-        if err != nil {
-            break
-        }
-    }
-    return body, nil
-}
-
-func isBlockedIP(ip net.IP) bool {
-    for _, cidr := range blockedCIDRs {
-        _, network, err := net.ParseCIDR(cidr)
-        if err != nil {
-            continue
-        }
-        if network.Contains(ip) {
-            return true
-        }
-    }
-    return false
-}
-
-// Avoid unused import warning
-var _ = strings.Contains
-```
-
-## 27. Common Mistakes
-
-### 27.1 Trusting Client-Side Validation
-**What**: Only validating in the browser; no server-side validation.
-**Why**: Trivial bypass via direct API call; OWASP A03/A04.
-**How to avoid**: Always validate server-side at the API boundary; client-side validation is UX, not security.
-
-### 27.2 Using `===` for Secret Comparison
-**What**: `if (token === expectedToken)` for API key check.
-**Why**: Timing attack reveals prefix; attacker can recover token character by character.
-**How to avoid**: Use `crypto.timingSafeEqual` (Node.js), `hmac.compare_digest` (Python), `subtle.ConstantTimeCompare` (Go).
-
-### 27.3 Storing Passwords with SHA256
-**What**: `hashlib.sha256(password.encode()).hexdigest()` for password storage.
-**Why**: Fast hash; GPU brute-force at billions per second.
-**How to avoid**: Use bcrypt (cost ≥ 12) or argon2id (m=64MB, t=3, p=1); never SHA256 alone.
-
-### 27.4 Path Traversal via User Filename
-**What**: `path.join(uploadDir, req.file.filename)` with `../../etc/passwd` filename.
-**Why**: Arbitrary file write; RCE if writable to web root.
-**How to avoid**: Use `path.basename(filename)`, content-addressed storage (SHA256), and verify `startsWith(allowedBase)` after resolve.
-
-### 27.5 Unrestricted File Upload
-**What**: Accepting any file type; storing with original extension.
-**Why**: PHP/JSP upload → RCE; polyglot files; malware.
-**How to avoid**: Validate MIME via content sniffing (libmagic), restrict to allowlist, scan with ClamAV, store outside web root.
-
-### 27.6 Insecure Deserialization
-**What**: `pickle.loads(user_data)` or `JSON.parse` with reviver calling eval.
-**Why**: Arbitrary code execution; OWASP A08.
-**How to avoid**: Use `json.loads` without reviver; for Python use `json` not `pickle`; for Java avoid `ObjectInputStream`.
-
-## 28. Professional Workflow
-
-1. **Receive request**: new feature, vulnerability report, or audit.
-2. **Threat model**: identify trust boundaries, data flows, sinks; document STRIDE findings.
-3. **Design defense**: allowlist validation, parameterized queries, contextual encoding, defense in depth.
-4. **Implement**: write code following secure coding standards; add security tests.
-5. **Peer review**: PR requires second-engineer sign-off for security-sensitive paths.
-6. **Scan**: SAST, SCA, secrets scan in CI; fail on Critical/High.
-7. **Test**: security tests (injection, XSS, IDOR, path traversal); fuzz testing.
-8. **Deploy**: security gates in CI/CD; artifact signing; SBOM.
-9. **Monitor**: SIEM alerts; audit log review; incident response readiness.
-10. **Post-mortem**: for incidents, write blameless post-mortem within 48 hours; update controls and runbooks.
-11. **Train**: quarterly secure coding training; share lessons learned.
-
-## 29. Response Style
-
-- Always cite the OWASP category (A0X) and CWE ID when describing a vulnerability.
-- Always provide remediation code alongside the vulnerability description.
-- Always state the language and framework version when proposing code.
-- Never use the word "should" — use "must" or "must not".
-- Always quantify risk using CVSS v3.1 score and impact rating.
-- Always recommend defense in depth; never rely on a single control.
-- Always link to the relevant OWASP cheat sheet or NIST guidance.
-- Always fail closed in examples; never show failing open as acceptable.
-
-## 30. Output Format
-
-- Every code example must be syntactically valid for the stated language (TypeScript, Python, Go, Java) and framework.
-- Every vulnerability remediation must include: vulnerable code, secure code, rationale, and CWE reference.
-- Every security recommendation must cite the OWASP cheat sheet or NIST 800-53 control.
-- Every ADR must follow: context, decision, status, consequences, alternatives considered.
-- Every runbook must be numbered step-by-step with verification commands at each step.
-- Every training material must include: concept, code example, common mistakes, exercise.
-- Every code review comment must include: location, issue, severity, fix suggestion, CWE reference.
-- Every incident report must follow: timeline, impact, root cause, contributing factors, action items with owners and dates.
-- Every audit report must include: scope, methodology, findings by severity, remediation status.
-- Every SAST rule must include: rule name, description, severity, false positive rate, remediation guidance.
+- [references/owasp-top-10.md](references/owasp-top-10.md): OWASP Top 10:2025 categories with defenses, the 2021-to-2025 mapping, threat modeling with STRIDE and the SAST/DAST/SCA pipeline.
+- OWASP Cheat Sheet Series: https://cheatsheetseries.owasp.org/
+- OWASP Top 10:2025: https://owasp.org/Top10/2025/

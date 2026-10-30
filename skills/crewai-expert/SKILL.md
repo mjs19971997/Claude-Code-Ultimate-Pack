@@ -1,713 +1,354 @@
 ---
 name: crewai-expert
-description: >
-  Build and operate role-playing, collaborative CrewAI agents that complete multi-step tasks via sequential or hierarchical crews.
-  
-  Use this skill when designing AI agents, LLM applications, RAG pipelines, prompt workflows, multi-agent systems, or integrating LLM SDKs.
+description: >-
+  Builds CrewAI applications: role-based agents, tasks with structured output and guardrails, sequential and hierarchical crews, Flows for event-driven multi-crew orchestration, tools, memory and testing. Use when writing or reviewing code that imports crewai or crewai_tools, editing crew.jsonc or agents/*.jsonc (or classic agents.yaml/tasks.yaml), designing Agent/Task/Crew/Process setups, building a Flow with @start, @listen, @router or @persist, adding custom BaseTool tools or Task guardrails, or configuring CrewAI Memory and LLMs. Not for LangChain or LangGraph code (use langchain-expert), framework-neutral agent architecture (use ai-agent-architect) or retrieval pipelines (use rag-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# CrewAI
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers building and operating CrewAI applications: agents with roles, tasks with typed outputs and guardrails, crews with sequential or hierarchical processes, Flows that orchestrate crews and plain code, tools, memory, observability and tests. It does not cover general agent architecture choices that are independent of CrewAI, or LangChain and LangGraph.
 
----
+> Verified against CrewAI 1.15.30 docs (docs.crewai.com, 2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The CrewAI Expert builds and operates role-playing AI agents that collaborate to complete tasks. A CrewAI system has four core abstractions: Agent (role, goal, backstory, llm, tools), Task (description, expected_output, agent, context), Crew (agents, tasks, process), and Process (sequential or hierarchical). The expert owns the role design, the task decomposition, the process choice, the tool wiring, the memory configuration, and the production hardening required to ship.
+## 1. Scope
 
-This role is distinct from a single-agent builder. CrewAI's value is role specialization and delegation: a researcher gathers, an analyst interprets, a writer drafts, a reviewer critiques. The expert decides when sequential execution suffices, when hierarchical with a manager is required, and when to compose multiple crews via Flows.
+- **Crews**: a team of `Agent`s working through `Task`s under a `Process` (sequential or hierarchical).
+- **Flows**: event-driven orchestration with typed state, where steps can run crews, single agents or plain Python.
+- **Supporting pieces**: `LLM` configuration, custom tools, task guardrails, `Memory`, callbacks, streaming, async kickoff.
+- **Projects**: the JSON-first project created by `crewai create crew` and the classic Python/YAML layout.
 
-The expert is accountable for cost, latency, observability, and correctness. Every crew that ships must have typed task outputs, a token budget, a manager LLM configured for hierarchical crews, callbacks for monitoring, and a tested fallback when the primary LLM degrades.
+## 2. Core Expertise
 
-## 2. Mission
+- **Agent**: `role`, `goal`, `backstory` (required), plus `llm`, `tools`, `max_iter` (default 20), `max_execution_time`, `max_rpm`, `max_retry_limit`, `allow_delegation` (default False), `respect_context_window` (default True), `reasoning`, `memory`, `verbose`. `Agent.kickoff()` and `kickoff_async()` run one agent without a crew and return a `LiteAgentOutput`.
+- **Task**: `description`, `expected_output`, `agent`, `context` (upstream tasks), `tools`, `output_pydantic` or `output_json` (set one), `output_file`, `markdown`, `async_execution`, `human_input`, `callback`, `guardrail` or `guardrails`, `guardrail_max_retries` (default 3; `max_retries` is deprecated).
+- **Guardrails**: a function `(TaskOutput) -> tuple[bool, Any]` returning `(True, value)` or `(False, "reason")`, or a plain-language string that CrewAI turns into an LLM-checked guardrail using the task's agent. Failures are sent back to the agent for a retry.
+- **Crew**: `agents`, `tasks`, `process`, `manager_llm` or `manager_agent` (needed for hierarchical), `planning` and `planning_llm`, `memory`, `embedder`, `cache` (tool result cache, default True), `max_rpm`, `step_callback`, `task_callback`, `output_log_file`, `stream`.
+- **Kickoff**: `kickoff(inputs=...)`, `kickoff_for_each(...)`, thread-based `kickoff_async()` and `kickoff_for_each_async()`, and native async `akickoff()` and `akickoff_for_each()` for high concurrency. Results are `CrewOutput` with `raw`, `pydantic`, `json_dict`, `tasks_output` and `token_usage`.
+- **LLM**: `from crewai import LLM`; model strings are `provider/model-id`. OpenAI, Anthropic, Google Gemini, Azure, AWS Bedrock and Snowflake Cortex use native SDKs via extras (for example `crewai[anthropic]`); other providers go through LiteLLM (`crewai[litellm]`). Anthropic requires `max_tokens`.
+- **Tools**: subclass `crewai.tools.BaseTool` with `name`, `description`, `args_schema` and `_run` (may be `async def`), or use the `@tool("name")` decorator; built-in tools come from `crewai_tools` (`pip install 'crewai[tools]'`). A tool's `cache_function` decides which results are cached.
+- **Memory**: one `Memory` class (`from crewai import Memory`) replaces the older short-term, long-term and entity memory types. `Crew(memory=True)` creates a default instance; `Memory(...)` accepts recency weighting, a storage path or backend and an embedder; `memory.scope("/path")` and `memory.slice(...)` restrict what an agent reads and writes. Default storage is LanceDB under `./.crewai/memory`.
+- **Flows**: `Flow[StateModel]`, `@start()`, `@listen(method_or_label)`, `@router(method)` returning a label, `or_` and `and_`, `@persist` for SQLite-backed state, `@human_feedback` for review steps, `kickoff()` and `kickoff_async()`. Details in [references/flows-and-projects.md](references/flows-and-projects.md).
 
-Build CrewAI crews that complete real multi-step tasks reliably, observably, and at production scale. Reliability means predictable task success rate and graceful handling of delegation failures. Observability means every agent step and every task output is traced. Scale means async execution, caching, structured outputs, and cost control.
+## 3. Workflow
 
-The mission covers: core abstractions, agent design, task design, process choice (sequential, hierarchical, planning), memory (short-term, long-term, entity), tools, crew execution, delegation, planning, Flows for multi-crew orchestration, callbacks, hierarchical vs sequential crews, evaluation, observability, production patterns, testing, and deployment.
+1. Write the workflow, its inputs, the final output schema and the success criterion.
+2. Decide the orchestration level: a single `Agent.kickoff()` for one role, a crew for collaborating roles, a Flow when steps branch, loop, mix code with crews or need persisted state.
+3. Define roles with specific titles, action-oriented goals and short backstories that set expertise and constraints.
+4. Break the work into tasks; give each an `expected_output`, an owner agent, `context` links and a Pydantic output model where code consumes the result.
+5. Add guardrails for checks that code can verify (length, required fields, citations present); use string guardrails only for checks that need judgement.
+6. Pick the process: sequential when the order is known, hierarchical when a manager must assign work; set `manager_llm` explicitly.
+7. Give each agent only the tools it needs; write custom tools with typed `args_schema`.
+8. Bound cost and time: `max_iter`, `max_execution_time`, `max_rpm`, model `max_tokens`.
+9. Configure memory only if it measurably improves results, with scopes per user or tenant.
+10. Test with mocked tools and recorded fixtures, then run an eval set against real models before release.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- **Core abstractions**: Agent (role/goal/backstory/llm/tools/verbose/allow_delegation/max_iter/memory); Task (description/expected_output/agent/context/output_pydantic/output_json/tools/async_execution/human_input/callback); Crew (agents/tasks/process/verbose/memory/manager_llm/planning/full_output); Process (sequential or hierarchical).
-- **Agent design**: role is a specific job title; goal is action-oriented; backstory is 2-3 sentences of narrative context; llm defaults to GPT-4; tools list; allow_delegation; max_iter; verbose.
-- **Task design**: description with context; expected_output specifies format and content; agent assignment; context tasks feed outputs; output_pydantic for structured output; output_json for JSON schema; async_execution for parallel; human_input for feedback; callback on completion.
-- **Process**: sequential (tasks in order, output feeds next); hierarchical (manager agent assigns tasks); planning (crew creates a plan before execution).
-- **Memory**: short_term (recent interactions and context); long_term (learned patterns across crews via Mem0); entity_memory (knowledge about entities with relationships); stored in local SQLite or Mem0 cloud; crew.memory=True enables all.
-- **Tools**: `BaseTool` subclass with `_run` method; `@tool` decorator for simple tools; Pydantic args schema; built-in tools (SerperDevTool, ScrapeWebsiteTool, FileReadTool, DirectoryReadTool, SeleniumScrapingTool, PGSearchTool, NL2SQLTool, MDXSearchTool, JSONSearchTool, CodeDocsSearchTool, CodeInterpreterTool); custom tools.
-- **Crew execution**: `crew.kickoff(inputs=)`; `crew.kickoff_for_each(inputs=[])` for batch; `crew.kickoff_async()` for async; `crew()` shorthand; `CrewOutput` with raw/pydantic/json_dict/tasks_output/token_usage.
-- **Delegation**: `agent.allow_delegation=True`; delegation via AskQuestion and DelegateWork tools; hierarchical crew uses manager agent.
-- **Planning**: `crew.planning=True` enables pre-execution planning; plan stored as `crew.planning`; agents reference plan; planning step uses `manager_llm` or `crew.manager_llm`.
-- **Flows**: CrewAI Flows for multi-crew orchestration; sequential flows; router flows with conditional routing; state management across crews; structured outputs between crews; async flows; event-driven flows; `@start` decorator; `@listen` decorator; `@router` decorator.
-- **Callbacks**: `task_callback` on task completion; `step_callback` on each step; useful for logging and monitoring.
-- **Hierarchical crews**: manager agent with `manager_llm`; manager assigns tasks, reviews outputs, can reassign; better for ambiguous workflows; more expensive.
-- **Sequential crews**: tasks executed in definition order; output of task N is context for task N+1; simpler and cheaper; better for well-defined workflows.
-- **Evaluation**: token usage tracking; execution time; task success criteria; output quality via human eval or LLM-as-judge; cost tracking.
-- **Observability**: `verbose=True` for detailed logs; AgentOps integration; Langtrace integration; custom callbacks; OpenTelemetry.
-- **Production patterns**: caching with `cache=True` and `cache_handler`; rate limiting via llm config; fallback LLMs; async execution; structured output with Pydantic; human-in-the-loop with `human_input`; output validation; error handling and retries; cost control with token budgets.
-- **Testing**: unit tests for agents with mocked LLM; integration tests for crews; eval frameworks with golden examples; regression tests for role changes.
-- **Deployment**: CrewAI+ for hosted; FastAPI integration; containerization with Docker; serverless for stateless crews; stateful crews require persistent memory.
+- Prefer sequential crews; move to hierarchical only when assignment genuinely depends on intermediate results, because the manager adds calls and cost.
+- Prefer a Flow over hand-written Python glue between crews when you need routing, state, persistence or resumption.
+- Prefer `output_pydantic` over parsing free text whenever another task or program consumes the output.
+- Prefer function guardrails over string guardrails; they are deterministic and cost nothing.
+- Prefer `allow_delegation=False` unless one agent clearly lacks a capability another has; delegation adds loops.
+- Prefer `akickoff()` for many concurrent runs in an async service; `kickoff_async()` wraps the sync path in a thread.
+- Prefer enabling `planning` only for long multi-task crews where it improves the eval score; it adds a planning call.
+- Prefer a cheaper model for simple roles and a stronger one for the manager or the hardest task, then confirm on the eval set.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Design agents with specific roles, action-oriented goals, and concise backstories; generic roles like "Assistant" are forbidden.
-- Decompose the workflow into tasks with clear descriptions, expected outputs, and assigned agents.
-- Choose the process: sequential for well-defined workflows, hierarchical for ambiguous ones.
-- Configure the manager LLM for hierarchical crews; never use the default if a stronger model is required.
-- Define tools with Pydantic args schemas; never ad-hoc.
-- Configure memory tiers based on the use case; never enable all memory blindly.
-- Set `max_iter` per agent to bound reasoning depth.
-- Configure callbacks for logging and monitoring.
-- Enforce a per-crew token budget and a per-user rate limit.
-- Validate task outputs against `output_pydantic` or `output_json` schemas.
-- Use Flows for multi-crew orchestration; never hand-roll cross-crew glue.
-- Build eval harnesses with golden examples; never ship without measured success rate.
-- Document every agent, task, and crew with examples.
+- Build crews in factory functions or `@CrewBase` classes, not inline in request handlers.
+- One Pydantic output model per machine-consumed task; never set both `output_json` and `output_pydantic`.
+- Use the `provider/model-id` string form and set `max_tokens` and `timeout` on every `LLM`.
+- Custom tools: typed `args_schema`, clear `description`, explicit timeouts on network calls, errors returned as readable strings rather than raw stack traces.
+- Keep prompts (role, goal, backstory, task descriptions) in JSONC or YAML config or versioned constants, with `{placeholders}` filled from `inputs`.
+- Keep Flow state in a Pydantic model with defaults for every field.
+- Naming: agents `researcher`, `analyst`; tasks `research_task`; crews `report_crew`; flows `ReportFlow`; tools `SearchOrdersTool`.
 
-## 5. Thinking Process
+## 6. Project Structure
 
-1. Write the workflow and the success criteria before designing agents.
-2. Identify the roles needed: researcher, analyst, writer, reviewer, etc.
-3. Decompose the workflow into tasks; assign each to a role.
-4. Decide process: sequential for fixed order, hierarchical for ambiguous.
-5. Design agent backstories that prime the right behavior.
-6. Define tools per agent; smallest sufficient set.
-7. Configure memory: short_term for context, long_term for cross-run patterns, entity for facts.
-8. Configure callbacks for logging and monitoring.
-9. Set `max_iter` and token budgets.
-10. Build the eval harness; iterate until success-rate target met.
-11. Deploy via CrewAI+ or FastAPI; configure health checks and autoscaling.
-12. Run eval nightly; alert on regression.
+`crewai create crew <name>` creates a JSON-first project (classic Python/YAML is available with `--classic`):
 
-## 6. Decision Making Rules
-
-- When sequential and hierarchical conflict, choose sequential for well-defined workflows because hierarchical adds manager overhead; choose hierarchical for ambiguous workflows because the manager adapts.
-- When role specialization and a single generalist conflict, choose specialization because specialized agents produce higher-quality outputs on their domain.
-- When `output_pydantic` and free-text conflict, choose `output_pydantic` for machine-consumed outputs because downstream code needs typed data.
-- When memory all-on and memory off conflict, choose the minimum memory tier that improves the task because more memory adds tokens and cost.
-- When delegation on and off conflict, choose delegation off for simple crews because delegation adds coordination overhead; choose on for crews where one agent lacks the tools or knowledge.
-- When planning on and off conflict, choose planning on for long multi-task crews because planning reduces drift; choose off for short crews because planning adds latency.
-- When async and sync execution conflict, choose async for independent tasks because parallelism reduces wall-clock time.
-- When Flows and a single crew conflict, choose Flows when crews must be composed or routed because hand-rolled glue is fragile.
-- When caching on and off conflict, choose caching on for read-heavy crews because LLM calls are expensive; choose off for crews with unique inputs.
-- When verbose on and off conflict, choose verbose on in development and off in production because verbose logs are expensive at scale.
-
-## 7. Architecture Rules
-
-- Every crew must have a typed input schema (crew inputs) and typed task outputs (`output_pydantic` or `output_json`).
-- Every crew must set `max_iter` per agent; unbounded reasoning is forbidden.
-- Every hierarchical crew must configure `manager_llm` explicitly; defaulting is forbidden in production.
-- Every crew must enforce a per-crew token budget and a per-user rate limit.
-- Every crew that calls external services must have a fallback LLM.
-- Every tool must be defined with a Pydantic args schema; ad-hoc tools are forbidden.
-- Every crew must use callbacks for logging and monitoring in production.
-- Every crew must validate task outputs against the declared schema; validation failures must trigger a retry or escalation.
-- Every multi-crew system must use Flows; hand-rolled cross-crew glue is forbidden.
-- Every crew must emit a trace span per agent step with crew_id, agent_name, task_id.
-
-## 8. Coding Standards
-
-- All crews must be defined as classes or factories that return `Crew` instances; inline `Crew(...)` in business logic is forbidden.
-- All agents must have specific roles, action-oriented goals, and 2-3 sentence backstories; generic roles are forbidden.
-- All tasks must declare `expected_output` and either `output_pydantic` or `output_json` for machine-consumed outputs.
-- All tools must subclass `BaseTool` with a typed `args_schema` and implement `_run`; ad-hoc tools are forbidden.
-- All LLM calls must go through a configured `LLM` instance with model, temperature, max_tokens, and fallbacks.
-- All async crews must use `kickoff_async`; mixing sync and async is forbidden.
-- All Flows must use `@start`, `@listen`, `@router` decorators; hand-rolled state machines are forbidden.
-- All configuration must be injected via dependency injection; no global state, no env reads inside crew code.
-- All tests must mock the LLM; no real LLM calls in unit tests.
-- All crews must be reproducible: same inputs produce the same outputs at temperature 0.
-
-## 9. Naming Conventions
-
-- **Agent roles**: Specific job titles in `PascalCase` (`Senior Researcher`, `Lead Writer`).
-- **Agents**: `snake_case` variables ending in `_agent` (`researcher_agent`, `writer_agent`).
-- **Tasks**: `snake_case` ending in `_task` (`research_task`, `draft_task`).
-- **Crews**: `snake_case` ending in `_crew` (`report_crew`, `analysis_crew`).
-- **Flows**: `PascalCase` classes ending in `Flow` (`ReportFlow`, `AnalysisFlow`).
-- **Tools**: `PascalCase` classes ending in `Tool` (`SearchTool`, `FetchTool`); `snake_case` instances.
-- **Functions**: `snake_case` verb-first (`build_crew`, `run_flow`).
-- **Files**: `snake_case.py`; one crew per file in `crews/`.
-- **Directories**: `snake_case` packages (`crews/report/`, `tools/search/`).
-- **Tests**: `test_<unit>.py`; one per source file.
-
-## 10. Folder Structure
-
-```
-crewai-project/
-├── src/
-│   └── my_crews/
-│       ├── crews/                 # One folder per crew
-│       │   ├── report/
-│       │   │   ├── __init__.py
-│       │   │   ├── crew.py        # Crew factory
-│       │   │   ├── agents.py      # Agent definitions
-│       │   │   ├── tasks.py       # Task definitions
-│       │   │   └── config.yaml    # Optional YAML config
-│       │   └── analysis/
-│       ├── flows/                 # CrewAI Flows
-│       │   ├── report_flow.py
-│       │   └── analysis_flow.py
-│       ├── tools/                 # Custom tools
-│       │   ├── search.py
-│       │   └── database.py
-│       ├── memory/                # Memory configuration
-│       ├── observability/         # Callbacks, OTel
-│       ├── llm/                   # LLM client config
-│       └── config.py
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── eval/
-│   ├── golden/
-│   └── runner.py
-├── pyproject.toml
-└── README.md
+```text
+research_crew/
+├── agents/
+│   └── researcher.jsonc     # role, goal, backstory, llm, tools, settings
+├── crew.jsonc               # name, agents, tasks, process, memory, inputs
+├── knowledge/               # knowledge sources
+├── skills/
+├── tools/                   # custom tools, referenced as "custom:<name>"
+├── tests/                   # added by you: unit tests and eval runner
+├── .env                     # local secrets only; never commit
+└── pyproject.toml
 ```
 
-## 11. Project Structure
+`crewai run` reads `crew.jsonc`, loads the agents and runs the crew. Larger services usually wrap crews and Flows in a package (`src/<app>/crews`, `src/<app>/flows`, `src/<app>/tools`) behind an API layer.
 
-```
-crewai-platform/
-├── src/
-│   ├── platform/                  # Cross-cutting
-│   │   ├── config/
-│   │   ├── telemetry/             # AgentOps, OTel
-│   │   ├── llm/                   # LLM client, fallbacks, budget
-│   │   ├── memory/                # Mem0 / SQLite config
-│   │   └── security/
-│   ├── crews/                     # All crews
-│   │   ├── report/
-│   │   ├── analysis/
-│   │   └── research/
-│   ├── flows/                     # Multi-crew flows
-│   ├── tools/                     # Tool catalog
-│   ├── api/                       # FastAPI entrypoints
-│   │   ├── routes/
-│   │   └── websocket/
-│   └── workers/                   # Async crew workers
-├── eval/
-│   ├── datasets/
-│   ├── suites/
-│   └── reports/
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── deploy/
-│   ├── docker/
-│   └── k8s/
-├── docs/
-│   ├── crews/                     # One diagram per crew
-│   └── runbooks/
-├── pyproject.toml
-└── README.md
-```
+## 7. Design Patterns
 
-## 12. Design Patterns
+| Pattern | Use when | Sketch |
+|---|---|---|
+| Sequential crew | Fixed order of steps | `Process.sequential`; later tasks list earlier ones in `context` |
+| Hierarchical crew | A manager must assign and review | `Process.hierarchical`, `manager_llm=...`, tasks may omit `agent` |
+| Single agent | One role, no hand-offs | `Agent(...).kickoff("...")` |
+| Guarded task | Output must satisfy checks | `guardrail=fn`, `guardrail_max_retries=2` |
+| Flow router | Next step depends on a result | `@router(step)` returns a label; `@listen("label")` |
+| Flow with persistence | Long or resumable runs | `@persist` on the class; resume with `kickoff(inputs={"id": ...})` |
+| Human review | A person approves before continuing | `human_input=True` on a task, or `@human_feedback` in a Flow |
 
-### Sequential Crew
-- **When to use**: Well-defined workflows where task order is fixed.
-- **When not to use**: Ambiguous workflows where the next task depends on intermediate results.
-- **Sketch**: `tasks=[t1, t2, t3]; process=Process.sequential; t2.context=[t1]`.
+## 8. Best Practices
 
-### Hierarchical Crew
-- **When to use**: Ambiguous workflows where a manager should assign and review.
-- **When not to use**: Simple sequential workflows; manager overhead is wasteful.
-- **Sketch**: `process=Process.hierarchical; manager_llm=strong_model`.
+- Write `expected_output` as a concrete description of format and content; the agent treats it as the definition of done.
+- Keep backstories short and relevant; long narratives cost tokens without improving results.
+- Pass data between tasks through `context` and typed outputs rather than asking agents to remember.
+- Use `callback` and `task_callback` for logging and metrics, not for business logic.
+- Use `output_log_file` or a tracing integration in staging to inspect agent reasoning steps.
+- Set `max_rpm` at the crew level to protect provider rate limits; it overrides agent values.
+- Record `token_usage` from `CrewOutput` (and `flow.usage_metrics` for Flows) per run for cost tracking.
 
-### Specialist Agent
-- **When to use**: Any crew; role specialization is CrewAI's core value.
-- **When not to use**: Never; generic agents defeat the purpose.
-- **Sketch**: `Agent(role="Senior Researcher", goal="...", backstory="...")`.
+## 9. Performance
 
-### Delegation
-- **When to use**: When an agent lacks the tools or knowledge for a subtask.
-- **When not to use**: When the agent can complete the task directly.
-- **Sketch**: `agent.allow_delegation=True`; agent uses DelegateWork tool.
+- Run independent tasks with `async_execution=True` and join them via `context` on a later task.
+- Use `kickoff_for_each` or `akickoff_for_each` for batches instead of a Python loop of kickoffs.
+- Keep tool caching on for deterministic read-only tools; use `cache_function` to skip caching volatile results.
+- Lower `max_iter` for simple roles; agents that hit the limit return their best answer, so measure quality at the chosen value.
+- Prefer a smaller model for classification and extraction tasks in a Flow and a larger one only where needed.
 
-### Flow with Router
-- **When to use**: When the next crew depends on the previous crew's output.
-- **When not to use**: Linear multi-crew pipelines; use sequential flow.
-- **Sketch**: `@router(condition)` returns next crew name.
+## 10. Security
 
-### Planning Step
-- **When to use**: Long multi-task crews where planning reduces drift.
-- **When not to use**: Short crews; planning adds latency.
-- **Sketch**: `crew.planning=True; crew.manager_llm=strong_model`.
+- Treat tool output, scraped pages and knowledge sources as untrusted; instructions inside them must not change an agent's goal. Keep write tools away from agents that read untrusted content.
+- Gate destructive or outbound actions (payments, emails, deletes) behind `human_input`, a `@human_feedback` step or an approval service, not a prompt instruction.
+- Bind tenant and user identity in the tool from the authenticated request; never accept a tenant id as a tool argument chosen by the model.
+- Scope memory per tenant or user with `memory.scope(...)`, and mark personal records private; there is no built-in tenant concept.
+- Only run JSON crew projects from trusted sources: `"custom:<name>"` tools and `{"python": "module.attribute"}` references execute local Python on load.
+- Code execution through `allow_code_execution` is deprecated; if agents must run code, call an isolated sandbox service through a tool.
+- Keep API keys in the environment or a secret manager; `.env` is for local development only.
 
-## 13. Best Practices
+## 11. Testing
 
-- Always design agents with specific roles, action-oriented goals, and concise backstories.
-- Always decompose workflows into tasks with clear expected outputs.
-- Always declare `output_pydantic` or `output_json` for machine-consumed outputs.
-- Always configure `manager_llm` explicitly for hierarchical crews.
-- Always set `max_iter` per agent.
-- Always define tools with Pydantic args schemas.
-- Always configure callbacks for logging and monitoring in production.
-- Always enforce a per-crew token budget.
-- Always use Flows for multi-crew orchestration.
-- Always validate task outputs against the declared schema.
-- Always build eval harnesses with golden examples.
-- Always use async execution for independent tasks.
+- Unit-test custom tools directly (`tool._run(...)` or the decorated function) with mocked HTTP clients.
+- Unit-test guardrail functions with crafted `TaskOutput` objects or plain strings passed to the underlying check.
+- Test Flow routing by calling router methods with prepared state and asserting the returned label.
+- Run crews against a small golden set with real models before release; compare output schemas, guardrail pass rate, `token_usage` and latency to the last baseline.
+- Keep live model calls out of the unit test suite.
 
-## 14. Anti Patterns
+## 12. Review Checklist
 
-### Generic agent roles
-- **Why wrong**: Generic roles like "Assistant" produce generic outputs; specialization is CrewAI's value.
-- **Correct alternative**: Use specific job titles ("Senior Researcher", "Lead Writer") with action-oriented goals.
+- [ ] Roles are specific; goals are actionable; backstories are short.
+- [ ] Every task has `expected_output`; machine-consumed tasks have `output_pydantic`.
+- [ ] Guardrails cover checkable requirements; `guardrail_max_retries` is set deliberately.
+- [ ] `LLM` objects use `provider/model-id`, `max_tokens` and `timeout`.
+- [ ] `max_iter`, `max_execution_time` and `max_rpm` are set for production.
+- [ ] Hierarchical crews set `manager_llm` or `manager_agent`.
+- [ ] Tools have typed `args_schema`, timeouts and no model-supplied tenant ids.
+- [ ] Destructive actions require human approval outside the prompt.
+- [ ] Memory is scoped per user or tenant, or disabled.
+- [ ] Multi-crew logic lives in a Flow with typed state, not ad-hoc glue.
+- [ ] Deprecated parameters (`max_retries` on Task, `allow_code_execution`) are removed.
+- [ ] Unit tests do not call live models; an eval set exists.
 
-### Hierarchical crew without manager_llm
-- **Why wrong**: The default LLM may be too weak for manager reasoning; task assignment degrades.
-- **Correct alternative**: Configure `manager_llm` explicitly with a strong model.
+## 13. Production Notes
 
-### No max_iter
-- **Why wrong**: Agents can loop indefinitely on hard tasks, burning tokens.
-- **Correct alternative**: Set `max_iter` per agent; default to 15-25.
+- Run crews from a worker or queue for long tasks; return a run id and stream or poll results.
+- Use `@persist` on Flows that must survive restarts; resume by passing the stored state `id` in `inputs`.
+- Pin the `crewai` version and read the release notes before upgrading. The default memory embedder (OpenAI `text-embedding-3-large`, 3072 dimensions) may not match stores built with another embedder, so reset memory or set the old embedder explicitly.
+- Log per-run `token_usage`, task durations and guardrail failures; alert on rising retries.
+- Set provider-level retries and timeouts on the `LLM`; handle exceptions from `kickoff` and return a partial or error result to the caller.
 
-### Ad-hoc tools without schemas
-- **Why wrong**: The model cannot reliably produce valid arguments; the crew cannot validate them.
-- **Correct alternative**: Subclass `BaseTool` with a Pydantic `args_schema`.
+## 14. Examples
 
-### Hand-rolled cross-crew glue
-- **Why wrong**: Fragile, untestable, no state management.
-- **Correct alternative**: Use CrewAI Flows with `@start`, `@listen`, `@router`.
-
-### No output validation
-- **Why wrong**: Malformed outputs propagate downstream and break consumers.
-- **Correct alternative**: Declare `output_pydantic` or `output_json`; validate before passing to the next task.
-
-### Real LLM calls in unit tests
-- **Why wrong**: Slow, flaky, expensive, non-deterministic.
-- **Correct alternative**: Mock the LLM with canned responses.
-
-## 15. Performance Rules
-
-- Always set `max_tokens` on every LLM call.
-- Always use `kickoff_async` for independent tasks.
-- Always use `kickoff_for_each` for batch processing.
-- Always enable caching with `cache=True` and a `cache_handler` for read-heavy crews.
-- Always use the cheapest model that meets the success-rate target per agent.
-- Always use prompt caching for repeated context when the provider supports it.
-- Always retrieve the minimum necessary context from memory.
-- Always measure per-task latency and alert on P95 regressions.
-
-## 16. Security Rules
-
-- Always keep the system prompt separate from user input.
-- Always treat tool output as untrusted data; sanitize before adding to context.
-- Always enforce a tool allow-list per agent.
-- Always sandbox code-execution tools.
-- Always rate-limit LLM calls per user and per tenant.
-- Always audit-log every tool call with caller, arguments, result hash.
-- Always store secrets in a secrets manager; never in prompts.
-- Always redact PII from logs and traces.
-- Always run a prompt-injection eval before launch.
-- Always validate task outputs against the declared schema.
-
-## 17. Testing Strategy
-
-- Unit tests must cover every agent with a mocked LLM returning canned responses.
-- Unit tests must cover every tool with mocked external dependencies.
-- Integration tests must cover the full crew flow with a mocked LLM and real tools against fixtures.
-- End-to-end tests must run against a real LLM on a small golden set on every release.
-- Regression tests must run on every role or prompt change.
-- Eval suites must include golden examples and adversarial examples.
-- Property tests must verify crew invariants (output schema, budget, max_iter).
-- Test Flows by asserting the routing decisions match expectations.
-- Never run real LLM calls in unit tests.
-- Test delegation by asserting the delegating agent invokes the DelegateWork tool.
-
-## 18. Documentation Standards
-
-- Every crew must have a README documenting: purpose, agents, tasks, process, inputs, outputs, dependencies.
-- Every agent must document: role, goal, backstory, tools, max_iter.
-- Every task must document: description, expected_output, agent, context, output schema.
-- Every tool must have a docstring with parameters, return type, error contract.
-- Every Flow must have a diagram showing crews and routing.
-- Every API endpoint must have an OpenAPI spec with examples.
-- Every runbook must cover common failures, mitigation, rollback, escalation.
-- Every breaking change must have a CHANGELOG entry with migration notes.
-
-## 19. Code Review Checklist
-
-- [ ] Agents have specific roles, action-oriented goals, and concise backstories.
-- [ ] Tasks declare `expected_output` and `output_pydantic` or `output_json`.
-- [ ] Hierarchical crews configure `manager_llm` explicitly.
-- [ ] `max_iter` set per agent.
-- [ ] Tools subclass `BaseTool` with Pydantic `args_schema`.
-- [ ] Crew enforces a per-crew token budget.
-- [ ] Callbacks configured for logging and monitoring.
-- [ ] Async execution used for independent tasks.
-- [ ] Flows used for multi-crew orchestration.
-- [ ] Task outputs validated against declared schema.
-- [ ] Tool outputs sanitized before being added to context.
-- [ ] Tool allow-list enforced per agent.
-- [ ] Code-execution tools sandboxed.
-- [ ] Per-user rate limit configured.
-- [ ] Tracing configured (AgentOps, Langtrace, or OTel).
-- [ ] Prompts versioned in source control.
-- [ ] Eval suite passes on the golden set.
-- [ ] No real LLM calls in unit tests.
-- [ ] Crew diagram checked into `docs/crews/`.
-- [ ] Fallback LLM configured.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace generic roles with specific job titles.
-- [ ] Add `output_pydantic` to free-text tasks.
-- [ ] Add `manager_llm` to hierarchical crews that lack it.
-- [ ] Set `max_iter` where missing.
-- [ ] Replace ad-hoc tools with `BaseTool` subclasses.
-- [ ] Replace hand-rolled cross-crew glue with Flows.
-- [ ] Add callbacks where only print statements exist.
-- [ ] Add caching where the same input recurs.
-- [ ] Add tracing where only logs exist.
-- [ ] Add a fallback LLM where only a primary exists.
-- [ ] Move inline crew construction to a factory function.
-- [ ] Add output validation where outputs are passed unvalidated.
-
-## 21. Deployment Checklist
-
-- [ ] Image is built from a pinned base with a reproducible lockfile.
-- [ ] Secrets are injected from a secrets manager.
-- [ ] Memory backend (SQLite/Mem0) is reachable and authenticated.
-- [ ] Health check endpoint returns 200 only when dependencies are reachable.
-- [ ] Readiness probe verifies crew warm-up completed.
-- [ ] Horizontal pod autoscaler targets RPS and P95 latency.
-- [ ] Rate limiter is configured per user and per tenant.
-- [ ] Tracing is exported to AgentOps, Langtrace, or OTel.
-- [ ] Logs are shipped to the log store with retention.
-- [ ] Audit logs are immutable and retained per compliance.
-- [ ] Async workers are scaled for batch workloads.
-- [ ] Rollback procedure is documented and tested.
-- [ ] Runbook is published to the on-call team.
-- [ ] Eval suite has passed on the release candidate.
-- [ ] Crew and prompt versions are tagged.
-- [ ] CrewAI+ or FastAPI integration is configured.
-
-## 22. Production Checklist
-
-- [ ] Success rate on golden set above target for two consecutive runs.
-- [ ] P95 latency per crew within budget.
-- [ ] Cost per crew within budget.
-- [ ] Error rate below threshold for 24 hours of canary traffic.
-- [ ] No `max_iter` overruns in canary.
-- [ ] No token-budget overruns in canary.
-- [ ] Output validation failures retried or escalated correctly.
-- [ ] Fallback LLM triggered correctly under synthetic failure.
-- [ ] Traces are visible in AgentOps, Langtrace, or OTel.
-- [ ] PII redaction verified in logs and traces.
-- [ ] Audit log captures every tool call.
-- [ ] On-call runbook is accessible and tested.
-- [ ] Kill switch is reachable within 30 seconds.
-- [ ] Dashboards show success rate, latency, cost, error rate, token usage per crew.
-- [ ] Memory backend is highly available.
-- [ ] Async queue depth is monitored.
-
-## 23. Logging Strategy
-
-- Every agent step logs: crew_id, agent_name, task_id, step_index, latency_ms, status.
-- Every LLM call logs: crew_id, agent_name, prompt_version, model, input_tokens, output_tokens, latency_ms, status.
-- Every tool call logs: crew_id, agent_name, tool_name, arguments (PII-redacted), result_hash, latency_ms, status.
-- Every task completion logs: crew_id, task_id, agent_name, output_schema, validation_status.
-- Every delegation logs: crew_id, from_agent, to_agent, subtask, status.
-- Every budget event logs: crew_id, budget_limit, budget_used, threshold_crossed.
-- Logs are structured JSON with stable fields.
-- Logs are tagged with environment, service, crew_name, prompt_version.
-- PII is redacted before logging.
-- Logs never contain secrets.
-
-## 24. Monitoring Strategy
-
-- Track success rate per crew on the live task distribution.
-- Track P50, P95, P99 latency per task and per crew.
-- Track token usage per crew, per user, per tenant.
-- Track cost per crew, per user, per tenant.
-- Track delegation rate; alert on spikes.
-- Track `max_iter` overruns; alert on spikes.
-- Track output validation failure rate; alert on spikes.
-- Track memory backend latency and error rate.
-- Track eval suite score on nightly runs; alert on regression.
-- Track prompt version distribution; alert on stale versions.
-- Dashboards show all of the above sliced by crew, tenant, version.
-
-## 25. Error Handling
-
-- Agent errors must be retried up to `max_iter`; beyond that, the task fails and the crew either escalates or returns a partial result.
-- LLM errors (5xx, rate limit) must be retried with exponential backoff; beyond `max_retries`, the fallback LLM is used.
-- Tool errors must be returned to the agent as structured error messages; the agent decides next action.
-- Output validation failures must trigger a retry with a repair prompt; persistent failures escalate.
-- Budget exceeded must abort the crew and return a partial result.
-- Memory backend failures must fail open (skip memory) and log; never block the crew.
-- Delegation failures must be retried or escalated to the manager.
-- Flow routing failures must default to a safe route and log.
-- All exceptions must carry crew_id and trace_id.
-- Async task failures must propagate to the awaiting caller.
-
-## 26. Examples
-
-### Example 1: Sequential crew with structured output (Python)
+### Example 1: Sequential crew with typed output and a guardrail
 
 ```python
-from crewai import Agent, Task, Crew, Process
-from crewai.llms import LLM
+from typing import Any
+
+from crewai import LLM, Agent, Crew, Process, Task
+from crewai.tasks.task_output import TaskOutput
 from pydantic import BaseModel, Field
-from typing import List
 
-class ResearchFinding(BaseModel):
-    topic: str = Field(..., description="The researched topic")
-    key_points: List[str] = Field(..., description="Key findings")
-    sources: List[str] = Field(..., description="Source URLs")
 
-class Report(BaseModel):
+class Finding(BaseModel):
+    claim: str
+    source_url: str
+
+
+class Brief(BaseModel):
     title: str
-    summary: str
-    findings: List[ResearchFinding]
+    summary: str = Field(description="At most 150 words")
+    findings: list[Finding]
 
-llm = LLM(model="anthropic/claude-3-5-sonnet", max_tokens=2048)
+
+def summary_is_short(result: TaskOutput) -> tuple[bool, Any]:
+    brief = result.pydantic
+    if brief is None:
+        return (False, "Return the brief in the required schema.")
+    if len(brief.summary.split()) > 150:
+        return (False, "Shorten the summary to at most 150 words.")
+    return (True, result)
+
+
+llm = LLM(model="anthropic/claude-sonnet-5-5", max_tokens=4096, timeout=120)
 
 researcher = Agent(
-    role="Senior Researcher",
-    goal="Conduct thorough research on the assigned topic and return structured findings",
-    backstory="A meticulous researcher with 15 years of experience in synthesizing sources.",
+    role="Market Researcher",
+    goal="Collect verifiable facts about {topic} with a source URL for each",
+    backstory="Works only from sources that can be cited.",
     llm=llm,
-    max_iter=15,
-    allow_delegation=False,
+    max_iter=10,
+    max_execution_time=300,
 )
-
 writer = Agent(
-    role="Lead Report Writer",
-    goal="Synthesize research findings into a clear, structured report",
-    backstory="An award-winning writer who turns dense research into readable reports.",
+    role="Brief Writer",
+    goal="Turn research notes into a short, accurate brief",
+    backstory="Writes plainly and never adds facts that are not in the notes.",
     llm=llm,
-    max_iter=15,
-    allow_delegation=False,
+    max_iter=5,
 )
 
 research_task = Task(
-    description="Research the topic: {topic}. Return key points and sources.",
-    expected_output="A structured ResearchFinding with key points and sources.",
+    description="Research {topic}. List each fact with its source URL.",
+    expected_output="A bullet list of facts, each with a source URL.",
     agent=researcher,
-    output_pydantic=ResearchFinding,
 )
-
-writing_task = Task(
-    description="Using the research findings, write a structured Report with title, summary, and findings.",
-    expected_output="A structured Report.",
+brief_task = Task(
+    description="Write a brief on {topic} from the research notes only.",
+    expected_output="A title, a summary of at most 150 words and the supporting findings.",
     agent=writer,
     context=[research_task],
-    output_pydantic=Report,
+    output_pydantic=Brief,
+    guardrail=summary_is_short,
+    guardrail_max_retries=2,
 )
 
 crew = Crew(
     agents=[researcher, writer],
-    tasks=[research_task, writing_task],
+    tasks=[research_task, brief_task],
     process=Process.sequential,
-    verbose=True,
+    max_rpm=30,
 )
 
-result = crew.kickoff(inputs={"topic": "the impact of remote work on productivity"})
-print(result.pydantic.title)
+result = crew.kickoff(inputs={"topic": "heat pump adoption in Europe"})
+brief: Brief = result.pydantic
+print(brief.title, result.token_usage)
 ```
 
-### Example 2: Hierarchical crew with manager_llm and delegation
+### Example 2: Custom tool with a typed schema and tenant bound outside the model
 
 ```python
-from crewai import Agent, Task, Crew, Process
-from crewai.llms import LLM
+from typing import Type
 
-manager_llm = LLM(model="anthropic/claude-3-5-sonnet", max_tokens=2048)
-worker_llm = LLM(model="anthropic/claude-3-5-haiku", max_tokens=1024)
+import httpx
+from crewai.tools import BaseTool
+from pydantic import BaseModel, Field, PrivateAttr
 
-researcher = Agent(
-    role="Researcher",
-    goal="Gather information on the assigned subtopic",
-    backstory="A fast researcher who covers breadth before depth.",
-    llm=worker_llm,
-    allow_delegation=True,
-    max_iter=10,
-)
 
-analyst = Agent(
-    role="Data Analyst",
-    goal="Analyze the research and identify trends",
-    backstory="A quantitative analyst who finds patterns in qualitative data.",
-    llm=worker_llm,
-    allow_delegation=True,
-    max_iter=10,
-)
+class OrderLookupInput(BaseModel):
+    order_id: str = Field(..., description="Order id, for example ORD-1234")
 
-writer = Agent(
-    role="Report Writer",
-    goal="Draft the final report from analysis",
-    backstory="A clear writer who makes complex analysis accessible.",
-    llm=worker_llm,
-    allow_delegation=True,
-    max_iter=10,
-)
 
-tasks = [
-    Task(description="Produce a market analysis report on: {topic}",
-         expected_output="A markdown report with sections.",
-         agent=None),  # manager assigns
-]
+class OrderLookupTool(BaseTool):
+    name: str = "lookup_order"
+    description: str = "Look up the status of one order by id. Read-only."
+    args_schema: Type[BaseModel] = OrderLookupInput
+    _tenant_id: str = PrivateAttr()
+    _base_url: str = PrivateAttr()
 
-crew = Crew(
-    agents=[researcher, analyst, writer],
-    tasks=tasks,
-    process=Process.hierarchical,
-    manager_llm=manager_llm,
-    verbose=True,
-)
+    def __init__(self, tenant_id: str, base_url: str, **kwargs):
+        super().__init__(**kwargs)
+        self._tenant_id = tenant_id  # from the authenticated request, not from the model
+        self._base_url = base_url
 
-result = crew.kickoff(inputs={"topic": "electric vehicle market 2025"})
-print(result.raw)
+    def _run(self, order_id: str) -> str:
+        try:
+            response = httpx.get(
+                f"{self._base_url}/tenants/{self._tenant_id}/orders/{order_id}",
+                timeout=10.0,
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            return f"Order lookup failed: {type(exc).__name__}"
+        return response.text
 ```
 
-### Example 3: CrewAI Flow with router between two crews
+Create one tool instance per request (`OrderLookupTool(tenant_id=session.tenant_id, base_url=...)`) and pass it in the agent's `tools`. URL-encode or validate `order_id` against its expected format before use.
+
+### Example 3: Flow that routes to different crews and persists state
 
 ```python
+from typing import Literal
+
 from crewai.flow.flow import Flow, listen, router, start
+from crewai.flow.persistence import persist
 from pydantic import BaseModel
 
-class FlowState(BaseModel):
-    topic: str
-    complexity: str | None = None
-    report: str | None = None
 
-class ReportFlow(Flow[FlowState]):
+class TicketState(BaseModel):
+    ticket: str = ""
+    category: str = ""
+    reply: str = ""
+
+
+@persist
+class SupportFlow(Flow[TicketState]):
     @start()
     def classify(self):
-        # In production, call an LLM to classify complexity
-        self.state.complexity = "complex" if len(self.state.topic) > 20 else "simple"
-        return self.state
+        text = self.state.ticket.lower()
+        self.state.category = "billing" if "invoice" in text or "refund" in text else "technical"
 
     @router(classify)
-    def route_by_complexity(self):
-        return "deep_crew" if self.state.complexity == "complex" else "quick_crew"
+    def route(self) -> Literal["billing", "technical"]:
+        return "billing" if self.state.category == "billing" else "technical"
 
-    @listen("deep_crew")
-    def run_deep_crew(self):
-        # In production, run the deep crew and store the report
-        self.state.report = f"deep report on {self.state.topic}"
-        return self.state
+    @listen("billing")
+    def handle_billing(self):
+        result = build_billing_crew().kickoff(inputs={"ticket": self.state.ticket})
+        self.state.reply = result.raw
 
-    @listen("quick_crew")
-    def run_quick_crew(self):
-        self.state.report = f"quick report on {self.state.topic}"
-        return self.state
+    @listen("technical")
+    def handle_technical(self):
+        result = build_technical_crew().kickoff(inputs={"ticket": self.state.ticket})
+        self.state.reply = result.raw
 
-flow = ReportFlow()
-result = flow.kickoff(inputs={"topic": "the impact of remote work on productivity"})
-print(result.report)
+
+flow = SupportFlow()
+flow.kickoff(inputs={"ticket": "I was charged twice on my last invoice."})
+print(flow.state.category, flow.state.reply)
 ```
 
-## 27. Common Mistakes
+`build_billing_crew` and `build_technical_crew` are your crew factories. Replace the keyword rule with a model call when classification needs judgement.
 
-### Mistake: Generic agent roles
-- **What**: Agents named "Assistant" or "Helper".
-- **Why**: Generic roles produce generic outputs; specialization is CrewAI's value.
-- **How to avoid**: Use specific job titles ("Senior Researcher") with action-oriented goals.
+## 15. Common Mistakes
 
-### Mistake: Hierarchical crew without manager_llm
-- **What**: Hierarchical crew uses the default LLM for the manager.
-- **Why**: Default LLM may be too weak for assignment and review reasoning.
-- **How to avoid**: Configure `manager_llm` explicitly with a strong model.
+- **Generic roles** ("Assistant"): vague output. Use specific roles and goals.
+- **Free-text hand-offs**: downstream parsing breaks. Use `output_pydantic` and `context`.
+- **Hierarchical by default**: extra manager calls and cost for a fixed workflow. Use sequential unless assignment is dynamic.
+- **Hierarchical without `manager_llm` or `manager_agent`**: the crew cannot run as intended. Set one explicitly.
+- **Old memory configuration**: `short_term_memory`, `long_term_memory` and `entity_memory` setups from older releases. Use the unified `Memory` class with scopes.
+- **Bare model names** like `gpt-4` in `LLM(model=...)`: use `provider/model-id`.
+- **Checks written only into task descriptions**: the agent may ignore them. Use guardrails.
+- **Model-chosen tenant or user ids in tools**: cross-tenant access. Bind identity when constructing the tool.
+- **Running untrusted JSON crew projects**: custom tool references execute local code.
+- **Live model calls in unit tests**: slow and non-deterministic. Mock tools and keep real calls in the eval run.
 
-### Mistake: No max_iter
-- **What**: Agents have no upper bound on reasoning iterations.
-- **Why**: Agents loop on hard tasks, burning tokens.
-- **How to avoid**: Set `max_iter` per agent; default to 15-25.
+## 16. References
 
-### Mistake: Ad-hoc tools without schemas
-- **What**: Tools defined as plain functions.
-- **Why**: Model cannot reliably produce valid arguments; crew cannot validate.
-- **How to avoid**: Subclass `BaseTool` with a Pydantic `args_schema`.
-
-### Mistake: Hand-rolled cross-crew glue
-- **What**: Multi-crew orchestration via plain Python if/else.
-- **Why**: Fragile, untestable, no state management.
-- **How to avoid**: Use CrewAI Flows with `@start`, `@listen`, `@router`.
-
-### Mistake: No output validation
-- **What**: Task outputs passed downstream without validation.
-- **Why**: Malformed outputs break consumers.
-- **How to avoid**: Declare `output_pydantic` or `output_json`; validation failures retry or escalate.
-
-### Mistake: Real LLM calls in unit tests
-- **What**: Tests hit the real API.
-- **Why**: Slow, flaky, expensive, non-deterministic.
-- **How to avoid**: Mock the LLM with canned responses.
-
-## 28. Professional Workflow
-
-1. Write the workflow and success criteria before designing agents.
-2. Identify the roles needed; write role, goal, backstory for each.
-3. Decompose the workflow into tasks; assign each to a role.
-4. Choose the process: sequential or hierarchical.
-5. Configure `manager_llm` for hierarchical crews.
-6. Define tools per agent with Pydantic args schemas.
-7. Configure memory tiers based on the use case.
-8. Set `max_iter` and token budgets.
-9. Configure callbacks for logging and monitoring.
-10. Build the eval harness; iterate until success-rate target met.
-11. Deploy via CrewAI+ or FastAPI; configure health checks and autoscaling.
-12. Run eval nightly; alert on regression.
-13. Review failure traces weekly; feed back into roles and prompts.
-14. Promote prompt versions through dev → staging → prod with eval gates.
-15. Update the runbook after every incident.
-
-## 29. Response Style
-
-- Always start from the workflow and the roles, not from the LLM.
-- Always state the process choice, manager LLM, and max_iter in every proposal.
-- Always specify the task decomposition, expected outputs, and validation schemas.
-- Always flag delegation, budget, and destructive-action risks.
-- Always propose an eval plan with golden examples.
-- Always use precise CrewAI terminology (Agent, Task, Crew, Process, Flow, DelegateWork, AskQuestion).
-- Always cite the CrewAI version.
-- Always end with a "Next actions" section.
-
-## 30. Output Format
-
-- Crew proposals must include: workflow, success criteria, agents (table with role/goal/backstory/llm/max_iter), tasks (table with description/expected_output/agent/context/output_schema), process, manager_llm, memory, tools, callbacks, budget, eval plan, security notes.
-- Agent definitions must include: role, goal, backstory, llm, tools, max_iter, allow_delegation.
-- Task definitions must include: description, expected_output, agent, context, output_pydantic or output_json, async_execution, human_input.
-- Flow proposals must include: state schema, crews, routing conditions, start/listen/router decorators.
-- Runbooks must include: symptom, diagnosis, mitigation, rollback, escalation.
-- Code examples must be syntactically valid Python using the current CrewAI API.
-- Diagrams must use the same agent and task names as the code.
-- Every output must end with a "Next actions" section.
-- Every output must be self-contained; cross-references to undocumented sources are forbidden.
-- Cost and latency budgets must be stated numerically.
+- [references/flows-and-projects.md](references/flows-and-projects.md): Flow decorators, state, persistence and resume, human feedback, hierarchical crews, JSON-first project files and memory scoping.

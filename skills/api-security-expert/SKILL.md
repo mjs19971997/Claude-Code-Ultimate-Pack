@@ -1,739 +1,355 @@
 ---
 name: api-security-expert
-description: >
-  Architect, audit, and operate APIs against the OWASP API Top 10 with rate limiting, mTLS, HMAC signing, GraphQL security, and replay prevention.
-  
-  Use this skill when auditing code for OWASP risks, hardening APIs, designing JWT/OAuth2 flows, or enforcing secure-coding standards.
+description: >-
+  Secures REST, GraphQL and gRPC APIs against the OWASP API Security Top 10 (2023): object- and property-level authorization (BOLA, mass assignment), rate limiting and resource caps, webhook and request signing, replay prevention, API keys, mTLS, CORS, gateways and API inventory. Use when designing or reviewing API endpoints, DTOs and response shapes, pagination limits, Redis rate limiters, webhook receivers, HMAC signatures, GraphQL depth and cost limits, API gateway (Kong, AWS API Gateway, Cloudflare) policies, or third-party API consumption. Not for general code-level flaws such as injection, XSS or path traversal (use secure-coding-expert), login, sessions, JWT or OAuth flows (use authentication-expert), designing roles and policy engines (use authorization-expert), or REST resource design (use rest-api-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# API Security Expert
 
----
+This skill covers the controls that are specific to APIs: authorizing every object and property an endpoint touches, bounding the resources a caller can consume, protecting business flows, verifying signed requests and webhooks, and keeping an inventory of what is exposed. It applies to REST, GraphQL and gRPC. It assumes the caller is already authenticated (authentication-expert) and that a permission model exists (authorization-expert); here the focus is enforcing them correctly at the API layer.
 
-## 1. Role
+> Verified against OWASP API Security Top 10 2023 (still the current edition), Express 5, Zod 4, ioredis, Apollo Server 5 and GraphQL Armor (2026-10).
 
-The API Security Expert is the principal authority on securing REST, GraphQL, and gRPC APIs against the OWASP API Top 10 (2023). This role owns API1 Broken Object Level Authorization (BOLA/IDOR), API2 Broken Authentication, API3 Broken Object Property Level Authorization (BOPLA/MASS ASSIGNMENT), API4 Unrestricted Resource Consumption, API5 Broken Function Level Authorization (BFLA), API6 Unrestricted Business Flows, API7 SSRF, API8 Security Misconfiguration, API9 Improper Inventory Management, and API10 Unsafe Consumption of APIs. The expert designs rate limiting (token bucket, leaky bucket, sliding window, fixed window with Redis), input validation, output encoding, API gateway integration (Kong, AWS API Gateway, Cloudflare), mTLS, HMAC request signing, webhook signature verification, pagination DoS prevention, GraphQL security (depth, complexity, persisted queries, introspection disabling), API versioning, API key management, CORS for APIs, and replay attack prevention. The expert makes irreversible API security architecture decisions under regulatory constraints and must always reason from threat models and OWASP API Top 10 evidence, never from intuition.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-## 2. Mission
+## 1. Scope
 
-Deliver an API security program that satisfies the following contract: zero Critical or High OWASP API Top 10 findings in production, 100% of endpoints enforce BOLA via per-resource authorization, 100% of endpoints rate-limited with documented limits, 100% of input validated against allowlist schemas, 100% of sensitive endpoints protected by mTLS or HMAC, zero introspection on production GraphQL, zero pagination DoS via enforced `maxPageSize`, MTTR for Critical API vulnerabilities < 7 days, and full audit trail of API access. Every API change must pass security review; no exception is permitted.
+- Covered: OWASP API Security Top 10 2023, rate limiting and quotas, pagination and payload caps, webhook verification, HMAC request signing, replay windows, API keys, mTLS between services, CORS for APIs, gateway policies, GraphQL hardening, API inventory and deprecation.
+- Not covered: injection, XSS, SSRF mechanics and upload handling in general (secure-coding-expert); credential, session and token issuance (authentication-expert); role and policy design, Row-Level Security (authorization-expert); URL and resource modeling, status code semantics (rest-api-expert).
 
-## 3. Core Expertise
+## 2. Core Expertise
 
-- **API1 BOLA/IDOR**: broken object-level authorization; predictable identifiers; missing ownership check; defense: per-request authorization check (`user.id === resource.userId`).
-- **API2 Broken Authentication**: weak password policy, missing MFA, credential stuffing, JWT misconfiguration, API key leakage; defense: MFA, rate limiting, secure JWT, short-TTL tokens.
-- **API3 BOPLA (Mass Assignment)**: accepting client-supplied fields without filtering; `user.role = 'admin'` from client; defense: allowlist fields (`select` in ORM), DTOs with explicit properties.
-- **API4 Unrestricted Resource Consumption**: missing rate limits, unbounded pagination, expensive queries, large payloads; defense: rate limit, max page size, query complexity, payload size limit.
-- **API5 BFLA**: broken function-level authorization; missing role check on privileged operation; defense: per-route role middleware, default deny.
-- **API6 Unrestricted Business Flows**: business logic flaws (skip payment, infinite coupons); defense: server-side state machine, idempotency keys, rate limit per business flow.
-- **API7 SSRF**: unvalidated URL fetch; metadata service access; defense: URL allowlist, internal IP rejection, DNS rebinding protection.
-- **API8 Security Misconfiguration**: default credentials, verbose errors, CORS `*`, missing security headers; defense: hardening checklist, automated config scan.
-- **API9 Improper Inventory Management**: shadow APIs, deprecated endpoints, stale documentation; defense: API inventory, OpenAPI spec, automated discovery.
-- **API10 Unsafe Consumption of APIs**: trusting third-party APIs without validation; integrating untrusted data; defense: validate third-party responses, rate limit outbound calls.
-- **Rate limiting algorithms**: token bucket (allows bursts), leaky bucket (smooths rate), sliding window (precise), fixed window (simple); Redis-backed for distributed.
-- **Input validation**: allowlist schema (Zod, Joi, Pydantic) at API boundary; reject unknown fields; size limits; type coercion safe.
-- **Output encoding**: JSON API responses safe by default (Content-Type); HTML context for error pages; never return raw HTML from API.
-- **API gateways**: Kong (open source, plugin ecosystem), AWS API Gateway (managed, Lambda integration), Cloudflare (CDN + WAF + rate limit), Apigee (enterprise, Google).
-- **mTLS**: mutual TLS for client identity; certificate-bound tokens; client cert validation at gateway or app.
-- **HMAC request signing**: `HMAC-SHA256(secret, method + path + body + timestamp + nonce)`; `X-Signature` header; timestamp window (5 min); nonce denylist for replay prevention.
-- **Webhook signature verification**: `HMAC-SHA256(secret, raw_body)`; `X-Webhook-Signature` header; constant-time comparison; never trust unsigned callbacks.
-- **Pagination DoS**: `?limit=1000000` causing OOM; defense: enforce `maxPageSize` (e.g., 100); cursor pagination for large datasets.
-- **GraphQL security**: query depth limiting (max 7), query complexity analysis (max cost), persisted queries (allowlist), disable introspection in production, rate limit per query cost.
-- **API versioning**: URL path (`/v1/`), header (`Accept: application/vnd.api+json;version=1`), query (`?version=1`); URL path preferred for clarity.
-- **API key management**: rotation, scoping (per-service, per-env), storage in secret manager, never in URL params, rate limit per key.
-- **CORS for APIs**: strict origin allowlist; never `*` with credentials; preflight caching; `Vary: Origin`.
-- **Replay attack prevention**: timestamp window, nonce denylist, HMAC signature, DPoP for tokens.
+OWASP API Security Top 10 2023:
 
-## 4. Responsibilities
+| ID | Risk | Primary defense |
+|---|---|---|
+| API1 | Broken Object Level Authorization (BOLA) | Scope every query by owner or tenant from the verified principal; never trust an id alone |
+| API2 | Broken Authentication | Strict token validation, credential stuffing protection on auth endpoints (authentication-expert) |
+| API3 | Broken Object Property Level Authorization | Strict input DTOs (no mass assignment) and explicit response shapes (no excessive data exposure) |
+| API4 | Unrestricted Resource Consumption | Rate limits, quotas, page-size caps, body-size caps, timeouts, GraphQL cost limits, spend limits on paid downstream APIs |
+| API5 | Broken Function Level Authorization | Deny-by-default route permissions; admin routes separated and checked |
+| API6 | Unrestricted Access to Sensitive Business Flows | Per-flow limits, device and behavior signals, idempotency, server-side state machines |
+| API7 | Server Side Request Forgery | Allowlists and dial-time IP checks for any URL the API fetches (secure-coding-expert) |
+| API8 | Security Misconfiguration | Strict CORS, TLS, no verbose errors, consistent gateway policy, disabled unused methods |
+| API9 | Improper Inventory Management | OpenAPI or schema as source of truth, discovered vs documented diff, retired versions actually shut down |
+| API10 | Unsafe Consumption of APIs | Validate third-party responses, TLS, timeouts, size caps, no blind redirects |
 
-- Design and review API security architecture for new endpoints; document BOLA, rate limits, and auth in ADR.
-- Author and maintain rate limiting middleware; tune limits per endpoint based on load testing.
-- Operate API gateway (Kong, AWS API Gateway, Cloudflare); configure WAF rules, rate limits, mTLS.
-- Audit production APIs for OWASP API Top 10; remediate findings within SLA.
-- Define and operate API key lifecycle: issuance, rotation, revocation, scoping.
-- Diagnose production incidents: BOLA exploitation, rate limit bypass, GraphQL DoS, webhook forgery.
-- Maintain GraphQL security: depth limits, complexity analysis, persisted queries, introspection disabled.
-- Operate security testing for APIs: DAST (OWASP ZAP, Nuclei), fuzzing, penetration testing.
-- Author runbooks for API incident response, key revocation, and emergency rate limit changes.
-- Train engineers on OWASP API Top 10 quarterly; share lessons from incidents.
+Other areas:
+- **Rate limiting algorithms**: fixed window (simple, bursty at edges), sliding window log or counter (smoother), token bucket (allows bursts up to a capacity), GCRA. Distributed state in Redis or at the gateway.
+- **Request signing**: HMAC-SHA256 over a canonical string (method, path, query, body hash, timestamp, nonce), constant-time comparison, a short timestamp window and a nonce cache.
+- **Webhooks**: verify the provider's signature over the raw body before parsing; check the timestamp; deduplicate by event id; respond fast and process asynchronously.
+- **Service identity**: mTLS (often via a service mesh) or signed workload tokens; API keys only for identifying a calling application, not a user.
+- **GraphQL**: depth, alias, token and cost limits; introspection and field suggestions off in production for private APIs; operation safelisting; field-level authorization in resolvers; batched-query limits.
 
-## 5. Thinking Process
+## 3. Workflow
 
-1. **Identify the API surface** — endpoints, methods, parameters, authentication, authorization; document in OpenAPI spec.
-2. **Map to OWASP API Top 10** — for each endpoint, assess BOLA (ownership check), BFLA (role check), BOPLA (field allowlist), resource consumption (rate limit, page size), SSRF (URL validation), business flows (state machine).
-3. **Design authentication** — API key for service-to-service, OAuth2 for user-delegated, mTLS for high-security; document in ADR.
-4. **Design authorization** — per-resource ownership check (BOLA), per-route role check (BFLA), per-field allowlist (BOPLA); defense in depth.
-5. **Design rate limiting** — per-user, per-IP, per-API-key; algorithm (token bucket for bursts, sliding window for precision); Redis-backed.
-6. **Design input validation** — allowlist schema at boundary; reject unknown fields; size limits; type coercion.
-7. **Design output encoding** — JSON Content-Type; HTML context for errors; never return raw HTML.
-8. **Design GraphQL security** — depth limit, complexity analysis, persisted queries, introspection disabled.
-9. **Plan webhook verification** — HMAC signature, constant-time comparison, timestamp window, nonce denylist.
-10. **Capture metrics** — verify rate limit hit ratio, BOLA test pass, GraphQL complexity enforcement; document residual risk.
+1. Inventory the surface: every route, method, GraphQL operation and gRPC method, with its auth requirement, from the OpenAPI document or schema.
+2. For each endpoint, name the object(s) it reads or writes and how ownership or tenancy is derived from the verified principal (API1).
+3. Define the input DTO (allowed fields only) and the response DTO (fields this caller may see) (API3).
+4. Assign the function-level permission and confirm deny by default for anything unlisted (API5).
+5. Set limits: rate per principal and per IP, page size, body size, timeouts, and for GraphQL depth and cost (API4).
+6. Identify sensitive business flows (checkout, signup, coupon redeem, OTP send) and add flow-specific limits and idempotency (API6).
+7. For inbound callbacks and service calls, define signature or mTLS verification and the replay window.
+8. For outbound calls to third parties, define validation, timeouts and size caps of the responses (API10).
+9. Write negative tests (another user's id, extra fields, over-limit pages, replayed signatures) before shipping.
+10. Register the endpoint in the inventory with owner, version and deprecation date (API9).
 
-## 6. Decision Making Rules
+## 4. Decision Rules
 
-- When **per-request ownership check** and **route-level role check** both apply, choose both because BOLA requires ownership check and BFLA requires role check; defense in depth.
-- When **token bucket** and **sliding window** rate limiting both function, choose token bucket for burst-tolerant APIs (allows short bursts) and sliding window for strict per-second limits (precise).
-- When **mTLS** and **HMAC** both authenticate service-to-service, choose mTLS for infrastructure-managed (cert rotation) and HMAC for application-managed (simpler, no PKI).
-- When **cursor** and **offset** pagination both function, choose cursor for large datasets (> 10,000 rows) because offset is O(N); offset for small admin tables.
-- When **persisted queries** and **query complexity** both protect GraphQL, choose both because persisted queries allowlist and complexity analysis catch different attacks.
-- When **API key** and **OAuth2** both authenticate, choose API key for service-to-service (no user) and OAuth2 for user-delegated access; never API key for user-facing.
-- When **CORS `*`** and **CORS allowlist** both function, choose allowlist because `*` with credentials is forbidden and `*` without credentials is overly permissive.
-- When **strict versioning** and **no versioning** both function, choose strict versioning (`/v1/`) because breaking changes require explicit migration; no versioning causes client breakage.
+- Scope queries by owner or tenant in the data access layer (`WHERE id = $1 AND tenant_id = $2`) rather than loading by id and checking afterwards; it also prevents leaking existence through timing.
+- Return 404 for objects the caller may not see; 403 when the caller may know the object exists but cannot act on it.
+- Unguessable ids (UUIDv4/v7, random strings) reduce enumeration but never replace the authorization check.
+- Token bucket for interactive APIs that tolerate bursts; fixed or sliding window for simple quotas; enforce coarse limits at the gateway and fine-grained per-principal limits in the service.
+- Rate-limit identity order: authenticated principal, then API key, then client IP (with the proxy chain configured so `req.ip` is the real client).
+- mTLS for service-to-service inside infrastructure you control; HMAC signing when the caller cannot hold a client certificate; OAuth 2.0 client credentials when a central authorization server already exists.
+- API keys go in a header, never in the URL; store only a hash of the key and show it once at creation.
+- Cursor pagination for large or fast-changing collections; enforce a hard `maxPageSize` either way.
+- GraphQL on a private API: introspection off in production and an operation safelist. Public GraphQL APIs keep introspection but must enforce cost limits and field authorization.
+- Version breaking changes explicitly and publish `Deprecation`/`Sunset` headers before retiring a version; retired versions are removed, not just undocumented.
 
-## 7. Architecture Rules
+## 5. Coding Standards
 
-- Every API endpoint must enforce authentication; anonymous access is forbidden except for explicit public endpoints documented in an allowlist.
-- Every endpoint accessing a resource by ID must enforce BOLA: verify the authenticated user owns or can access the resource.
-- Every privileged operation must enforce BFLA: verify the authenticated user's role permits the operation.
-- Every write endpoint must enforce BOPLA: allowlist fields via DTO; reject unknown fields.
-- Every endpoint must enforce rate limiting: per-user, per-IP, or per-API-key; documented limits.
-- Every endpoint must enforce pagination: `maxPageSize` ≤ 100; cursor pagination for large datasets.
-- Every endpoint must validate input against an allowlist schema; reject unknown fields.
-- Every GraphQL endpoint must enforce depth limit, complexity analysis, and persisted queries in production; introspection disabled.
-- Every webhook must verify HMAC signature; constant-time comparison; reject unsigned callbacks.
-- Every API must be versioned (`/v1/`); breaking changes require a new version with documented migration.
+- Input DTOs use `z.strictObject` (Zod 4) or equivalent so unknown properties fail; never pass `req.body` to an ORM `create`/`update`.
+- Response DTOs are explicit mappers (`toOrderView(order)`), never `res.json(entity)`.
+- Every handler derives `userId` and `tenantId` from the verified principal (`req.auth`), never from the body, query or a client header.
+- Every list endpoint takes `limit` with a default and a hard maximum, validated by the schema.
+- Every outbound call has a timeout and a response size cap; third-party responses are validated with a schema before use.
+- Webhook routes read the raw body (`express.raw`) and verify before `JSON.parse`.
+- Error bodies follow one shape (for example RFC 9457 problem details) and never include stack traces, SQL or internal hostnames.
+- Name middleware by purpose: `requirePermission('order:read')`, `rateLimit({ scope: 'user' })`, `verifyWebhook('stripe')`.
 
-## 8. Coding Standards
-
-- Every API endpoint must validate input against a schema (Zod, Joi, Pydantic) at the boundary; downstream code trusts the validated type.
-- Every endpoint accessing a resource by ID must verify ownership: `if (resource.userId !== currentUser.id) throw 403`.
-- Every privileged operation must check role: `if (!currentUser.roles.includes('admin')) throw 403`.
-- Every write endpoint must use a DTO with explicit fields; never bind request body directly to ORM model (mass assignment).
-- Every endpoint must include rate limiting middleware; document limits in OpenAPI spec.
-- Every endpoint must enforce `maxPageSize` ≤ 100; reject `?limit>100`.
-- Every endpoint must set a timeout on downstream calls (default 10 seconds); fail fast.
-- Every GraphQL query must be validated against depth limit (max 7) and complexity (max 1000); reject violations.
-- Every webhook handler must verify HMAC signature with `crypto.timingSafeEqual`; reject unsigned.
-- Every API key must be passed via `Authorization: Bearer` or `X-API-Key` header; never in URL params.
-- Every API response must include `Content-Type: application/json`; never HTML for API endpoints.
-- Every API error must return a generic message with correlation ID; never stack traces or internal details.
-- Every CORS response must use strict origin allowlist; never `*` with credentials.
-
-## 9. Naming Conventions
-
-- **API routes**: `/api/v<n>/<resource>` (`/api/v1/users`, `/api/v1/orders`); kebab-case for multi-word (`/api/v1/order-items`).
-- **Rate limit keys**: `ratelimit:<scope>:<id>:<window>` (`ratelimit:user:abc:minute`, `ratelimit:ip:1.2.3.4:hour`).
-- **API keys**: `<service>-<env>-<purpose>` (`api-prod-search`, `worker-staging-index`); prefix with `sk_` for secret keys.
-- **HMAC headers**: `X-Signature`, `X-Timestamp`, `X-Nonce`; consistent across services.
-- **Webhook headers**: `X-Webhook-Signature`, `X-Webhook-Event`, `X-Webhook-Timestamp`.
-- **DTOs**: `<entity><Action>Dto` (`userCreateDto`, `orderUpdateDto`); explicit fields only.
-- **Middleware**: `<purpose>Middleware` (`rateLimitMiddleware`, `bolaMiddleware`, `authzMiddleware`).
-- **OpenAPI spec**: `openapi.yaml` at `api/`; versioned with the API.
-- **Files**: `<entity>.controller.ts`, `<entity>.service.ts`, `<entity>.dto.ts`, `<entity>.repository.ts`.
-- **Directories**: `api/`, `controllers/`, `services/`, `dto/`, `middleware/`, `tests/`.
-- **Tests**: `*.api.spec.ts` for API tests; `*.security.spec.ts` for security tests.
-- **Error classes**: `BolaError`, `BflaError`, `RateLimitError`, `ValidationError`; explicit failure mode.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-api-security/
-├── middleware/                  # API security middleware
-│   ├── auth.middleware.ts       # Authentication
-│   ├── bola.middleware.ts       # Object-level authorization
-│   ├── bfla.middleware.ts       # Function-level authorization
-│   ├── rate-limit.middleware.ts # Rate limiting
-│   ├── cors.middleware.ts       # CORS allowlist
-│   ├── hmac.middleware.ts       # HMAC signature verification
-│   └── webhook.middleware.ts    # Webhook signature verification
-├── dto/                         # Data Transfer Objects
-│   ├── user.dto.ts
-│   └── order.dto.ts
-├── graphql/                     # GraphQL security
-│   ├── depth-limiter.ts
-│   ├── complexity-analyzer.ts
-│   ├── persisted-queries.ts
-│   └── schema.ts
-├── gateway/                     # API gateway configuration
-│   ├── kong.yml
-│   ├── aws-api-gateway.yaml
-│   └── cloudflare-waf.json
-├── webhooks/                    # Webhook handlers
-│   ├── stripe.handler.ts
-│   └── github.handler.ts
-├── tests/
-│   ├── bola.test.ts
-│   ├── bfla.test.ts
-│   ├── rate-limit.test.ts
-│   ├── graphql.test.ts
-│   └── webhook.test.ts
-└── README.md                    # API security runbook
+src/
+├── api/
+│   ├── orders/
+│   │   ├── orders.routes.ts       # route + requirePermission + rateLimit
+│   │   ├── orders.schema.ts       # strict input DTOs, response mappers
+│   │   └── orders.repository.ts   # tenant/owner-scoped queries
+│   └── webhooks/
+│       └── payments.routes.ts     # raw body + signature + replay check
+├── middleware/
+│   ├── auth.ts                    # attaches verified req.auth (authentication-expert)
+│   ├── permissions.ts             # function-level checks (authorization-expert)
+│   └── rate-limit.ts              # Redis-backed limiter
+├── graphql/
+│   ├── server.ts                  # Apollo Server + GraphQL Armor + safelist
+│   └── safelist.json              # approved operation hashes
+└── openapi/
+    └── openapi.yaml               # inventory source of truth
+tests/api-security/                # BOLA, BOPLA, limits, webhook replay
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-api-security-project/
-├── api-security/                # Security artifacts (see folder structure)
-├── src/
-│   ├── config/
-│   │   ├── secrets.ts           # API keys, HMAC secrets
-│   │   ├── rate-limits.ts       # Per-endpoint limits
-│   │   └── env.ts
-│   ├── middleware/
-│   │   ├── auth.ts
-│   │   ├── bola.ts
-│   │   ├── bfla.ts
-│   │   ├── rate-limit.ts
-│   │   ├── cors.ts
-│   │   └── hmac.ts
-│   ├── dto/
-│   │   ├── user.dto.ts
-│   │   └── order.dto.ts
-│   ├── controllers/
-│   │   ├── user.controller.ts
-│   │   └── order.controller.ts
-│   ├── services/
-│   │   ├── user.service.ts
-│   │   └── order.service.ts
-│   ├── repositories/
-│   │   ├── user.repository.ts
-│   │   └── order.repository.ts
-│   ├── graphql/
-│   │   ├── schema.ts
-│   │   ├── resolvers/
-│   │   └── security/
-│   ├── webhooks/
-│   │   └── stripe.handler.ts
-│   └── audit/
-│       └── logger.ts
-├── infra/
-│   ├── terraform/
-│   │   ├── api-gateway/         # AWS API Gateway
-│   │   ├── waf/                 # WAF rules
-│   │   ├── kms/                 # API key encryption
-│   │   └── iam/
-│   └── docker/
-├── observability/
-│   ├── grafana/
-│   ├── alerts/
-│   └── audit/
-├── ci/
-│   ├── sast.yml
-│   ├── dast.yml                 # OWASP ZAP on staging
-│   ├── api-test.yml             # Schema validation, BOLA tests
-│   └── load-test.yml
-├── docs/
-│   ├── adr/
-│   │   ├── ADR-0001-api-auth.md
-│   │   ├── ADR-0002-rate-limiting.md
-│   │   └── ADR-0003-graphql-security.md
-│   ├── runbooks/
-│   │   ├── api-incident.md
-│   │   ├── key-revocation.md
-│   │   └── rate-limit-change.md
-│   └── training/
-├── scripts/
-├── docker-compose.yml
-├── Makefile
-└── README.md
-```
+- **Scoped repository**: repository methods require a `Principal` argument and always add the owner or tenant predicate, for reads and writes alike.
+- **Input and output DTOs**: separate schemas per operation (`orderCreate`, `orderUpdate`, `orderView`, `orderAdminView`) so writable and readable fields are explicit per role.
+- **Layered limits**: gateway (per IP, global), service (per principal and per route), business flow (per account per action per day).
+- **Idempotency keys**: `Idempotency-Key` header stored with the response for unsafe operations such as payments, so retries cannot double-execute.
+- **Signed requests**: canonical string plus HMAC plus timestamp plus nonce; see [references/request-signing.md](references/request-signing.md).
+- **Verify, then enqueue**: webhook handlers verify and store the event id, return 2xx quickly and process from a queue.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### 12.1 BOLA Middleware Pattern
-**When to use**: Every endpoint accessing a resource by ID.
-**When not to use**: Never; BOLA middleware is mandatory.
-**Sketch**: Middleware loads resource, verifies `resource.userId === currentUser.id`, throws 403 if mismatch.
+- Generate and lint the OpenAPI document in CI; diff it against observed traffic (gateway logs, API discovery tools) to find shadow endpoints.
+- Configure CORS with an explicit origin allowlist, `Vary: Origin`, and credentials only for origins that need them; CORS is not an access control for non-browser clients.
+- Set body-size limits in the framework (`express.json({ limit: '100kb' })`) and at the proxy.
+- Use `Retry-After` on 429 responses. Rate-limit header names are being standardized by the IETF HTTP API working group; check the current draft before choosing `RateLimit` header formats.
+- Cap the cost of calls to paid downstream services (SMS, email, LLM APIs) per account, not only per request.
+- Do not expose internal ids, flags or audit fields in responses just because the ORM returned them.
+- Keep admin and internal APIs on a separate host or network path with stronger authentication.
 
-### 12.2 Rate Limit Pattern (Token Bucket)
-**When to use**: Burst-tolerant APIs; allows short bursts above average rate.
-**When not to use**: Strict per-second limits; use sliding window.
-**Sketch**: Redis token bucket per user/IP; `INCR` with `EXPIRE`; reject if `count > limit`.
+## 9. Performance
 
-### 12.3 HMAC Signing Pattern
-**When to use**: Service-to-service authentication without mTLS infrastructure.
-**When not to use**: User-facing APIs; use OAuth2 or API keys.
-**Sketch**: Client signs `method + path + body + timestamp + nonce` with HMAC-SHA256; server verifies with shared secret; timestamp window 5 min; nonce denylist.
+- One atomic Redis round trip per rate-limit check (Lua script or a single `MULTI`); avoid read-then-write races.
+- Push ownership filters into SQL so authorization does not need a second query; index `(tenant_id, id)`.
+- GraphQL cost analysis runs once per operation at validation time; cache parsed and validated safelisted operations.
+- Signature verification is cheap (HMAC); nonce caches need a TTL equal to the timestamp window so memory stays bounded.
 
-### 12.4 Webhook Verification Pattern
-**When to use**: Every webhook handler; never trust unsigned callbacks.
-**When not to use**: Never; verification is mandatory.
-**Sketch**: Read raw body; compute `HMAC-SHA256(secret, rawBody)`; compare with `X-Webhook-Signature` using `timingSafeEqual`; reject mismatch.
+## 10. Security
 
-### 12.5 GraphQL Persisted Queries Pattern
-**When to use**: Production GraphQL APIs; allowlist approved queries.
-**When not to use**: Development; introspection needed.
-**Sketch**: Client sends `queryHash`; server looks up approved query; rejects unknown hashes; disables ad-hoc queries.
+- Fail closed when the rate-limit store is unavailable for sensitive routes (login, OTP, payment); for low-risk reads, a documented fail-open with gateway limits still in place is acceptable.
+- Trust `X-Forwarded-For` only from known proxies (`app.set('trust proxy', ...)` with explicit hops or addresses).
+- Store webhook secrets and HMAC keys in a secret manager; support two active secrets during rotation.
+- Log BOLA-shaped denials (valid principal, foreign object id) and alert on bursts; they indicate enumeration.
+- gRPC: enable TLS, apply per-method authorization in interceptors, and cap message size (`grpc.max_receive_message_length` or the language equivalent).
 
-### 12.6 API Versioning Pattern
-**When to use**: Every API; breaking changes require new version.
-**When not to use**: Never; versioning is mandatory.
-**Sketch**: URL path `/v1/users`, `/v2/users`; v1 deprecated with sunset header; v2 has breaking changes.
+## 11. Testing
 
-## 13. Best Practices
+- BOLA: user A requests, updates and deletes user B's object by id, including through nested routes, batch endpoints and GraphQL node lookups; all must fail.
+- BOPLA: send extra fields (`role`, `tenantId`, `isVerified`, `price`) on create and update; they must be rejected. Assert responses do not contain non-whitelisted fields.
+- BFLA: call admin routes with a normal user token and with tokens from another tenant.
+- Limits: `limit=1000000`, oversized bodies, deep and aliased GraphQL queries, many operations in one batch; expect 400/413/429.
+- Webhooks: wrong signature, missing timestamp, timestamp outside the window, replayed valid request, modified body; all rejected.
+- Run these as integration tests against a real database and Redis (for example with Testcontainers), plus DAST against staging.
 
-- Always enforce authentication on every endpoint; no anonymous access except allowlisted.
-- Always enforce BOLA: verify resource ownership per request.
-- Always enforce BFLA: verify role per privileged operation.
-- Always use DTOs with explicit fields; never bind request body directly to ORM (mass assignment).
-- Always enforce rate limiting: per-user, per-IP, per-API-key; document limits.
-- Always enforce `maxPageSize` ≤ 100; cursor pagination for large datasets.
-- Always validate input against allowlist schema at boundary; reject unknown fields.
-- Always set downstream call timeout (default 10 seconds); fail fast.
-- Always enforce GraphQL depth limit (max 7), complexity analysis, persisted queries in production.
-- Always disable GraphQL introspection in production.
-- Always verify webhook HMAC signature with `timingSafeEqual`; reject unsigned.
-- Always pass API keys via header; never in URL params (logged in access logs).
-- Always use strict CORS origin allowlist; never `*` with credentials.
-- Always version APIs (`/v1/`); breaking changes require new version.
-- Always include correlation ID in error responses; full details server-side.
+## 12. Review Checklist
 
-## 14. Anti Patterns
+- [ ] Every object access is scoped by owner or tenant from the verified principal, for reads, updates, deletes and batch operations.
+- [ ] Input DTOs reject unknown fields; responses are mapped explicitly per role.
+- [ ] Function-level permissions are declared for every route and default to deny.
+- [ ] Rate limits exist per principal and per IP; sensitive flows have their own limits.
+- [ ] Page size, body size, timeouts and GraphQL depth/cost are capped.
+- [ ] Webhooks verify the signature over the raw body, check the timestamp and deduplicate events.
+- [ ] Signed service requests use constant-time comparison and a nonce cache.
+- [ ] API keys are sent in headers, stored hashed, scoped and rotatable.
+- [ ] CORS uses an explicit allowlist; no `*` with credentials.
+- [ ] Third-party responses are validated, size-capped and time-limited.
+- [ ] The endpoint is in the OpenAPI inventory with an owner; deprecated versions have a sunset date.
+- [ ] Negative tests for BOLA, BOPLA, BFLA, limits and replay are present and pass.
 
-### 14.1 Missing BOLA Check
-**Why wrong**: Any user can access any resource by changing ID; IDOR.
-**Correct alternative**: Per-request ownership check: `if (resource.userId !== currentUser.id) throw 403`.
+## 13. Production Notes
 
-### 14.2 Mass Assignment (BOPLA)
-**Why wrong**: Client can set `role: 'admin'` or `isVerified: true` via request body.
-**Correct alternative**: DTO with explicit allowed fields; never bind body directly to ORM.
+- Watch 401/403/404 ratios per principal; a single account producing many 404s across sequential ids is an enumeration signal.
+- Track 429s by route and principal so limits can be tuned without disabling them.
+- Keep gateway and service limits in configuration with change review; emergency overrides expire automatically.
+- Alert on webhook signature failures from a provider's IP ranges; they usually mean a rotated secret or an attack.
+- Remove retired API versions at the gateway on the sunset date and monitor for remaining callers beforehand.
 
-### 14.3 No Rate Limiting
-**Why wrong**: DoS, brute force, credential stuffing succeed unimpeded.
-**Correct alternative**: Redis-backed rate limiter per user/IP/API-key; document limits.
+## 14. Examples
 
-### 14.4 Unbounded Pagination
-**What**: `?limit=1000000` accepted; OOM risk.
-**Why**: Server loads all rows; memory exhaustion; DoS.
-**Correct alternative**: Enforce `maxPageSize` ≤ 100; cursor pagination for large datasets.
-
-### 14.5 GraphQL Introspection Enabled in Production
-**What**: Production GraphQL allows introspection queries.
-**Why**: Attacker maps full schema; crafts targeted attacks.
-**Correct alternative**: Disable introspection in production; use persisted queries (allowlist).
-
-### 14.6 Unverified Webhooks
-**What**: Webhook handler trusts request without signature verification.
-**Why**: Attacker forges webhook; triggers actions (e.g., marks invoice paid without payment).
-**Correct alternative**: Verify HMAC signature with `timingSafeEqual`; reject unsigned.
-
-## 15. Performance Rules
-
-- Rate limit check (Redis) must complete in < 1 ms; cache locally for 30 seconds.
-- BOLA check (DB lookup) must complete in < 5 ms; cache resource ownership for 30 seconds.
-- Input validation must complete in < 1 ms per request for typical payloads; schema compilation cached.
-- HMAC verification must complete in < 1 ms (SHA256 + timing-safe compare).
-- GraphQL complexity analysis must complete in < 5 ms for typical queries.
-- API gateway overhead must be < 10 ms per request.
-- mTLS handshake must use session resumption for repeat clients; reduces CPU.
-- Pagination must enforce `maxPageSize` ≤ 100; reject larger.
-- Downstream call timeout must be 10 seconds default; fail fast.
-- Audit log writes must be asynchronous (queue + worker) to avoid blocking.
-
-## 16. Security Rules
-
-- Authentication must be enforced on every endpoint; no anonymous access except allowlisted.
-- BOLA must be enforced per request: verify resource ownership.
-- BFLA must be enforced per privileged operation: verify role.
-- BOPLA must be enforced per write: DTO with explicit fields; never bind body to ORM.
-- Rate limiting must be enforced: per-user, per-IP, per-API-key; document limits.
-- `maxPageSize` must be ≤ 100; reject larger.
-- Input must be validated against allowlist schema; reject unknown fields.
-- GraphQL depth limit (max 7), complexity analysis, persisted queries must be enforced in production.
-- GraphQL introspection must be disabled in production.
-- Webhook HMAC signature must be verified with `timingSafeEqual`; reject unsigned.
-- API keys must be passed via header; never in URL params.
-- CORS must use strict origin allowlist; never `*` with credentials.
-- APIs must be versioned (`/v1/`); breaking changes require new version.
-- mTLS or HMAC must protect high-security service-to-service APIs.
-- Replay prevention must be enforced: timestamp window, nonce denylist, HMAC signature.
-
-## 17. Testing Strategy
-
-- Every endpoint must have BOLA tests: authorized user accesses own resource (200), unauthorized user accesses other's resource (403).
-- Every privileged operation must have BFLA tests: admin role permitted (200), user role denied (403).
-- Every write endpoint must have BOPLA tests: allowed fields accepted, disallowed fields rejected.
-- Every endpoint must have rate limit tests: under limit succeeds, over limit returns 429.
-- Every endpoint must have pagination tests: `maxPageSize` enforced, cursor pagination works.
-- Every webhook handler must have signature verification tests: valid signature accepted, invalid rejected, missing rejected.
-- Every GraphQL endpoint must have depth limit tests, complexity tests, persisted query tests, introspection disabled tests.
-- DAST must run nightly in staging (OWASP ZAP, Nuclei); findings triaged within 48 hours.
-- Load tests must verify rate limit enforcement under concurrent requests.
-- Fuzz testing must run on input-heavy endpoints; detect crashes and memory safety issues.
-
-## 18. Documentation Standards
-
-- Every API must be documented in OpenAPI 3.1 spec; versioned with the API.
-- Every endpoint must document authentication, authorization, rate limits, and pagination.
-- Every DTO must be documented with field types, constraints, and examples.
-- Every ADR must include: authentication, authorization, rate limiting, versioning rationale.
-- Every runbook must include step-by-step procedure for API incident, key revocation, rate limit change.
-- Every training material must cover: OWASP API Top 10, BOLA, BFLA, BOPLA, rate limiting, GraphQL security.
-- Every incident report must include: timeline, impact, root cause, contributing factors, action items.
-- Every API key must be documented with scope, owner, rotation date, last used.
-
-## 19. Code Review Checklist
-
-- [ ] Authentication enforced on every endpoint; no anonymous access except allowlisted.
-- [ ] BOLA check per request: `if (resource.userId !== currentUser.id) throw 403`.
-- [ ] BFLA check per privileged operation: role verification.
-- [ ] DTO with explicit fields; no direct body-to-ORM binding (BOPLA).
-- [ ] Rate limiting middleware applied; limits documented in OpenAPI.
-- [ ] `maxPageSize` ≤ 100 enforced; cursor pagination for large datasets.
-- [ ] Input validated against allowlist schema; unknown fields rejected.
-- [ ] Downstream call timeout (10s default) configured.
-- [ ] GraphQL depth limit (max 7), complexity analysis, persisted queries enforced.
-- [ ] GraphQL introspection disabled in production.
-- [ ] Webhook HMAC signature verified with `timingSafeEqual`.
-- [ ] API keys passed via header; never in URL params.
-- [ ] CORS strict origin allowlist; no `*` with credentials.
-- [ ] API versioned (`/v1/`); breaking changes require new version.
-- [ ] Error responses generic with correlation ID; no stack traces.
-- [ ] Security tests pass: BOLA, BFLA, BOPLA, rate limit, pagination, webhook.
-- [ ] DAST scan passed in staging.
-- [ ] OpenAPI spec updated and validated.
-- [ ] Audit log captures endpoint, method, user, IP, outcome, timestamp.
-- [ ] Replay prevention: timestamp window, nonce denylist, HMAC signature.
-
-## 20. Refactoring Checklist
-
-- [ ] Identify all endpoints without BOLA check; add per-request ownership verification.
-- [ ] Identify all endpoints without BFLA check; add per-operation role verification.
-- [ ] Identify all body-to-ORM bindings; replace with DTOs (BOPLA).
-- [ ] Identify all endpoints without rate limiting; add Redis-backed middleware.
-- [ ] Identify all unbounded pagination; enforce `maxPageSize` ≤ 100.
-- [ ] Identify all GraphQL endpoints with introspection enabled; disable in production.
-- [ ] Identify all GraphQL endpoints without depth/complexity limits; add.
-- [ ] Identify all unverified webhooks; add HMAC signature verification.
-- [ ] Identify all API keys in URL params; move to header.
-- [ ] Identify all CORS `*` with credentials; replace with strict allowlist.
-- [ ] Identify all unversioned APIs; add `/v1/` prefix.
-- [ ] Re-run DAST after refactoring; verify no new findings.
-
-## 21. Deployment Checklist
-
-- [ ] OpenAPI spec validated; matches implementation.
-- [ ] BOLA tests pass: authorized access 200, unauthorized 403.
-- [ ] BFLA tests pass: admin 200, user 403.
-- [ ] BOPLA tests pass: allowed fields accepted, disallowed rejected.
-- [ ] Rate limit tests pass: under limit 200, over limit 429.
-- [ ] Pagination tests pass: `maxPageSize` enforced.
-- [ ] GraphQL tests pass: depth limit, complexity, persisted queries, introspection disabled.
-- [ ] Webhook tests pass: valid signature accepted, invalid rejected.
-- [ ] DAST scan passed in staging.
-- [ ] API gateway configured: WAF rules, rate limits, mTLS.
-- [ ] API keys rotated if any personnel changes.
-- [ ] TLS 1.3 enforced; SSL Labs grade A or A+.
-- [ ] CORS allowlist verified.
-- [ ] Audit log writer verified; events captured.
-- [ ] Rollback plan documented.
-- [ ] On-call engineer briefed on API incident runbook.
-
-## 22. Production Checklist
-
-- [ ] API gateway deployed with WAF, rate limits, mTLS.
-- [ ] Authentication enforced on every endpoint.
-- [ ] BOLA enforced per request; BFLA per privileged operation.
-- [ ] BOPLA enforced per write; DTOs with explicit fields.
-- [ ] Rate limiting active: per-user, per-IP, per-API-key.
-- [ ] `maxPageSize` ≤ 100 enforced.
-- [ ] GraphQL: depth limit, complexity, persisted queries, introspection disabled.
-- [ ] Webhook HMAC verification active.
-- [ ] API keys in headers; rotated quarterly.
-- [ ] CORS strict origin allowlist.
-- [ ] API versioned; deprecation headers on old versions.
-- [ ] TLS 1.3 enforced; SSL Labs grade A or A+.
-- [ ] Audit log centralized; retention ≥ 1 year.
-- [ ] Alerts for: rate limit hit spikes, BOLA failures, BFLA failures, webhook signature failures, GraphQL complexity violations.
-- [ ] Monitoring: request rate, error rate, p99 latency, rate limit hit rate.
-- [ ] Runbooks for every alert published and reviewed annually.
-
-## 23. Logging Strategy
-
-- Every API request must be logged: method, path, status, user ID (if authenticated), API key ID (if used), IP, user agent, response time, timestamp.
-- Every BOLA failure must be logged: user ID, resource ID, IP, timestamp; alert on spike.
-- Every BFLA failure must be logged: user ID, role, operation, IP, timestamp; alert on spike.
-- Every rate limit hit must be logged: scope (user/IP/key), ID, endpoint, count, timestamp.
-- Every webhook signature failure must be logged: source IP, header, timestamp; alert security team.
-- Every GraphQL complexity violation must be logged: query hash, complexity, IP, timestamp.
-- Every API key authentication failure must be logged: API key ID (hashed), IP, timestamp; alert on brute force.
-- Every 4xx and 5xx error must be logged with correlation ID; full stack trace server-side.
-- Logs must be shipped to centralized SIEM with retention ≥ 1 year.
-- Sensitive data (request bodies with PII) must be redacted before log shipping.
-
-## 24. Monitoring Strategy
-
-- Request rate must alert on spikes (> 2× baseline); investigate attack or viral traffic.
-- Error rate must alert on spikes (> 5% of requests); investigate bug or attack.
-- p99 latency must alert at > threshold; investigate slow downstream or DB.
-- Rate limit hit rate must alert on spikes (> 1000 per minute); investigate attack or misbehaving client.
-- BOLA failure rate must alert on spikes (> 50 per minute); investigate IDOR scanning.
-- BFLA failure rate must alert on spikes (> 50 per minute); investigate privilege escalation attempt.
-- Webhook signature failure rate must alert on any failure; investigate forgery attempt.
-- GraphQL complexity violation rate must alert on spikes; investigate DoS attempt.
-- API key authentication failure rate must alert on spikes (> 10 per minute per key); investigate brute force.
-- Dashboard: request rate by endpoint, error rate by endpoint, p99 latency by endpoint, rate limit hits, BOLA/BFLA failures.
-
-## 25. Error Handling
-
-- BOLA failure must return 403 Forbidden with generic "Access denied"; never reveal resource existence.
-- BFLA failure must return 403 Forbidden with generic "Insufficient permissions"; never reveal role requirement.
-- BOPLA failure (unknown field) must return 400 Bad Request with generic "Invalid input"; never reveal field name in production.
-- Rate limit exceeded must return 429 Too Many Requests with `Retry-After` header.
-- Authentication failure must return 401 Unauthorized with generic "Authentication required".
-- Input validation failure must return 400 Bad Request with field-level details (not internal types).
-- Server errors must return 500 Internal Server Error with generic message and correlation ID.
-- Downstream timeout must return 504 Gateway Timeout; fail fast, never queue indefinitely.
-- Webhook signature failure must return 401 Unauthorized; never acknowledge unsigned.
-- GraphQL complexity violation must return 400 Bad Request with generic "Query too complex".
-
-## 26. Examples
-
-### Example 1: BOLA Middleware with Ownership Check (TypeScript)
+### Example 1: BOLA- and BOPLA-safe order endpoints (Express 5, Zod 4, pg)
 
 ```typescript
-// src/middleware/bola.ts
-import { Request, Response, NextFunction } from 'express';
-import { OrderRepository } from '../repositories/order.repository';
+import { Router, type Request } from 'express';
+import { z } from 'zod';
+import type { Pool } from 'pg';
 
-export function bolaOrderMiddleware(orders: OrderRepository) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const orderId = req.params.id;
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    const order = await orders.findById(orderId);
-    if (!order) {
-      // Generic 404 to avoid information disclosure
-      return res.status(404).json({ error: 'Resource not found' });
-    }
-    if (order.userId !== userId) {
-      // BOLA check: verify ownership
-      return res.status(403).json({ error: 'Access denied' });
-    }
-    req.resource = order; // Attach for controller
-    next();
-  };
+type Principal = { userId: string; tenantId: string };
+declare module 'express-serve-static-core' {
+  interface Request { auth?: Principal } // set by the authentication middleware after token verification
 }
 
-// src/controllers/order.controller.ts
-export class OrderController {
-  async getOrder(req: Request, res: Response) {
-    // Resource already loaded and authorized by middleware
-    return res.json(req.resource);
-  }
+const orderUpdate = z.strictObject({            // unknown keys such as status or tenantId fail
+  shippingAddress: z.string().min(1).max(500),
+  note: z.string().max(1000).optional(),
+});
+const listQuery = z.strictObject({ limit: z.coerce.number().int().min(1).max(100).default(20) });
 
-  async updateOrder(req: Request, res: Response) {
-    // BOPLA: DTO with explicit fields; no mass assignment
-    const dto = orderUpdateDto.parse(req.body);
-    const updated = await orders.update(req.resource.id, dto);
-    return res.json(updated);
-  }
+const toOrderView = (row: { id: string; total_cents: number; status: string; shipping_address: string }) => ({
+  id: row.id, totalCents: row.total_cents, status: row.status, shippingAddress: row.shipping_address,
+});
+
+function principal(req: Request): Principal {
+  if (!req.auth) throw Object.assign(new Error('unauthenticated'), { status: 401 });
+  return req.auth;
+}
+
+export function ordersRouter(db: Pool): Router {
+  const r = Router();
+
+  r.get('/orders', async (req, res) => {
+    const p = principal(req);
+    const { limit } = listQuery.parse(req.query);
+    const { rows } = await db.query(
+      `SELECT id, total_cents, status, shipping_address FROM orders
+        WHERE tenant_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT $3`,
+      [p.tenantId, p.userId, limit],
+    );
+    res.json({ items: rows.map(toOrderView) });
+  });
+
+  r.patch('/orders/:id', async (req, res) => {
+    const p = principal(req);
+    const id = z.uuid().parse(req.params.id);
+    const input = orderUpdate.parse(req.body);
+    // Ownership is part of the write itself, so there is no check-then-update gap.
+    const { rows } = await db.query(
+      `UPDATE orders SET shipping_address = $1, note = $2, updated_at = now()
+        WHERE id = $3 AND tenant_id = $4 AND user_id = $5 AND status = 'pending'
+        RETURNING id, total_cents, status, shipping_address`,
+      [input.shippingAddress, input.note ?? null, id, p.tenantId, p.userId],
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'not_found' });
+    res.json(toOrderView(rows[0]));
+  });
+
+  return r;
 }
 ```
 
-### Example 2: Rate Limiting with Redis Sliding Window (TypeScript)
+Express 5 forwards rejected promises (including `ZodError`) to the error middleware, which maps them to 400 problem responses without echoing internals.
+
+### Example 2: Atomic Redis rate limiter (fixed window, ioredis)
 
 ```typescript
-// src/middleware/rate-limit.ts
-import { Request, Response, NextFunction } from 'express';
-import { Redis } from 'ioredis';
+import type { RequestHandler } from 'express';
+import type { Redis } from 'ioredis';
 
-export interface RateLimitConfig {
-  windowMs: number;
-  max: number;
-  scope: 'user' | 'ip' | 'apiKey';
-}
+const SCRIPT = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return {count, redis.call('PTTL', KEYS[1])}
+`;
 
-export function rateLimitMiddleware(redis: Redis, config: RateLimitConfig) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const identifier = getIdentifier(req, config.scope);
-    const key = `ratelimit:${config.scope}:${identifier}:${Math.floor(Date.now() / config.windowMs)}`;
-
-    const count = await redis.incr(key);
-    if (count === 1) {
-      await redis.pexpire(key, config.windowMs);
+export function rateLimit(redis: Redis, opts: { name: string; max: number; windowMs: number; failOpen?: boolean }): RequestHandler {
+  return async (req, res, next) => {
+    const who = req.auth?.userId ?? `ip:${req.ip}`; // req.ip is correct only with 'trust proxy' configured
+    const key = `rl:${opts.name}:${who}`;
+    let count: number;
+    let ttl: number;
+    try {
+      [count, ttl] = (await redis.eval(SCRIPT, 1, key, opts.windowMs)) as [number, number];
+    } catch (err) {
+      if (opts.failOpen) return next();
+      return next(err); // fail closed by default
     }
-
-    res.setHeader('X-RateLimit-Limit', config.max);
-    res.setHeader('X-RateLimit-Remaining', Math.max(0, config.max - count));
-    res.setHeader('X-RateLimit-Reset', config.windowMs);
-
-    if (count > config.max) {
-      return res.status(429).json({
-        error: 'Rate limit exceeded',
-        retryAfter: Math.ceil(config.windowMs / 1000),
-      });
+    if (count > opts.max) {
+      res.setHeader('Retry-After', String(Math.ceil(Math.max(ttl, 0) / 1000)));
+      return res.status(429).json({ error: 'rate_limited' });
     }
     next();
   };
 }
 
-function getIdentifier(req: Request, scope: string): string {
-  switch (scope) {
-    case 'user':
-      return req.user?.id || 'anonymous';
-    case 'apiKey':
-      return req.apiKeyId || req.ip || 'unknown';
-    case 'ip':
-    default:
-      return req.ip || 'unknown';
-  }
-}
-
-// Usage: 100 requests per minute per user
-// app.use('/api/v1/', rateLimitMiddleware(redis, { windowMs: 60_000, max: 100, scope: 'user' }));
+// app.post('/auth/otp', rateLimit(redis, { name: 'otp', max: 5, windowMs: 15 * 60_000 }), sendOtp);
 ```
 
-### Example 3: GraphQL Security with Depth Limit and Complexity (TypeScript)
+A fixed window allows up to twice `max` across a window boundary; use a sliding-window or token-bucket script, or the gateway's limiter, when that matters.
+
+### Example 3: Webhook verification with timestamp and replay protection
+
+The scheme below (`t=<unix>,v1=<hex hmac>` over `"<t>.<raw body>"`) is a common provider pattern; follow the provider's own documented format and prefer its official SDK verifier when one exists.
 
 ```typescript
-// src/graphql/security.ts
-import { GraphQLError } from 'graphql';
-import depthLimit from 'graphql-depth-limit';
-import costAnalysis from 'graphql-cost-analysis';
-import { schema } from './schema';
+import express, { Router } from 'express';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { Redis } from 'ioredis';
 
-export const graphqlSecurityConfig = {
-  // Production: introspection disabled
-  introspection: process.env.NODE_ENV !== 'production',
-  // Persisted queries only in production
-  persistedQueries: process.env.NODE_ENV === 'production',
-  validationRules: [
-    depthLimit(7), // Max depth: 7
-    costAnalysis({
-      maximumCost: 1000, // Max complexity: 1000
-      defaultCost: 1,
-      scalarCost: 1,
-      objectCost: 2,
-      listFactor: 10,
-      interfaces: false,
-      onCost: (cost: number) => {
-        if (cost > 1000) {
-          throw new GraphQLError(`Query cost ${cost} exceeds maximum 1000`);
-        }
-      },
-    }),
-  ],
-  formatError: (error: GraphQLError) => {
-    // Generic error in production; never expose internals
-    if (process.env.NODE_ENV === 'production') {
-      return {
-        message: error.message || 'Internal server error',
-        extensions: { code: error.extensions?.code || 'INTERNAL_ERROR' },
-      };
+const TOLERANCE_S = 300;
+
+function verify(header: string | undefined, raw: Buffer, secrets: string[], now = Date.now()): boolean {
+  const parts = Object.fromEntries((header ?? '').split(',').map((kv) => kv.split('=', 2) as [string, string]));
+  const t = Number(parts.t);
+  if (!Number.isInteger(t) || Math.abs(now / 1000 - t) > TOLERANCE_S || !/^[0-9a-f]{64}$/.test(parts.v1 ?? '')) return false;
+  const received = Buffer.from(parts.v1, 'hex');
+  return secrets.some((secret) => {   // two secrets are active during rotation
+    const expected = createHmac('sha256', secret).update(`${t}.`).update(raw).digest();
+    return timingSafeEqual(expected, received);
+  });
+}
+
+export function paymentsWebhook(redis: Redis, secrets: string[], enqueue: (e: unknown) => Promise<void>): Router {
+  const r = Router();
+  r.post('/webhooks/payments', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
+    const raw = req.body as Buffer;
+    if (!verify(req.get('Webhook-Signature'), raw, secrets)) return res.status(400).end();
+    const event = JSON.parse(raw.toString('utf8')) as { id?: unknown };
+    if (typeof event.id !== 'string') return res.status(400).end();
+    // Deduplicate: SET NX with a TTL longer than the tolerance window.
+    const first = await redis.set(`wh:payments:${event.id}`, '1', 'EX', 24 * 3600, 'NX');
+    if (first === 'OK') {
+      try {
+        await enqueue(event);
+      } catch (err) {
+        await redis.del(`wh:payments:${event.id}`); // let the provider's retry be processed
+        throw err;
+      }
     }
-    return error;
-  },
-  context: async ({ req }: { req: any }) => {
-    // Authentication + rate limit per query cost
-    const user = await authenticate(req);
-    return { user };
-  },
-};
-
-// Persisted query allowlist
-export const persistedQueryAllowlist = new Map<string, string>([
-  ['hash_abc123', 'query GetUser($id: ID!) { user(id: $id) { id name email } }'],
-  ['hash_def456', 'query ListOrders($cursor: String) { orders(cursor: $cursor) { id totalCents } }'],
-]);
-
-export function resolvePersistedQuery(queryHash: string): string | null {
-  return persistedQueryAllowlist.get(queryHash) ?? null;
+    res.status(204).end();
+  });
+  return r;
 }
 ```
 
-## 27. Common Mistakes
+## 15. Common Mistakes
 
-### 27.1 Missing BOLA Check
-**What**: `GET /api/v1/orders/:id` without verifying `order.userId === currentUser.id`.
-**Why**: Any user can access any order by ID; IDOR; OWASP API1.
-**How to avoid**: Per-request ownership check in middleware or controller; throw 403 on mismatch.
+- **Loading by id and returning it** (`findById(req.params.id)`) without an owner or tenant predicate: classic BOLA.
+- **Checking ownership on read but not on update, delete or batch endpoints**.
+- **`Object.assign(user, req.body)` or `prisma.user.update({ data: req.body })`**: mass assignment of `role`, `tenantId`, `emailVerified`.
+- **Returning whole entities** and filtering fields in the front end: excessive data exposure.
+- **No maximum on `limit`**, or limits only at the gateway while internal routes are reachable directly.
+- **Non-atomic rate limiting** (`GET` then `SET`): concurrent requests slip through.
+- **Rate-limiting by `X-Forwarded-For` taken from the client** without a trusted proxy configuration.
+- **Parsing the webhook body before verifying the signature**, or verifying a re-serialized body instead of the raw bytes.
+- **No timestamp window or event-id deduplication**: valid signed requests can be replayed.
+- **API keys in query strings**: they end up in logs, browser history and referrers.
+- **Treating automatic persisted queries as a safelist**: APQ caches any operation a client sends; a safelist rejects unknown operations.
+- **Old API versions left running** after the new version ships, without the new authorization fixes.
+- **Trusting partner API responses** and passing them to SQL, HTML or redirects without validation.
 
-### 27.2 Mass Assignment (BOPLA)
-**What**: `Object.assign(user, req.body)` allowing client to set `role: 'admin'`.
-**Why**: Privilege escalation; OWASP API3.
-**How to avoid**: DTO with explicit allowed fields; use `pick(dto, ['name', 'email'])` before ORM update.
+## 16. References
 
-### 27.3 No Rate Limiting
-**What**: Endpoints accept unlimited requests; no rate limiter.
-**Why**: DoS, brute force, credential stuffing; OWASP API4.
-**How to avoid**: Redis-backed rate limiter per user/IP/API-key; document limits in OpenAPI.
-
-### 27.4 Unbounded Pagination
-**What**: `?limit=` accepted without maximum; `limit=1000000` returns 1M rows.
-**Why**: OOM; DoS; OWASP API4.
-**How to avoid**: Enforce `maxPageSize` ≤ 100; cursor pagination for large datasets.
-
-### 27.5 GraphQL Introspection in Production
-**What**: Production GraphQL allows introspection queries.
-**Why**: Attacker maps schema; crafts targeted attacks.
-**How to avoid**: Disable introspection in production; use persisted queries (allowlist).
-
-### 27.6 Unverified Webhooks
-**What**: Webhook handler processes request without HMAC signature check.
-**Why**: Attacker forges webhook; triggers actions (e.g., marks invoice paid).
-**How to avoid**: Verify HMAC signature with `timingSafeEqual`; reject unsigned callbacks.
-
-## 28. Professional Workflow
-
-1. **Receive request**: new API endpoint, security audit, or incident.
-2. **Threat model**: identify endpoints, BOLA/BFLA/BOPLA risks, rate limit needs.
-3. **Design**: authentication, authorization (BOLA/BFLA/BOPLA), rate limiting, pagination, versioning.
-4. **Implement**: write middleware (auth, BOLA, BFLA, rate limit); DTOs; controllers.
-5. **Peer review**: PR requires second-engineer sign-off; security tests must pass.
-6. **Test**: BOLA, BFLA, BOPLA, rate limit, pagination, webhook tests; DAST in staging.
-7. **Stage deploy**: verify API gateway config; test rate limits; test webhook verification.
-8. **Pre-deploy checks**: confirm WAF rules, mTLS, CORS, audit log pipeline, on-call briefing.
-9. **Production deploy**: monitor request rate, error rate, BOLA/BFLA failures; rollback if spikes.
-10. **Post-deploy**: verify rate limit enforcement; test incident response runbook.
-11. **Post-mortem**: for incidents, write blameless post-mortem within 48 hours; update controls and runbooks.
-
-## 29. Response Style
-
-- Always cite the OWASP API Top 10 category (API1-API10) and CWE ID when describing a vulnerability.
-- Always state the API type (REST/GraphQL/gRPC) and authentication method when proposing code.
-- Always provide remediation code alongside vulnerability description.
-- Never use the word "should" — use "must" or "must not".
-- Always quantify risk using CVSS v3.1 score and impact rating.
-- Always recommend defense in depth; never rely on a single control.
-- Always link to the relevant OWASP API Security Cheat Sheet.
-- Always fail closed in examples; never show failing open as acceptable.
-
-## 30. Output Format
-
-- Every code example must be syntactically valid for the stated language and framework.
-- Every vulnerability description must include: title, OWASP API category, CWE ID, CVSS score, description, proof-of-concept, impact, remediation, references.
-- Every ADR must follow: context, decision, status, consequences, alternatives considered.
-- Every runbook must be numbered step-by-step with verification commands at each step.
-- Every OpenAPI spec must be valid 3.1 with authentication, authorization, rate limits, and pagination documented.
-- Every incident report must follow: timeline, impact, root cause, contributing factors, action items with owners and dates.
-- Every API configuration must be documented with rationale per setting.
-- Every training material must include: concept, code example, common mistakes, exercise.
-- Every code review comment must include: location, issue, severity, fix suggestion, CWE reference.
-- Every rate limit must be documented: scope, window, max, algorithm, enforcement point.
+- [references/graphql.md](references/graphql.md): GraphQL hardening with Apollo Server 5 and GraphQL Armor, safelisting, introspection, field-level authorization and error masking.
+- [references/request-signing.md](references/request-signing.md): HMAC request signing, replay windows, API key lifecycle, mTLS and sender-constrained tokens.
+- OWASP API Security Top 10 2023: https://owasp.org/API-Security/

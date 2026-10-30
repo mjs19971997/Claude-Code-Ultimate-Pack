@@ -10,11 +10,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- Additional skills for Rust, Go, Python, Java, C# ecosystems
-- Skill composition patterns for cross-domain workflows
-- Automated skill validation CI pipeline (GitHub Actions)
-- Interactive skill discovery CLI tool
-- Per-skill `scripts/` and `resources/` supporting files for select high-value skills
+- Additional skills for Rust, Go, Python, Java and C# ecosystems
+- Running `scripts/validate_skills.py` in CI on every pull request
+
+---
+
+## [3.0.0] — 2026-10-25
+
+### Headline
+
+93 skills became 67. Overlapping skills were merged, every skill was rewritten into a shorter layout with `references/` files, and facts and examples were checked against current documentation (2026-10).
+
+### Breaking changes
+
+- **Merged skills.** 27 skill folders were merged into other skills and one new folder, `android-expert`, was added. Installing v3.0.0 does not remove the old folders; see [INSTALL.md → From v2.x to v3.0.0](./INSTALL.md#from-v2x-to-v300).
+
+  | Old skill (v2.x) | Merged into |
+  |---|---|
+  | `software-architect`, `enterprise-architect` | `solution-architect` |
+  | `schema-org-expert`, `structured-data-expert` | `technical-seo-expert` |
+  | `cypress-expert` | `e2e-testing-expert` |
+  | `jest-expert`, `vitest-expert` | `unit-testing-expert` |
+  | `swiftui-expert`, `uikit-expert` | `swift-expert` |
+  | `android-architecture-expert`, `android-kotlin-expert`, `jetpack-compose-expert` | `android-expert` (new) |
+  | `performance-expert` | `core-web-vitals-expert` |
+  | `performance-optimization-expert` | `scalability-expert` |
+  | `owasp-top-10-expert` | `secure-coding-expert` |
+  | `jwt-expert`, `oauth2-expert` | `authentication-expert` |
+  | `docker-compose-expert` | `docker-expert` |
+  | `github-actions-expert`, `github-expert` | `cicd-expert` |
+  | `vector-database-expert` | `rag-expert` |
+  | `hyperledger-fabric-expert` | `enterprise-blockchain-architect` |
+  | `multi-agent-expert`, `memory-systems-expert` | `ai-agent-architect` |
+  | `langgraph-expert` | `langchain-expert` |
+  | `ubuntu-server-expert` | `linux-expert` |
+  | `openzeppelin-expert` | `solidity-expert` |
+
+- **Frontmatter.** `version` moved under `metadata` (`metadata.version: "3.0.0"`). Only the keys `name`, `description`, `license`, `allowed-tools`, `metadata` and `compatibility` are used.
+- **Body layout.** The 30-section layout was replaced by at most 16 numbered sections (Scope, Core Expertise, Workflow, Decision Rules, Coding Standards, Project Structure, Design Patterns, Best Practices, Performance, Security, Testing, Review Checklist, Production Notes, Examples, Common Mistakes, References). See [docs/skill-structure.md](./docs/skill-structure.md).
+
+### Changed
+
+- Every `SKILL.md` was rewritten: duplicated sections merged (Anti Patterns into Common Mistakes, Thinking Process into Workflow, the two folder trees into one) and generic deployment, logging and monitoring boilerplate removed. Most skills are now 200-400 lines.
+- Deeper material (long examples, extended tables, sub-topics of merged skills, migration guides) moved into `skills/<name>/references/*.md`, which Claude Code reads only when needed.
+- Descriptions are specific to each skill, with a "Use when …" sentence and, where a sibling skill could be confused, a "Not for … (use …)" clause. The 11 shared category sentences that made many skills load together were removed.
+- Versions, APIs and examples were checked against current official documentation in October 2026. Each skill states what it was verified against. Retired models, discontinued tools and outdated APIs were replaced or removed.
+- Insecure example code was fixed (for example secrets in client bundles, untrusted input in CI `run:` steps, missing tenant filters on writes, `NOPASSWD:ALL`, test endpoints reachable in production).
+- `git-expert` now treats force-pushes, deleting remote branches and global Git config changes as steps to take only when the user asks.
+- `INSTALL.md` rewritten: install copies folders without overwriting existing skills; update replaces only the pack's own folders after a backup; uninstall removes only the pack's folders by name, to a backup folder or the Recycle Bin.
+- `README.md`, `CONTRIBUTING.md`, `docs/*` and `examples/example-usage.md` updated for the new layout and names.
+- `templates/skill-template/SKILL.md` rewritten for the new layout.
+- `scripts/` use paths relative to the repository and only write inside it; the validator only reads files and no longer installs packages.
+
+### Removed
+
+- The "Response Style" and "Output Format" sections and persona lines ("You are a Principal …", "final authority"). Your own instructions decide tone and reply format.
+- Documentation of commands that do not exist (`claude restart`, `/skill <name>`). Skills load by description, or directly as `/<skill-name>`.
+- Install instructions that deleted the whole skills folder, other packs' skills, or added antivirus exclusions.
 
 ---
 
@@ -83,9 +135,9 @@ The commands look similar but the **semantics** changed: in v1.x, `cp -r skills/
 
 #### BC-5: Skill discovery mechanism changed
 
-In v1.x, skills were typically invoked manually with `@skill-name`. In v2.0, Claude Code auto-discovers skills by reading the `description` field of every `SKILL.md` and decides whether to activate based on the user's prompt. Manual `/skill <name>` invocation still works but is no longer required for most use cases.
+In v1.x, skills were typically invoked manually with `@skill-name`. In v2.0, Claude Code auto-discovers skills by reading the `description` field of every `SKILL.md` and decides whether to activate based on the user's prompt. (Correction in v3.0.0: Claude Code has no `/skill <name>` command; a skill is called directly as `/<skill-name>`.)
 
-**Migration action**: none — auto-activation is a strict superset of manual invocation. Existing `@skill-name` and `/skill <name>` usage continues to work.
+**Migration action**: none — auto-activation is a strict superset of manual invocation. 
 
 ### Added
 
@@ -288,7 +340,7 @@ All skills listed in the v2.0.0 entry above were originally authored in v1.x wit
 
 This project follows [Semantic Versioning](https://semver.org/):
 
-- **MAJOR** — Incompatible changes to skill structure, filesystem layout, or metadata format (e.g., v1.x → v2.0 migration to the official spec)
+- **MAJOR** — Incompatible changes to skill structure, filesystem layout, or metadata format (e.g., the v1.x → v2.0 layout migration, or the v3.0.0 skill merges)
 - **MINOR** — New skills added in a backwards-compatible manner
 - **PATCH** — Backwards-compatible bug fixes, clarifications, or example improvements
 
@@ -298,13 +350,14 @@ This project follows [Semantic Versioning](https://semver.org/):
 
 1. Update `CHANGELOG.md` under `[Unreleased]` and add a new version header
 2. Bump version in any version-tracking files
-3. Create a git tag: `git tag -a v2.0.0 -m "Release 2.0.0"`
-4. Push the tag: `git push origin v2.0.0`
+3. Create a git tag: `git tag -a vX.Y.Z -m "Release X.Y.Z"`
+4. Push the tag: `git push origin vX.Y.Z`
 5. Create a GitHub Release with the changelog excerpt
 6. Attach a zip of the repository to the release (named `Claude-Code-Ultimate-Pack.zip`)
 
 ---
 
-[Unreleased]: https://github.com/your-org/Claude-Code-Ultimate-Pack/compare/v2.0.0...HEAD
-[2.0.0]: https://github.com/your-org/Claude-Code-Ultimate-Pack/releases/tag/v2.0.0
-[1.0.0]: https://github.com/your-org/Claude-Code-Ultimate-Pack/releases/tag/v1.0.0
+[Unreleased]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/releases/tag/v3.0.0
+[2.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/releases/tag/v2.0.0
+[1.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/releases/tag/v1.0.0
