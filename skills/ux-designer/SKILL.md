@@ -1,566 +1,263 @@
 ---
 name: ux-designer
-description: >
-  Designs evidence-based user experiences grounded in research, information architecture, interaction principles, and behavioral science — validated through usability testing and measured with HEART metrics.
-  
-  Use this skill when building web frontends with React, Next.js, TypeScript, TailwindCSS, shadcn/ui, Framer Motion, or when addressing UI/UX, accessibility, or performance.
+description: >-
+  Plans and evaluates user experience with evidence: choosing research methods, information architecture, interaction design, usability testing and heuristic evaluation (Nielsen), HEART metrics with Goals-Signals-Metrics, form UX, error, empty and loading states, onboarding, and recognizing and avoiding dark patterns. Use when scoping user research, structuring navigation, designing flows and microcopy, writing a usability test plan, defining success metrics, or reviewing a flow for friction and deceptive design. Not for visual design systems, tokens or typography (use ui-designer) or WCAG conformance detail (use accessibility-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# UX Designer
 
----
+This skill covers the decisions that shape how a product works for people: who the users are and what they are trying to do, how content and features are organized, how interactions behave, how to test and measure the result, and where design crosses into manipulation. It is method-oriented and implementation-neutral; code appears only where markup carries UX meaning (forms, error messages).
 
-## 1. Role
+> Verified against Nielsen's 10 usability heuristics (1994, wording refined 2020), the HEART framework (Rodden, Hutchinson and Fu, CHI 2010), ISO 9241-11 and ISO 9241-210, WCAG 2.2 (W3C Recommendation, October 2023), FTC staff report "Bringing Dark Patterns to Light" (2022), EU Digital Services Act Article 25 and the status of the FTC click-to-cancel rule (vacated by the Eighth Circuit in July 2025; ROSCA unaffected) (2026-10).
 
-The UX Designer owns the user's journey: research, synthesis, information architecture, interaction design, prototyping, usability testing, and measurement. This role translates business goals and user needs into validated flows that engineers implement with confidence. The UX Designer refuses opinion-driven design: every flow is grounded in research, every decision traces to a principle, and every assumption is tested.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The UX Designer operates across the full design lifecycle: generative research (contextual inquiry, diary studies), evaluative research (usability testing, A/B testing), synthesis (affinity maps, personas, journey maps), IA (card sorting, tree testing), interaction design (Norman's principles, Fitts's Law, Hick's Law), and measurement (HEART, SUS, NPS, CSAT, CES).
+## 1. Scope
 
-## 2. Mission
+- Covered: problem framing, research planning and synthesis, personas and jobs-to-be-done, information architecture and navigation, flows and interaction patterns, forms, feedback and error states, onboarding, microcopy, usability testing, heuristic evaluation, metrics (HEART, SUS, task success), experiment design basics, dark-pattern review.
+- Not covered: visual design systems, tokens, typography and component styling (ui-designer); detailed WCAG success criteria, ARIA and assistive-technology testing (accessibility-expert); component implementation (shadcn-ui-expert, senior-react-19-engineer); page speed budgets (core-web-vitals-expert); search ranking (technical-seo-expert).
+- Accessibility appears here as a UX requirement (inclusive flows, target sizes, plain language); conformance auditing belongs to accessibility-expert.
 
-Deliver user experiences that are usable, useful, accessible, and measurable. The mission is to make every flow grounded in research, every interaction obeys a cognitive principle, every error is recoverable, and every success metric improves over time. UX is the journey; UI is the surface; both must serve the user's task.
+## 2. Core Expertise
 
-## 3. Core Expertise
+| Area | Key facts |
+|---|---|
+| Usability definition | ISO 9241-11: the extent to which specified users can achieve specified goals with effectiveness, efficiency and satisfaction in a specified context of use. ISO 9241-210 describes human-centred design as iterating: understand context of use, specify requirements, produce design solutions, evaluate against requirements |
+| Nielsen heuristics | Visibility of system status; match between system and the real world; user control and freedom; consistency and standards; error prevention; recognition rather than recall; flexibility and efficiency of use; aesthetic and minimalist design; help users recognize, diagnose and recover from errors; help and documentation |
+| Research landscape | Axes: attitudinal vs behavioral, qualitative vs quantitative, generative (discover problems) vs evaluative (test solutions). Match the method to the question; see [references/research-methods.md](references/research-methods.md) |
+| Information architecture | Organization schemes (topic, task, audience, chronology, alphabet), labeling, navigation systems (global, local, contextual), search; validated with card sorting, tree testing and first-click tests |
+| Interaction design | Affordances and signifiers, feedback, constraints, mapping, conceptual models, gulfs of execution and evaluation (Norman); progressive disclosure; sensible defaults |
+| Response-time limits | Nielsen's widely cited thresholds: about 0.1 s feels instantaneous, about 1 s keeps the user's flow of thought, about 10 s is the limit of attention; beyond 1 s show progress |
+| Laws of interaction | Fitts's law (target acquisition depends on distance and size), Hick's law (decision time grows with the number and complexity of choices); use as directional guidance, not as precise predictors |
+| HEART | Happiness, Engagement, Adoption, Retention, Task success, applied through Goals, Signals, Metrics so each product goal maps to observable signals and metrics |
+| Usability measures | Task success, time on task, error count, Single Ease Question (SEQ), System Usability Scale (SUS: 10 items, scored 0 to 100, which is not a percentage), qualitative issues with severity ratings |
+| Accessibility as UX | WCAG 2.2 adds Target Size (Minimum) 24 by 24 CSS px (2.5.8), Redundant Entry (3.3.7), Accessible Authentication (Minimum) (3.3.8), Focus Not Obscured (Minimum) (2.4.11), Consistent Help (3.2.6); design flows so these are met by default |
+| Deceptive design | Taxonomies: Brignull's types (confirmshaming, roach motel, hidden costs, trick questions, ...) and Gray et al. (2018): nagging, obstruction, sneaking, interface interference, forced action |
 
-- UX vs UI: UX is the journey across touchpoints; UI is the visual surface at each touchpoint.
-- User research methods: generative (contextual inquiry, diary studies, ethnographic field studies), evaluative (usability testing, A/B testing, heuristic evaluation); attitudinal vs behavioral; qualitative vs quantitative.
-- Research synthesis: affinity mapping, personas, journey maps, empathy maps, storyboards, Jobs-to-be-Done (JTBD).
-- Information architecture: organization systems, labeling, navigation, search; card sorting (open vs closed), tree testing, sitemaps, content inventory, content audit.
-- Interaction design principles (Don Norman): visibility, feedback, constraint, consistency, affordance, signifiers, mapping, conceptual models.
-- Gulf of execution and evaluation; bridging both with clear signifiers and feedback.
-- Cognitive laws: Fitts's Law (target acquisition), Hick's Law (decision time), Miller's Law (7±2), Jakob's Law (users expect your site to work like others), Parkinson's Law (work expands), Tesler's Law (conservation of complexity).
-- Design patterns: breadcrumbs, infinite scroll vs pagination, mega menus, accordion, modal vs drawer vs page, empty/loading/error/success states.
-- Wireframing: low-fi, mid-fi, high-fi; fidelity progression aligned to research stage.
-- Prototyping: clickable, code-based, Figma prototyping, conditional logic, Figma variables.
-- Usability testing: moderated vs unmoderated, remote vs in-person, sample size (Nielsen's 5), think-aloud, task success, time-on-task, error rate, SUS, NPS, CSAT, CES.
-- Accessibility-first UX: WCAG 2.2 AA from day one, screen reader testing, keyboard-only testing, cognitive accessibility, plain language, dyslexia-friendly typography.
-- Inclusive design: permanent, temporary, situational disabilities; Microsoft Inclusive Design principles.
-- Behavior design: BJ Fogg Behavior Model (B=MAT), Nir Eyal Hook Model (trigger, action, variable reward, investment).
-- UX writing: microcopy, error messages, empty states, button labels, plain language.
-- UX metrics: HEART (Happiness, Engagement, Adoption, Retention, Task Success); RAIL for performance.
-- UX research ethics: informed consent, data minimization, vulnerability, debriefing.
+## 3. Workflow
 
-## 4. Responsibilities
+1. **Frame the problem**: who is affected, what they are trying to accomplish (job), what happens today, what evidence exists (analytics, support tickets, prior research), what decision the work will inform.
+2. **Plan research**: write research questions, pick methods that can answer them ([references/research-methods.md](references/research-methods.md)), define participants and screener, plan consent and data handling.
+3. **Synthesize**: cluster observations (affinity mapping), separate observations from interpretations, name the user needs and pain points with supporting evidence; keep the sample size visible.
+4. **Structure**: define content inventory and IA, user flows (entry points, happy path, edge cases, error recovery), and states for each screen (empty, loading, partial, error, success, offline, permission denied).
+5. **Design interactions**: low-fidelity wireframes or prototypes, microcopy, form behavior, validation timing, destructive-action handling. Review with the Nielsen heuristics and a dark-pattern check.
+6. **Test**: moderated or unmoderated usability tests on a prototype or build ([references/usability-testing.md](references/usability-testing.md)); fix by severity; retest.
+7. **Define success**: pick HEART dimensions that matter, set Goals, Signals and Metrics, baseline before the change, and plan how results will be read (including guardrail metrics).
+8. **Hand off and learn**: annotated flows with states and content, acceptance criteria that cover error and empty states, and a plan to review post-launch data and feedback.
 
-- Plan and conduct generative and evaluative research with appropriate methods per question.
-- Synthesize research into artifacts (personas, journey maps, JTBD statements) that drive decisions.
-- Define the information architecture: sitemap, navigation, labeling, search.
-- Design interaction flows that obey cognitive principles and accessibility constraints.
-- Prototype at the right fidelity for the research question.
-- Conduct usability testing with a representative sample and document findings.
-- Define and track UX metrics (HEART, SUS, NPS, CSAT, CES).
-- Write UX copy: microcopy, error messages, empty states, button labels.
-- Embed accessibility from day one: WCAG 2.2 AA, screen reader, keyboard, cognitive.
-- Govern research ethics: informed consent, data minimization, debriefing.
+## 4. Decision Rules
 
-## 5. Thinking Process
+- Method follows the question. "What problems exist?" needs generative methods (interviews, field studies, diary studies). "Can people use this?" needs usability testing. "How many and how often?" needs analytics or surveys. "Which labels and structure work?" needs card sorting and tree testing.
+- Observe behavior for behavior questions; use interviews and surveys for motivations and attitudes, and do not treat stated intentions as predictions of behavior.
+- Qualitative sample sizes are small and iterative; quantitative claims need adequately sized samples and stated uncertainty. Do not generalize percentages from a handful of sessions.
+- Choose navigation depth by content and task frequency: broad-and-shallow tends to beat deep hierarchies when labels are clear, but test with tree testing rather than assuming.
+- Modal vs inline vs separate page: modals for short, focused, interruptible decisions; inline editing for low-risk changes; separate pages for long tasks, anything users may bookmark, or content that needs space.
+- Confirmation dialogs vs undo: for reversible actions prefer an action followed by Undo; use a confirmation naming the object and consequence for irreversible or high-impact actions.
+- Required data: ask only for what the task needs now. Defer account creation until value is demonstrated when the product allows it; do not request the same information twice in a flow (WCAG 3.3.7 Redundant Entry).
+- Validation timing: validate on blur or on submit, not on each keystroke, except for helpers such as password strength or character counters; keep the user's input after an error.
+- A/B test only when there is a hypothesis, one primary metric, guardrail metrics, a precomputed sample size and a fixed analysis plan. Do not stop early because a result looks good.
+- Persuasion is acceptable when it helps users reach their own goals and is honest; it becomes a dark pattern when it hides information, obstructs a choice or exploits a bias against the user's interest.
+- Personas: use evidence-based archetypes tied to jobs and behaviors, not invented demographics. If there is no research, label them as hypotheses.
 
-Every UX decision begins with the user's task: what are they trying to accomplish, in what context, with what prior experience? The designer then selects the research method that answers the question (generative for "why", evaluative for "how well"), conducts the research with a representative sample, and synthesizes findings into artifacts that drive decisions.
+## 5. Coding Standards
 
-Every interaction decision applies a cognitive principle: Fitts's Law for target sizing, Hick's Law for choice reduction, Jakob's Law for convention adherence, Norman's principles for feedback and visibility. The designer never violates a principle without a documented reason.
+Deliverable and content conventions (the equivalent of code standards for UX work):
 
-Every flow is then validated through usability testing with at least 5 participants (Nielsen's threshold for uncovering 85% of problems), and success is measured against HEART metrics that improve over time.
+- Name flows by user goal ("Reset password", "Invite teammate"), screens by purpose, and states explicitly (`empty`, `loading`, `error`, `success`).
+- Write interface text in plain language, active voice, with the user's vocabulary; buttons start with a verb ("Save changes", "Send invoice"); avoid "OK/Cancel" for consequential choices.
+- Error messages say what happened, why if known, and what to do next; never blame the user and never show raw codes or stack traces without a human sentence.
+- Labels are visible and persistent; placeholders are examples, not labels. Mark optional fields as optional and be consistent about how required fields are indicated.
+- Keep terminology consistent across navigation, page titles, buttons and help; keep a glossary of product terms.
+- Document assumptions and open questions on every flow; link each design decision to the research evidence or heuristic behind it.
+- Specify interactive behavior (focus order, keyboard operation, what happens on failure, timeouts) alongside visuals.
+- Use standard patterns and platform conventions unless testing shows a better alternative (consistency and standards).
 
-## 6. Decision Making Rules
-
-- When research and opinion conflict, choose research because opinion is uncalibrated.
-- When behavioral and attitudinal data conflict, choose behavioral because what people do beats what they say.
-- When convention and innovation conflict, choose convention (Jakob's Law) because users expect your site to work like others.
-- When simplicity and feature completeness conflict, choose simplicity (Tesler's Law) because complexity must be absorbed by the system, not the user.
-- When pagination and infinite scroll conflict, choose pagination for task-oriented lists and infinite scroll for discovery flows.
-- When modal and page conflict, choose page for non-interruptive tasks and modal for focused, short interactions.
-- When A/B testing and qualitative research conflict, choose both because each answers a different question.
-- When accessibility and aesthetics conflict, choose accessibility because compliance is non-negotiable.
-- When auto-advance and user control conflict, choose user control because users with motor impairments cannot react in time.
-- When personalization and consistency conflict, choose consistency because predictability beats novelty.
-
-## 7. Architecture Rules
-
-- Always start with research; never design without evidence.
-- Always define the information architecture before the visual design.
-- Always map the user journey end to end before designing individual screens.
-- Always design empty, loading, error, and success states for every flow.
-- Always write UX copy alongside the design; never leave it as an afterthought.
-- Always embed WCAG 2.2 AA from day one; never retrofit accessibility.
-- Always conduct usability testing with at least 5 participants per round.
-- Always define HEART metrics per feature and track them in production.
-- Always document research findings in a searchable repository.
-- Always obtain informed consent before recording any participant.
-
-## 8. Coding Standards
-
-- Always use semantic HTML that matches the documented IA.
-- Always label interactive elements with the UX-approved microcopy.
-- Always implement empty, loading, error, and success states per the UX spec.
-- Always wire analytics events that map to HEART metrics.
-- Always respect `prefers-reduced-motion` per the UX motion spec.
-- Always implement keyboard navigation per the UX accessibility spec.
-- Always use the documented design tokens; never invent values.
-- Always render focus-visible states per the UX accessibility spec.
-- Always validate forms with the documented error messages.
-- Never bypass the documented flow with ad-hoc shortcuts.
-
-## 9. Naming Conventions
-
-- Personas: PascalCase with a role descriptor (`StartupSara`, `EnterpriseEric`).
-- Journey maps: `<Persona>-<Goal>-Journey` (`StartupSara-Onboarding-Journey`).
-- JTBD statements: `When <situation>, I want to <motivation>, so I can <expected outcome>`.
-- Flows: `<Feature>-<Action>-Flow` (`Checkout-Purchase-Flow`).
-- Wireframes: `<Feature>-<Screen>-<State>-<Fidelity>` (`Checkout-Payment-Error-HighFi`).
-- Research studies: `<Topic>-<Method>-<Date>` (`Onboarding-UsabilityTest-2024-11`).
-- HEART metrics: `<Feature>-<Category>-<Metric>` (`Onboarding-Adoption-SignupRate`).
-- UX copy keys: `<feature>.<screen>.<element>` (`checkout.payment.error`);
-- Empty states: `<Feature>-Empty` (`SearchResults-Empty`).
-- Error states: `<Feature>-Error-<ErrorType>` (`Checkout-Error-PaymentDeclined`).
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
 ux/
-├── research/                  # Research artifacts
-│   ├── studies/               # Per-study folders
-│   │   └── onboarding-usability-2024-11/
-│   │       ├── plan.md
-│   │       ├── script.md
-│   │       ├── notes/
-│   │       └── report.md
-│   ├── synthesis/             # Personas, journey maps, affinity maps
-│   │   ├── personas/
-│   │   ├── journey-maps/
-│   │   └── affinity-maps/
-│   └── repository.md          # Searchable index
-├── ia/                        # Information architecture
+├── research/
+│   ├── plan.md                  # questions, methods, participants, ethics, timeline
+│   ├── screener.md
+│   ├── notes/                   # session notes by participant ID (no direct identifiers)
+│   └── synthesis.md             # themes, evidence, confidence, open questions
+├── strategy/
+│   ├── jobs-and-personas.md
+│   └── metrics.md               # HEART goals, signals, metrics, baselines
+├── ia/
+│   ├── content-inventory.csv
 │   ├── sitemap.md
-│   ├── navigation.md
-│   ├── labeling.md
-│   ├── card-sorts/
-│   └── tree-tests/
-├── flows/                     # Interaction flows
-│   ├── checkout/
-│   ├── onboarding/
-│   └── settings/
-├── wireframes/                # Low/mid/high-fi
-│   └── checkout/
-├── prototypes/                # Clickable and code-based
-├── metrics/                   # HEART dashboards
-│   └── heart.md
-├── copy/                      # UX copy
-│   └── microcopy.md
-└── ethics/                    # Consent forms, debriefs
+│   └── tree-test-results.md
+├── flows/
+│   └── <flow-name>.md           # steps, decisions, states, error paths
+├── tests/
+│   ├── <round>-plan.md          # tasks, success criteria, scripts
+│   └── <round>-findings.md      # issues with severity and recommended fixes
+└── content/
+    └── microcopy.md             # labels, errors, empty states, confirmations
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-my-app/
-├── .github/workflows/
-│   └── ci.yml
-├── public/
-├── src/
-│   ├── app/
-│   ├── components/
-│   ├── lib/
-│   └── features/
-├── ux/                        # UX workspace, lives alongside code
-│   ├── research/
-│   ├── ia/
-│   ├── flows/
-│   ├── wireframes/
-│   ├── prototypes/
-│   ├── metrics/
-│   ├── copy/
-│   └── ethics/
-├── docs/
-│   └── ux-repository.md
-├── .eslintrc.cjs
-├── package.json
-└── tsconfig.json
-```
+- **Jobs-to-be-done statement**: "When [situation], I want to [motivation], so I can [outcome]." Anchors flows to goals instead of features.
+- **Journey map**: stages, user actions, thoughts, emotions, pain points and opportunities, with evidence for each claim.
+- **Progressive disclosure**: show the common path first and reveal advanced options on request; keep the path back obvious.
+- **State coverage**: every data-driven view specifies empty (explain and offer the next action), loading (skeleton or progress for waits over about a second), partial, error (with retry), success and permission-denied states.
+- **Undo over confirm**: soft delete, toast with Undo, trash with restore.
+- **Guided first run**: checklist, sample data or templates, and contextual hints rather than a forced tour; always skippable.
+- **Smart defaults and autofill**: prefill from known context, use `autocomplete` tokens, let users change defaults.
+- **Wizard for complex tasks**: show progress and allow going back without data loss; keep steps few and each step single-purpose.
+- Detailed pattern guidance for forms, errors and onboarding: [references/forms-errors-onboarding.md](references/forms-errors-onboarding.md).
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Jobs-to-be-Done (JTBD)
-When to use: framing user needs during research. When not to use: tactical UI decisions. Sketch: `When I receive an invoice, I want to approve it quickly, so I can keep my cash flow predictable.`
+- Involve users early and repeatedly; a few sessions on a rough prototype beat one large study after build.
+- Test the riskiest assumption first (can they find it, understand it, complete it).
+- Separate problem discovery from solution evaluation; do not ask participants to design the solution.
+- Make research findings actionable: each finding has evidence, impact, a severity and a proposed direction.
+- Keep one source of truth for flows and copy; stale screenshots cause rework.
+- Design for the whole range of users and contexts: slow networks, small screens, one-handed use, assistive technology, interruptions, non-native language.
+- Reduce cognitive load: fewer choices at once, recognition over recall, chunked information, consistent placement.
+- Make system status visible, especially for asynchronous work (uploads, payments, background jobs): what is happening, how long, what happens next.
+- Provide help in context (hints, inline explanations) and an escape hatch (contact, undo, back).
+- Treat microcopy as part of the interface; review it in context, not in a spreadsheet only.
 
-### Journey Map
-When to use: designing end-to-end experiences. When not to use: single-screen optimizations. Sketch: phases (Awareness, Consideration, Onboarding, Use, Support) with emotions, touchpoints, and pain points per phase.
+## 9. Performance
 
-### Affinity Mapping
-When to use: synthesizing qualitative research. When not to use: quantitative analysis. Sketch: sticky notes clustered into themes, themes into insights.
+- Perceived performance is UX: use the response-time limits (about 0.1 s, 1 s, 10 s) to decide between instant feedback, a spinner or skeleton, and a progress indicator with remaining-time or step information.
+- Optimistic UI (show success immediately, reconcile in the background) suits low-risk, highly reliable actions; always handle and surface the failure case.
+- Skeleton screens help layout stability for content loads; use determinate progress for long operations and allow cancel.
+- Avoid layout shifts and moving targets: content that jumps under the pointer causes mis-taps (coordinate with core-web-vitals-expert for measurement).
+- Reduce effort, not only time: fewer steps, fewer fields, remembered preferences, keyboard shortcuts for expert users (flexibility and efficiency of use).
+- Mobile: keep primary actions within reach, ensure touch targets are comfortably large (WCAG 2.2 sets a 24 by 24 CSS px minimum; larger is better for primary actions), and avoid hover-only interactions.
 
-### Card Sorting
-When to use: validating IA. When not to use: when IA is fixed. Sketch: open sort for category discovery, closed sort for category validation, tree testing for navigation validation.
+## 10. Security
 
-### Empty / Loading / Error / Success States
-When to use: every async flow. When not to use: never. Sketch: empty state with an illustration and a primary action; loading skeleton; error with recovery; success with confirmation.
+- Research ethics and privacy: obtain informed consent, explain recording and data use, minimize personal data, store recordings and notes securely with restricted access, set retention periods, and honor deletion requests. Follow applicable law such as GDPR where it applies.
+- Never use real customer data in prototypes or shared research artifacts without permission; redact screenshots.
+- Security UX: do not block paste in password fields (it prevents password managers); offer show/hide password; give generic messages on login failure that do not reveal whether an account exists; explain why MFA is requested and provide recovery options.
+- Make security warnings specific, rare and actionable; alert fatigue trains users to click through. Do not use scare tactics or false urgency.
+- WCAG 2.2 Accessible Authentication (Minimum) means login should not depend on a cognitive function test (memorizing or transcribing) without an alternative such as paste, password managers or a different method.
+- Permission requests (location, camera, notifications): explain the benefit in context before the system prompt and keep the product usable if the user declines.
+- Destructive and financial actions need clear scope, consequence and, when high-impact, additional verification.
 
-### Modal vs Drawer vs Page
-When to use: modal for focused short tasks, drawer for side-anchored context, page for non-interruptive tasks. When not to use: modal for long flows. Sketch: confirm-delete modal; cart drawer; checkout page.
+## 11. Testing
 
-### Behavior Design Loop (Hook Model)
-When to use: habit-forming products. When not to use: enterprise tools where habit is irrelevant. Sketch: trigger → action → variable reward → investment.
+- Usability testing: realistic task scenarios, think-aloud for qualitative insight, success criteria defined before sessions, note-takers separate from the moderator, severity ratings after. Details and templates in [references/usability-testing.md](references/usability-testing.md).
+- Heuristic evaluation: several evaluators review independently against the heuristics, then consolidate; it finds likely problems but does not replace testing with users.
+- Cognitive walkthrough: step through a task asking, at each step, whether the user will know what to do, notice the correct action, connect it to their goal and see progress.
+- IA validation: closed card sort for labels, open card sort for grouping ideas, tree testing for findability, first-click testing for entry points.
+- Quantitative: SUS for overall perceived usability, SEQ per task, task success and time, funnel analytics for drop-off, experiments for causal questions.
+- Accessibility checks within usability testing: include participants who use assistive technology when possible; keyboard-only passes of key flows.
+- Retest after changes; track whether fixes removed the problem rather than assuming.
 
-## 13. Best Practices
+## 12. Review Checklist
 
-- Always start with research; never design without evidence.
-- Always define the IA before the visual design.
-- Always map the user journey end to end.
-- Always design empty, loading, error, and success states.
-- Always write UX copy alongside the design.
-- Always embed WCAG 2.2 AA from day one.
-- Always conduct usability testing with at least 5 participants.
-- Always define and track HEART metrics.
-- Always document research findings in a searchable repository.
-- Always obtain informed consent.
-- Always apply cognitive principles (Fitts, Hick, Miller, Jakob).
-- Always reduce cognitive load (Miller's Law: 7±2).
+- [ ] The problem, target users and success measures are written down and agreed.
+- [ ] Research claims cite evidence and state sample size and method limits.
+- [ ] Each flow covers entry points, the happy path, errors, empty states, and recovery.
+- [ ] Navigation labels use user vocabulary and were validated or are flagged as untested.
+- [ ] System status is visible for waits and background work.
+- [ ] Users can undo, cancel or go back; destructive actions are clear and reversible where possible.
+- [ ] Forms: visible labels, correct input types and `autocomplete`, validation on blur or submit, inline errors tied to fields, input preserved after error.
+- [ ] Error messages are specific, blame-free and offer a next step.
+- [ ] No dark patterns: choices are symmetric, costs and renewal terms are clear before commitment, cancel is as easy as sign-up, defaults serve the user.
+- [ ] Targets, focus order, keyboard operation and reduced-motion behavior are specified (details with accessibility-expert).
+- [ ] Metrics have baselines, guardrails and an owner for reading them.
 
-## 14. Anti Patterns
+## 13. Production Notes
 
-### Anti-pattern: Designing without research
-Why wrong: opinion is uncalibrated; you ship the wrong flow. Correct alternative: conduct at least one generative study per feature.
+- Instrument before launch: baseline the HEART signals you plan to move, and confirm events fire correctly in staging.
+- Release behind flags when possible, so qualitative feedback and metrics can inform rollout; keep a rollback path for UX regressions.
+- Watch both quantitative signals (task completion, drop-off, error rates, support contacts) and qualitative ones (support tickets, session recordings where consent allows, open-text feedback).
+- Experiments: run for the planned duration, do not peek and stop on a favorable blip, report effect sizes with uncertainty, and check guardrails (for example support contacts, refunds, cancellations).
+- Keep a research repository so findings are searchable and reused; stale insights should be dated.
+- Regulatory context for subscriptions and consent: the FTC's 2022 dark-patterns staff report and enforcement under ROSCA in the United States, and Article 25 of the EU Digital Services Act for online platforms, are relevant to cancellation flows, pricing disclosure and consent interfaces. The FTC click-to-cancel rule was vacated by the Eighth Circuit in July 2025 on procedural grounds, while ROSCA and state automatic-renewal laws remain; confirm current requirements with legal counsel for your markets.
+- Localization affects UX: text expansion, date and number formats, right-to-left layouts and cultural conventions should be tested, not assumed.
 
-### Anti-pattern: Skipping empty/error states
-Why wrong: users hit dead ends; bounce. Correct alternative: design all four states (empty, loading, error, success).
+## 14. Examples
 
-### Anti-pattern: Modal overload
-Why wrong: interrupts flow, traps keyboard users, breaks on mobile. Correct alternative: use pages for non-interruptive tasks; reserve modals for focused short tasks.
+HEART metrics plan for a redesigned invoice-approval flow (Goals, Signals, Metrics):
 
-### Anti-pattern: Jargon-filled microcopy
-Why wrong: increases cognitive load, excludes users. Correct alternative: plain language at a 6th-grade reading level.
-
-### Anti-pattern: Auto-advance carousels
-Why wrong: users with motor impairments cannot react; screen readers miss content. Correct alternative: user-controlled advance with pause.
-
-### Anti-pattern: Metrics without baselines
-Why wrong: cannot tell if a change improved things. Correct alternative: capture baseline HEART metrics before redesign.
-
-## 15. Performance Rules
-
-- Always design for sub-2-second LCP; perceived performance is UX.
-- Always design skeletons that approximate the final layout to reduce CLS.
-- Always design optimistic UI for actions under 200 ms perceived latency.
-- Always limit choices to reduce Hick's Law decision time.
-- Always position primary actions within the thumb zone on mobile.
-- Always reserve space for ads and embeds to prevent CLS.
-- Always defer non-critical UI to keep INP under 200 ms.
-- Always preload the LCP image per the UX content priority.
-
-## 16. Security Rules
-
-- Never display sensitive data (full SSN, full card numbers) in plain UI.
-- Always mask sensitive fields and reveal on demand with audit logging.
-- Always write microcopy that discourages phishing (clear sender, no threats).
-- Always design 2FA flows that are scam-resistant.
-- Always obtain informed consent for data collection.
-- Always provide a clear privacy notice at the point of collection.
-- Always design for data minimization; never collect more than needed.
-- Always design account deletion flows that comply with regulations.
-
-## 17. Testing Strategy
-
-- Always conduct moderated usability testing for new flows.
-- Always conduct unmoderated testing for established flows.
-- Always test with at least 5 participants per Nielsen's threshold.
-- Always test with assistive technology users at least once per quarter.
-- Always test on real devices, not just emulators.
-- Always test in the user's environment when possible.
-- Always measure task success, time-on-task, and error rate.
-- Always collect SUS, NPS, CSAT, CES per study.
-- Always run A/B tests for high-traffic decisions.
-- Always debrief participants and document findings.
-
-## 18. Documentation Standards
-
-- Document every research study with plan, script, notes, and report.
-- Document personas with name, role, goals, frustrations, and quote.
-- Document journey maps with phases, emotions, touchpoints, pain points.
-- Document IA with sitemap, navigation, labeling, and search.
-- Document flows with step-by-step text and a visual diagram.
-- Document UX copy in a microcopy dictionary keyed by feature.
-- Document HEART metrics with definitions, baselines, and targets.
-- ADRs record major flow changes and their research basis.
-
-## 19. Code Review Checklist
-
-- [ ] Implementation matches the documented flow.
-- [ ] Empty, loading, error, and success states implemented.
-- [ ] UX copy matches the microcopy dictionary.
-- [ ] Keyboard navigation matches the accessibility spec.
-- [ ] Focus-visible styles present.
-- [ ] `prefers-reduced-motion` respected.
-- [ ] Analytics events wired to HEART metrics.
-- [ ] Form validation messages match the UX spec.
-- [ ] Touch targets 44x44 minimum on mobile.
-- [ ] Semantic HTML matches the documented IA.
-- [ ] Design tokens used; no invented values.
-- [ ] Modal traps focus and returns it on close.
-- [ ] Pagination or infinite scroll per the UX spec.
-- [ ] No auto-advance without user control.
-- [ ] Plain language at a 6th-grade reading level.
-- [ ] Sensitive data masked per the security spec.
-- [ ] A/B test variants wired to the experiment platform.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace ad-hoc empty states with the documented pattern.
-- [ ] Replace opinion-driven copy with plain-language microcopy.
-- [ ] Replace modal overload with page-based flows.
-- [ ] Replace auto-advance with user-controlled advance.
-- [ ] Replace invented spacing with design tokens.
-- [ ] Replace missing focus styles with `focus-visible`.
-- [ ] Replace jargon with plain language.
-- [ ] Replace paginated lists with infinite scroll only for discovery flows.
-- [ ] Replace untracked flows with HEART-instrumented flows.
-- [ ] Replace opinion-driven IA with card-sort-validated IA.
-
-## 21. Deployment Checklist
-
-- [ ] HEART metrics instrumented and verified in staging.
-- [ ] A/B test variants configured and QA'd.
-- [ ] Empty, loading, error, success states verified.
-- [ ] Keyboard navigation verified.
-- [ ] Screen reader test passed.
-- [ ] Usability test passed with 5 participants.
-- [ ] Plain-language review passed.
-- [ ] Accessibility audit passed (axe + manual).
-- [ ] Analytics events firing correctly.
-- [ ] Privacy notice present at data collection points.
-- [ ] Informed consent flow tested.
-- [ ] Rollback plan documented.
-- [ ] Feature flag configured.
-- [ ] Support team briefed on the new flow.
-- [ ] On-call runbook updated.
-- [ ] UX research repository updated.
-
-## 22. Production Checklist
-
-- [ ] HEART dashboard live with baselines and targets.
-- [ ] SUS, NPS, CSAT, CES surveys deployed.
-- [ ] A/B test running with sufficient sample size.
-- [ ] Accessibility monitoring (axe in CI) green.
-- [ ] Error rate monitored; alert above threshold.
-- [ ] Task success rate monitored.
-- [ ] Time-on-task monitored.
-- [ ] User feedback channel monitored.
-- [ ] Support tickets tagged to the new flow.
-- [ ] Privacy compliance verified.
-- [ ] Consent records retained per policy.
-- [ ] Research findings published in the repository.
-- [ ] On-call runbook links to the flow documentation.
-- [ ] UX copy dictionary up to date.
-- [ ] Personas and journey maps current.
-- [ ] Quarterly assistive-tech test scheduled.
-
-## 23. Logging Strategy
-
-- Always log task success and time-on-task as behavioral metrics.
-- Always log empty, error, and success state impressions.
-- Always log A/B variant assignments with a stable user ID.
-- Always log microcopy impressions for language testing.
-- Always log flow drop-off per step.
-- Always log assistive-technology usage (anonymized).
-- Always log consent decisions.
-- Never log free-text feedback without sanitization.
-- Always log UX-relevant errors with the flow step.
-- Always log HEART metric events with the feature name.
-
-## 24. Monitoring Strategy
-
-- Always monitor task success rate per flow.
-- Always alert when task success rate drops below baseline by 5%.
-- Always monitor time-on-task; alert when p75 increases by 20%.
-- Always monitor error rate per flow step.
-- Always monitor SUS, NPS, CSAT, CES trends.
-- Always monitor A/B test significance and effect size.
-- Always monitor accessibility violations in production.
-- Always monitor flow drop-off; alert when drop-off increases by 10%.
-- Always monitor user feedback channels.
-- Always monitor support ticket themes per flow.
-
-## 25. Error Handling
-
-- Always design error states with a clear message and a recovery action.
-- Always write error microcopy in plain language without blame.
-- Always preserve user input when an error occurs.
-- Always log errors with the flow step and the user's last action.
-- Always offer a "contact support" affordance with a `traceId`.
-- Always validate input inline before submission when possible.
-- Always distinguish between recoverable and unrecoverable errors.
-- Always handle network errors with retry and a clear status.
-- Always render an empty state when no error occurred but data is absent.
-- Never expose stack traces or internal error codes to users.
-
-## 26. Examples
-
-### Example 1: JTBD statement and journey map sketch
-
-```md
-# Job Statement
-When I receive an invoice from a vendor,
-I want to approve it in under 30 seconds,
-so I can keep my cash flow predictable and avoid late fees.
-
-# Journey Map: Approver — Invoice Approval
-Phases: Receive → Review → Approve → Confirm
-
-## Receive
-- Emotion: neutral
-- Touchpoint: email notification
-- Pain point: email subject is generic; approver opens the wrong invoice
-
-## Review
-- Emotion: anxious
-- Touchpoint: invoice detail screen
-- Pain point: vendor name and amount are below the fold
-
-## Approve
-- Emotion: relieved
-- Touchpoint: approve button
-- Pain point: button is disabled until a budget code is selected, but the field is not obvious
-
-## Confirm
-- Emotion: confident
-- Touchpoint: success toast
-- Pain point: no link to the next pending invoice
+```text
+Dimension     Goal                              Signal                         Metric (baseline first)
+Happiness     Approvers feel in control         Post-task rating               SEQ per task, SUS each quarter
+Engagement    Approvers act within the tool     Approvals made in-app          Approvals per approver per week
+Adoption      New approvers complete first      First approval completed       Share of invited approvers who approve within 7 days
+Retention     Approvers keep using the tool     Active in consecutive weeks    Weekly active approvers, 8-week retention
+Task success  Approvals are fast and correct    Approval completed w/o error   Completion rate, median time, error and reversal rate
+Guardrails    No loss in review quality         Rejected-after-approval        Reversal rate, support contacts per 100 approvals
 ```
 
-### Example 2: Empty / loading / error / success states
+Accessible form field with hint and inline error (the UX contract: visible label, input purpose, error tied to the field, input preserved):
 
-```tsx
-// src/features/search/components/search-results.tsx
-import { useSearch } from '../hooks/use-search';
-import { SearchEmpty } from './search-empty';
-import { SearchSkeleton } from './search-skeleton';
-import { SearchError } from './search-error';
-
-export function SearchResults({ query }: { query: string }) {
-  const { data, error, isLoading } = useSearch(query);
-  if (!query) return <SearchEmpty reason="no-query" />;
-  if (isLoading) return <SearchSkeleton />;
-  if (error) return <SearchError message={error.message} onRetry={() => location.reload()} />;
-  if (!data?.length) return <SearchEmpty reason="no-results" query={query} />;
-  return (
-    <ul role="list" aria-label={`Search results for ${query}`}>
-      {data.map((item) => <li key={item.id}>{item.title}</li>)}
-    </ul>
-  );
-}
+```html
+<div class="field">
+  <label for="email">Work email</label>
+  <input id="email" name="email" type="email" autocomplete="email"
+         inputmode="email" required aria-describedby="email-hint email-error"
+         aria-invalid="true" value="ana@exmaple.com">
+  <p id="email-hint">We send the invoice approval link here.</p>
+  <p id="email-error" role="alert">
+    This address does not look right. Check for typos, for example "example.com".
+  </p>
+</div>
 ```
 
-### Example 3: HEART metrics instrumentation
+Usability test task scenario (neutral wording, success criteria, no instructions on where to click):
 
-```ts
-// src/lib/analytics/heart.ts
-type HeartEvent =
-  | { category: 'happiness'; feature: string; score: number; source: 'nps' | 'csat' | 'ces' }
-  | { category: 'engagement'; feature: string; metric: 'sessions-per-user' | 'time-in-app'; value: number }
-  | { category: 'adoption'; feature: string; metric: 'signup-rate' | 'feature-enable-rate'; value: number }
-  | { category: 'retention'; feature: string; metric: 'd1' | 'd7' | 'd30'; value: number }
-  | { category: 'task-success'; feature: string; metric: 'completion-rate' | 'time-on-task'; value: number };
+```text
+Scenario: Your manager forwarded you an invoice from Northwind that needs your approval
+before Friday. You do not remember how the new system works.
 
-export function trackHeart(event: HeartEvent): void {
-  window.analytics?.track('heart', event);
-}
+Task: Approve the invoice from Northwind, or tell us what stops you.
 
-// Usage in a flow
-trackHeart({ category: 'task-success', feature: 'invoice-approval', metric: 'completion-rate', value: 1 });
-trackHeart({ category: 'task-success', feature: 'invoice-approval', metric: 'time-on-task', value: 18_000 });
+Success: Invoice status shows Approved and the participant can say what happens next.
+Record: success (yes / yes with help / no), time on task, errors, path taken, verbatim
+comments, SEQ rating (1-7: "Overall, how easy or difficult was this task?").
+Stop condition: 5 minutes or participant gives up.
 ```
 
-## 27. Common Mistakes
+## 15. Common Mistakes
 
-### Mistake: Designing without research
-What: building a flow based on the designer's preference. Why wrong: ships the wrong flow; users bounce. How to avoid: conduct at least one generative study per feature; document findings.
+- **Designing without research or evidence**: opinions replace data. State assumptions and test the riskiest ones.
+- **Asking participants what they would do or want**: stated preferences predict poorly. Watch tasks, ask about past behavior.
+- **Leading questions and tasks** ("Click the Export button"): reveal the answer. Use goals and scenarios.
+- **Treating a small test as proof of percentages**: qualitative tests find problems; they do not estimate rates.
+- **Placeholder text as the only label**: it disappears on input, fails for memory and accessibility. Use visible labels.
+- **Validating on every keystroke**: shows errors before the user finishes. Validate on blur or submit.
+- **Clearing the form on error or disabling submit without explanation**: users lose work or do not know why they are blocked.
+- **Skipping empty, loading, error and permission states**: these are the states users actually meet first and when things fail.
+- **Modal overload and confirmation fatigue**: reserve modals for decisions that need them; use undo where possible.
+- **Auto-advancing carousels and hidden primary content**: users miss or cannot control the content; avoid them for important information.
+- **Jargon and internal terms in labels**: use the vocabulary users use; validate with tree tests.
+- **Metrics without baselines or guardrails**: improvement cannot be shown and harm can go unnoticed.
+- **Dark patterns for short-term conversion**: confirmshaming, hidden costs, pre-ticked consent, hard-to-find cancellation, fake urgency or scarcity, and nagging damage trust and create legal exposure.
+- **Treating accessibility as a late audit**: target size, focus order, error identification and plain language are cheaper to design in.
+- **Citing statistics without a source**: unsourced figures (for example for conversion lifts or user counts) mislead stakeholders; cite the study or omit the number.
 
-### Mistake: Skipping empty/error states
-What: only designing the happy path. Why wrong: users hit dead ends; bounce. How to avoid: design all four states (empty, loading, error, success) for every flow.
+## 16. References
 
-### Mistake: Modal overload
-What: putting every flow in a modal. Why wrong: interrupts flow, traps keyboard, breaks on mobile. How to avoid: use pages for non-interruptive tasks; modals only for focused short tasks.
-
-### Mistake: Jargon microcopy
-What: "Submit your credentials to authenticate." Why wrong: increases cognitive load, excludes users. How to avoid: "Sign in" in plain language.
-
-### Mistake: Auto-advance carousels
-What: rotating testimonials every 3 seconds. Why wrong: users with motor impairments cannot react; screen readers miss content. How to avoid: user-controlled advance with a pause button.
-
-### Mistake: No HEART baselines
-What: shipping a redesign without baseline metrics. Why wrong: cannot tell if it improved. How to avoid: capture baseline HEART metrics before redesign.
-
-### Mistake: Pagination on discovery flows
-What: paginating a product feed. Why wrong: breaks discovery; users abandon. How to avoid: infinite scroll with virtualization for discovery; pagination for task-oriented lists.
-
-## 28. Professional Workflow
-
-1. Define the research question and select the method (generative vs evaluative).
-2. Recruit 5+ representative participants; obtain informed consent.
-3. Conduct the study; capture audio, screen, and notes.
-4. Synthesize findings into affinity maps, personas, journey maps.
-5. Define the IA: sitemap, navigation, labeling; validate with card sort or tree test.
-6. Sketch low-fi wireframes; review with stakeholders.
-7. Iterate to mid-fi and high-fi; prototype in Figma.
-8. Conduct usability testing with 5 participants; document findings.
-9. Iterate based on findings; retest if major changes.
-10. Define HEART metrics, baselines, and targets.
-11. Write UX copy alongside the design; plain-language review.
-12. Embed accessibility (WCAG 2.2 AA); test with assistive technology.
-13. Hand off to engineering with Dev Mode and a documented spec.
-14. Instrument analytics; verify events fire correctly.
-15. Ship behind a feature flag; monitor HEART metrics for 2 weeks.
-
-## 29. Response Style
-
-- Always answer with the user's task first, the design second.
-- Always cite the research method and finding that supports a decision.
-- Always cite the cognitive principle (Fitts, Hick, Miller, Jakob, Norman) for interaction decisions.
-- Always cite the WCAG 2.2 criterion for accessibility decisions.
-- Never use hedging language; specify exact conditions.
-- Always propose the simplest flow that accomplishes the task.
-- Always close with a checklist of next steps for multi-part answers.
-- Always refuse to write code or copy that violates accessibility or plain-language rules.
-
-## 30. Output Format
-
-- Always prefix code blocks with a language tag (`tsx`, `ts`, `md`).
-- Always include the file path as a comment on the first line.
-- Always separate examples with horizontal rules.
-- Always number workflow steps with ordered lists.
-- Always use checklists for review and deployment sections.
-- Always bold key terms on first use.
-- Always quote WCAG criteria with the criterion ID.
-- Always cite research with the method and sample size.
-- Never inline more than 80 characters of code per line.
-- Always conclude with a one-line summary of the change.
+- [references/research-methods.md](references/research-methods.md): choosing methods, interviews, surveys, diary studies, card sorting and tree testing, analytics and experiments, synthesis, personas and JTBD, ethics.
+- [references/usability-testing.md](references/usability-testing.md): test planning, tasks, moderation, sample sizes, severity ratings, SUS and SEQ, heuristic evaluation and cognitive walkthrough, reporting.
+- [references/forms-errors-onboarding.md](references/forms-errors-onboarding.md): form design and validation, error and empty states, destructive actions, onboarding, microcopy, dark patterns and regulation.
+- Official docs: https://www.nngroup.com/articles/ten-usability-heuristics/ , https://www.w3.org/TR/WCAG22/ , https://www.iso.org/standard/63500.html , https://research.google/pubs/measuring-the-user-experience-on-a-large-scale-user-centered-metrics-for-web-applications/ , https://www.ftc.gov/reports/bringing-dark-patterns-light , https://www.deceptive.design/

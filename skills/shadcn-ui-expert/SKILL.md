@@ -1,639 +1,290 @@
 ---
 name: shadcn-ui-expert
-description: >
-  Ships accessible, themeable, owned component libraries built on Radix UI, Tailwind, cva, and the shadcn/ui copy-paste philosophy — never locked into a package.
-  
-  Use this skill when building web frontends with React, Next.js, TypeScript, TailwindCSS, shadcn/ui, Framer Motion, or when addressing UI/UX, accessibility, or performance.
+description: >-
+  Builds and maintains UIs with shadcn/ui: the shadcn CLI (init, add, apply, view, search, migrate, build), components.json, Radix or Base UI component bases, Tailwind CSS 4 with OKLCH CSS-variable theming, data-slot styling hooks, Field-based forms with React Hook Form or TanStack Form, sonner toasts, Recharts charts, next-themes dark mode, and custom registries. Use when adding or customizing shadcn components, changing theme tokens, wiring a form, publishing a private component registry, or migrating older shadcn code (forwardRef, HSL variables, tailwind.config). Not for general Tailwind configuration (use tailwindcss-master) or a visual design system (use ui-designer).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# shadcn/ui Expert
 
----
+shadcn/ui is a set of components whose source is copied into your repository, plus a CLI and a registry format for distributing them. This skill covers the CLI and `components.json`, picking a component base, theming with Tailwind CSS 4 and OKLCH variables, editing owned components safely, forms, toasts, charts, dark mode and authoring registries. It targets React 19 function components where `ref` is an ordinary prop and `forwardRef` is not used.
 
-## 1. Role
+> Verified against shadcn CLI 4.23.0 (npm `shadcn`, Node >= 20.18.1), Tailwind CSS 4.3.x, React 19.3, next-themes 0.4.6, sonner 2.0.8, Recharts 3.10, Base UI `@base-ui/react` 1.9, unified `radix-ui` 1.8 and the shadcn/ui docs source on GitHub (2026-10).
 
-The shadcn/ui Expert owns the component library built on the shadcn/ui philosophy: components are copied into the codebase, owned, and modified — never installed as a dependency. This role pairs deep Radix UI mastery (accessibility, keyboard navigation, focus management) with Tailwind theming discipline and `cva` variant authoring.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The expert refuses to lock the team into an external package for UI primitives. They establish the `components.json` registry, the `cn` utility, the CSS variable theme, the form integration with `react-hook-form` and `zod`, and the data-table pattern with TanStack Table. They extend the library with custom blocks, registry items, and org-specific components while preserving the upstream merge path.
+## 1. Scope
 
-## 2. Mission
+- Covered: `npx shadcn@latest` commands, `components.json`, choosing and migrating the component base, theme tokens and dark mode, extending components with variants and `data-slot`, the Field form pattern, sonner, the chart component, registries (`registry.json`, `registry-item.json`, namespaces, authentication), the shadcn MCP server.
+- Not covered: Tailwind setup details, plugins and config beyond shadcn needs (tailwindcss-master), designing a brand or token system from scratch (ui-designer), WCAG conformance review (accessibility-expert), Next.js routing and rendering (nextjs-15-architect), React 19 state and data patterns (senior-react-19-engineer), animation (framer-motion-expert).
 
-Deliver a component library that is accessible out of the box, themeable via CSS variables, owned by the team, and mergeable with upstream shadcn/ui updates. The mission is to make accessibility and theming the default, not an opt-in, and to never ship a component that fails an axe audit or a keyboard-only test.
+## 2. Core Expertise
 
-## 3. Core Expertise
+| Area | Key facts |
+|---|---|
+| Package and runner | The CLI package is `shadcn` (run `npx shadcn@latest <command>`, or `pnpm dlx` / `bunx --bun`). Component code imports `shadcn/tailwind.css` in your CSS, so `shadcn` is also a dependency until you run `eject` |
+| Commands | `init` (alias `create`), `add`, `apply`, `preset` (`decode`, `resolve`/`info`, `url`, `open`), `view`, `search` (alias `list`), `build`, `docs`, `info`, `migrate`, `eject`, `mcp init` |
+| Component bases | `init --base` accepts `base` (Base UI), `radix` and `aria`. Style IDs combine base and style, for example `radix-nova` and `base-nova`; `style` cannot be changed after init |
+| Primitives | Radix projects import from the unified `radix-ui` package and use `asChild`; Base UI projects import from `@base-ui/react/<part>` and use the `render` prop instead of `asChild` |
+| Tailwind 4 | No `tailwind.config`: leave `tailwind.config` empty in `components.json`, theme in CSS with `@theme inline`; `@import "tw-animate-css"` and `@import "shadcn/tailwind.css"` provide animations and `data-open`/`data-closed`/`data-checked` style variants |
+| Theming | Semantic pairs (`background`/`foreground`, `primary`/`primary-foreground`, ...) as OKLCH CSS variables under `:root` and `.dark`, mapped to utilities through `--color-*` entries in `@theme inline`; `--radius` drives the `radius-*` scale |
+| Base colors | `neutral`, `stone`, `zinc`, `mauve`, `olive`, `mist`, `taupe`; `migrate base-color` switches an existing project |
+| `data-slot` | Every part renders `data-slot="<name>"` (for example `button`, `dialog-content`, `field-set`) so parents can style children with `has-[>[data-slot=...]]` or `**:data-[slot=...]` selectors; Button also sets `data-variant` and `data-size` |
+| `cn` helper | Current components import `cn` from the `cn` package (a drop-in for clsx plus tailwind-merge for Tailwind 4); `lib/utils.ts` re-exports it. `migrate cn` converts older clsx and tailwind-merge code |
+| Forms | The forms guides build on `FieldSet`, `FieldGroup`, `Field`, `FieldLabel`, `FieldDescription`, `FieldError` with React Hook Form (`Controller`) or TanStack Form (`form.Field`); the docs list no separate `form` component |
+| Registry | `registry.json` lists items (`registry:ui`, `block`, `component`, `hook`, `lib`, `page`, `file`, `theme`, `style`, `base`, `font`, `item`); `shadcn build` writes JSON to `public/r`; `@namespace` registries are configured in `components.json` |
 
-- shadcn/ui philosophy: copy-paste components, not a library; the team owns the code.
-- Installation: `shadcn-ui` CLI, `components.json` configuration, registry, customization.
-- Radix UI primitives: accessibility-first, unstyled, keyboard navigation, focus management, ARIA.
-- Component composition: Radix primitive + Tailwind + React `forwardRef` + `cva`.
-- Component anatomy: `Button` with `cva` variants; `Dialog` with `Radix.Dialog.Root/Portal/Overlay/Content`; `DropdownMenu` with `Radix.DropdownMenu.Root/Trigger/Content/Item`.
-- `class-variance-authority` (`cva`): `variants`, `compoundVariants`, `defaultVariants`.
-- Tailwind merge: `clsx` + `tailwind-merge` = the `cn` utility.
-- Theming: CSS variables with HSL, light/dark via `class` strategy, tokens `--background`, `--foreground`, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--radius`.
-- Typography scale and `--radius` compound tokens.
-- Dark mode toggle with `next-themes`.
-- Form components: `react-hook-form` + `zod` + `FormField`/`FormItem`/`FormLabel`/`FormControl`/`FormMessage`.
-- Table and data table with TanStack Table (`@tanstack/react-table`).
-- Command palette with `cmdk`.
-- Toast: `sonner` (the recent migration) vs Radix Toast.
-- Dialogs: modal, non-modal, Sheet (side-anchored drawer).
-- Popovers, tooltips, dropdown menus, context menus, navigation menus, accordion, tabs, carousel.
-- Calendar with `react-day-picker`; combobox pattern (Popover + Command); multi-select.
-- Color picker, OTP input (input-otp), resizable panels (react-resizable-panels).
-- Sidebar component (new in shadcn/ui) with collapsible state.
-- Charts with Recharts or Tremor; chart theming via CSS variables.
-- Blocks: authentication layouts, dashboard layouts, sidebar layouts.
-- Registry: custom registry for org components; CLI customization.
+## 3. Workflow
 
-## 4. Responsibilities
+1. Run `npx shadcn@latest info --json` in an existing project to read framework, Tailwind version, aliases, base, icon library and installed components before changing anything.
+2. New project: `npx shadcn@latest init -t next` (or `vite`, `start`, `react-router`, `laravel`, `astro`), choose `--base radix` or `--base base`, optionally `--preset <code>` from shadcn/create. Existing project: `npx shadcn@latest init`.
+3. Add components with `npx shadcn@latest add button dialog field`. Preview first with `--dry-run`, `--diff` or `--view`; read the docs page for the active base with `npx shadcn@latest docs <component>`.
+4. Theme by editing CSS variables in the global CSS file (tokens, `--radius`), not by editing every component. Add new semantic tokens in both `:root` and `.dark` and expose them in `@theme inline`.
+5. Customize components in place (they are your code): add a `cva` variant, adjust classes, keep `data-slot` and `className` pass-through intact.
+6. Wire dark mode with next-themes (class strategy), forms with the Field pattern, toasts with sonner, charts with the chart component.
+7. For shared components across apps, publish a registry: describe items in `registry.json`, run `shadcn build`, host the JSON, and consume it through a namespace in `components.json`.
+8. After upgrading the CLI, re-run `add <component> --diff` for components you want updated and merge by hand where you changed the source.
 
-- Initialize the component library with `shadcn-ui init` and configure `components.json`.
-- Establish the `cn` utility, the CSS variable theme, and the `next-themes` integration.
-- Add components via the CLI, then customize them per project requirements.
-- Author org-specific components following the same composition pattern.
-- Define the form integration pattern with `react-hook-form` + `zod` + `Form` components.
-- Establish the data-table pattern with TanStack Table, column defs, and pagination.
-- Set up the command palette and keyboard shortcuts.
-- Establish the toast strategy with `sonner` and the `<Toaster />` mount point.
-- Review every component addition for accessibility, theming, and mergeability.
-- Maintain a custom registry for org-wide component distribution.
+## 4. Decision Rules
 
-## 5. Thinking Process
+- New project: choose the base once. Radix is the long-established primitive set (`asChild`); Base UI is the alternative with the `render` prop. Components, docs and examples are per base, so do not mix snippets from the other base in one project. Check `shadcn docs <component> --base <base>` when unsure.
+- Existing project with the legacy per-package imports (`@radix-ui/react-dialog`): run `migrate radix` to consolidate to `radix-ui`; this is not a switch to Base UI.
+- A link that looks like a button: use `buttonVariants` on a real `<a>`/`Link` in either base. With Radix, `asChild` also works. With Base UI, do not render `Button` as an anchor; the docs warn that it forces `role="button"` on the link.
+- Toasts: sonner (`<Toaster />` from `components/ui/sonner`, `toast()` from `sonner`). Use inline `FieldError` and alerts for validation, toasts for transient confirmation only.
+- Forms: React Hook Form when the project already uses it or needs field arrays and performance on large forms; TanStack Form for type-driven validators; a plain `<form action>` with server actions for simple cases. All three use the same Field components.
+- `tailwind.cssVariables`: keep `true`. Switching to utility classes (`false`) is an init-time choice and requires reinstalling components.
+- Customization: change tokens for global looks, change a component file for structural changes, wrap a component for app-specific behavior. Do not fork shadcn internals via global CSS overrides keyed on class names.
+- Share components between repos: a registry (static JSON via `shadcn build`) rather than copying files, unless the components are used in one place.
+- Tailwind 3 projects: the current docs target Tailwind 4; the Tailwind 3 docs are archived at v3.shadcn.com. Upgrade Tailwind first rather than mixing generations.
 
-Every component decision begins with the primitive: does Radix UI provide an accessible primitive for this? If yes, compose Radix + Tailwind + `cva`. If no, build the primitive with the same accessibility guarantees (keyboard, focus, ARIA).
+## 5. Coding Standards
 
-Every variant decision begins with the design spec: what are the sizes, intents, and states? Encode them in `cva` with named keys, export the variant type, and consume via `cn`.
+- Components are plain function components typed with `React.ComponentProps<"button">` (or the Base UI `Part.Props`) and spread `...props` last. Do not add `forwardRef` or `displayName`; `ref` flows through props in React 19.
+- Always merge classes with `cn(...)` and accept `className` last so callers can override.
+- Set `data-slot="kebab-name"` on the root element of every new part; add `data-*` attributes (`data-variant`, `data-size`, `data-invalid`) for state that parents or CSS need.
+- Use semantic utilities (`bg-background`, `text-muted-foreground`, `border-input`, `ring-ring`) instead of raw palette colors, so themes and dark mode work without `dark:` variants.
+- Variants live in `cva` with `defaultVariants`; export the variants function (`buttonVariants`) next to the component for reuse on links.
+- Use logical properties (`ms-*`, `ps-*`, `text-start`) in new code if the project enables `rtl` in `components.json` (`migrate rtl` converts existing components).
+- Keep `"use client"` only on components that use hooks, state or event handlers; the CLI adds it when `rsc` is `true`.
+- Icons come from the library named by `iconLibrary` in `components.json` (`lucide`, `tabler`, `hugeicons`, `phosphor`, `remixicon`); `migrate icons` switches libraries.
+- Colors in CSS are `oklch(L C H / alpha)`; do not reintroduce `hsl(var(--x))` wrappers (the pre-Tailwind-4 convention) in new code.
 
-Every form decision begins with the schema: define the Zod schema first, infer the TypeScript type, then build the `Form` components with `react-hook-form`'s `Controller` or the `useFormContext` pattern.
-
-The expert then validates against four gates: does it pass `jest-axe`? Does it theme correctly in light and dark? Does it merge cleanly with upstream shadcn/ui? Does it consume the `cn` utility for runtime composition?
-
-## 6. Decision Making Rules
-
-- When copy-paste and npm dependency conflict, choose copy-paste because ownership enables modification without forking.
-- When Radix primitive and custom implementation conflict, choose Radix because accessibility is hard and Radix has solved it.
-- When `cva` and inline conditional classes conflict, choose `cva` because variants are auditable and type-safe.
-- When `cn` and template literals conflict, choose `cn` because `tailwind-merge` resolves conflicts correctly.
-- When `sonner` and Radix Toast conflict, choose `sonner` because the API is simpler and the migration is the shadcn/ui default.
-- When CSS variables and Tailwind theme tokens conflict, choose CSS variables because they enable runtime theming.
-- When `next-themes` and custom toggle conflict, choose `next-themes` because it handles SSR, system preference, and flash prevention.
-- When TanStack Table and hand-rolled table conflict, choose TanStack because column defs, sorting, and pagination are solved problems.
-- When `cmdk` and custom command palette conflict, choose `cmdk` because it integrates with Radix and is the shadcn/ui default.
-- When registry and direct copy conflict, choose registry for org-wide distribution and direct copy for project-specific components.
-
-## 7. Architecture Rules
-
-- Always initialize with `shadcn-ui init` and commit `components.json`.
-- Always export a `cn` utility from `lib/utils/cn.ts`.
-- Always theme via CSS variables in `globals.css` with HSL values.
-- Always use the `class` dark mode strategy with `next-themes`.
-- Always compose Radix primitives inside shadcn components; never bypass Radix for interactive elements.
-- Always define `cva` variants outside the component in a `*.variants.ts` file.
-- Always mount the `<Toaster />` once at the root layout.
-- Always mount the `<TooltipProvider />` once at the root layout.
-- Always colocate the form schema with the form component.
-- Never import shadcn components from `node_modules`; they live in `components/ui/`.
-
-## 8. Coding Standards
-
-- Always use `forwardRef` (or ref-as-prop in React 19) and spread `...props` onto the underlying element.
-- Always accept a `className` prop and merge with `cn`.
-- Always export the variant type alongside the component.
-- Always set `displayName` on forwardRef components.
-- Always use semantic tokens (`bg-background`, `text-foreground`) not palette names.
-- Always include `focus-visible:ring-2 focus-visible:ring-ring` on interactive elements.
-- Always include `disabled:pointer-events-none disabled:opacity-50` on interactive elements.
-- Always include `data-[state=open]:animate-in data-[state=closed]:animate-out` on Radix-driven components.
-- Always type form schemas with Zod and infer with `z.infer`.
-- Always use `react-hook-form`'s `FormProvider` via the shadcn `Form` components.
-
-## 9. Naming Conventions
-
-- Components: PascalCase matching the shadcn/ui name (`Button`, `Dialog`, `DropdownMenu`).
-- Variant files: `<component>.variants.ts` colocated with the component.
-- Composition sub-components: dot notation (`Dialog.Header`, `Dialog.Content`) or named exports (`DialogHeader`, `DialogContent`).
-- Form components: `Form`, `FormField`, `FormItem`, `FormLabel`, `FormControl`, `FormMessage`.
-- Hooks: `use<Feature>` camelCase (`useToast`, `useForm`).
-- CSS variables: `--background`, `--foreground`, `--primary`, `--primary-foreground`, etc.
-- Files: `kebab-case.tsx` for components (`dropdown-menu.tsx`).
-- Directories: `components/ui/` for primitives; `components/blocks/` for composed layouts.
-- Registry items: kebab-case slugs matching the directory (`sidebar`, `login-form`).
-- Custom org components: prefix with the org name (`AcmeButton`) or namespace directory (`components/acme/`).
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-src/
+.
+├── components.json              # CLI config: style, aliases, tailwind.css, registries
+├── app/
+│   ├── globals.css              # @import tailwindcss, tw-animate-css, shadcn/tailwind.css; tokens
+│   └── layout.tsx               # ThemeProvider, Toaster, <html suppressHydrationWarning>
 ├── components/
-│   ├── ui/                   # shadcn primitives, copied via CLI
-│   │   ├── button.tsx
-│   │   ├── button.variants.ts
-│   │   ├── dialog.tsx
-│   │   ├── dropdown-menu.tsx
-│   │   ├── form.tsx          # react-hook-form integration
-│   │   ├── input.tsx
-│   │   ├── label.tsx
-│   │   ├── popover.tsx
-│   │   ├── select.tsx
-│   │   ├── table.tsx
-│   │   ├── tabs.tsx
-│   │   ├── toast.tsx
-│   │   ├── toaster.tsx
-│   │   ├── tooltip.tsx
-│   │   └── index.ts
-│   ├── blocks/               # Composed layouts
-│   │   ├── auth-layout.tsx
-│   │   ├── dashboard-layout.tsx
-│   │   └── sidebar-layout.tsx
-│   ├── data/                 # DataTable and lists
-│   │   ├── data-table.tsx
-│   │   └── columns.tsx
-│   ├── forms/                # Form compositions
-│   │   ├── login-form.tsx
-│   │   └── profile-form.tsx
-│   └── charts/               # Recharts wrappers
-├── lib/
-│   └── utils/
-│       ├── cn.ts             # clsx + tailwind-merge
-│       └── hooks.ts          # useToast, useMediaQuery
-├── styles/
-│   └── globals.css           # CSS variables, @tailwind, @layer
-├── features/
-├── hooks/
-├── stores/
-├── types/
-└── components.json           # shadcn config
+│   ├── ui/                      # shadcn-managed primitives (button.tsx, field.tsx, sonner.tsx ...)
+│   ├── theme-provider.tsx       # next-themes wrapper ("use client")
+│   └── forms/                   # app forms composed from ui/field + input + button
+├── lib/utils.ts                 # export { cn } from "cn"
+├── hooks/                       # hooks added by the CLI (aliases.hooks)
+└── registry.json                # only when this repo publishes components
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
+- **Token layers**: raw OKLCH values in `:root`/`.dark`, semantic names through `@theme inline`, components use only semantic utilities. Details in [references/theming.md](references/theming.md).
+- **Variant extension**: add a variant to the `cva` call (for example `success` using a `--success` token) instead of passing long `className` strings from call sites.
+- **Composition over props**: parts such as `Card`, `CardHeader`, `CardContent` or `Field`, `FieldLabel`, `FieldError` are composed in JSX; wrap them in an app component when a pattern repeats.
+- **Slot-aware parents**: a layout component styles children via `data-slot` (`[&_[data-slot=card]]:shadow-none`) rather than reaching for internal class names.
+- **Field forms**: `Field` with `data-invalid`, the control with `aria-invalid`, `FieldError` underneath, `FieldGroup` to stack fields. Full code in [references/forms-and-charts.md](references/forms-and-charts.md).
+- **Registry as distribution**: items declare `files`, `registryDependencies`, `dependencies`, `cssVars`, so one `add @acme/item` installs code, packages and tokens. See [references/registry-and-cli.md](references/registry-and-cli.md).
+
+## 8. Best Practices
+
+- Commit `components.json` and the generated `components/ui` files; reviewers should see component diffs like any other source.
+- Run `add <component> --dry-run` or `--diff` before overwriting, and avoid `--overwrite` on components you have customized.
+- Keep one global CSS file for tokens; do not scatter color definitions across components.
+- Prefer built-in variants and sizes before inventing new ones, and document custom variants where they are defined.
+- Use `FieldLabel htmlFor` with matching control `id`, `FieldDescription` for help, and `FieldError` for messages so labels and errors are programmatically associated.
+- Put `<Toaster />` once in the root layout and call `toast()` from client code or server-action callbacks on the client.
+- When using monorepos, use `init --monorepo` and run CLI commands with `-c <workspace>`; shared UI lives in one package.
+- Pin the CLI in scripts (`shadcn@4.23.0`) for reproducible onboarding, and use `@latest` interactively.
+
+## 9. Performance
+
+- Only the components you add exist in the bundle; remove unused files from `components/ui` and unused packages after a base or icon migration.
+- Import icons by name (`import { Check } from "lucide-react"`); do not import whole icon sets or build icon maps from the barrel.
+- Charts: lazy-load the chart bundle (`next/dynamic` with a skeleton) on pages where charts are below the fold; Recharts is the largest dependency in typical shadcn apps.
+- Keep `ChartContainer` height explicit (`min-h-*`, `aspect-*`) to avoid layout shift and failed first measurement.
+- Dialogs, sheets and popovers mount their content on open; avoid heavy children outside `DialogContent` so closed state stays cheap.
+- `disableTransitionOnChange` on the theme provider prevents a flash of transitioning colors when toggling dark mode.
+- Large data tables: virtualize rows or paginate server-side before tuning component code.
+
+## 10. Security
+
+- Registry items are source code that you install into your app and execute. Inspect with `npx shadcn@latest view @acme/item`, or `add ... --dry-run`/`--view`, before first install and treat updates like dependency updates. Add only registries you trust to `components.json`.
+- Never put secrets in registry items, `registry.json` or files under `public/r`; anything in `public/` is world-readable. Serve private items from an authenticated endpoint.
+- Registry authentication: reference tokens as `${VAR}` in `headers` inside `components.json` (the CLI expands environment variables) and keep values in `.env.local` or CI secrets, never in the JSON. Prefer headers over `params` for tokens because URLs end up in logs.
+- Dynamic registry routes must validate the item name before loading it (`loadRegistryItem` throws `RegistryItemNotFoundError`; map it to 404 and do not echo user input into file paths).
+- `dangerouslySetInnerHTML`, `eval` and unreviewed `<script>` snippets do not belong in components; if a registry item contains them, reject it.
+- Rendering user content in toasts, tooltips or chart labels goes through React text nodes (escaped); do not pass untrusted HTML strings.
+- Validate form input on the server as well; client-side Zod validation improves UX but is not a security boundary.
+- Third-party registries with `registryDependencies` URLs can pull from other hosts; review the dependency chain shown by `view`.
+
+## 11. Testing
+
+- Query by role and label in component tests (Testing Library): the Field pattern gives accessible names, so `getByRole("textbox", { name: "Email" })` works and also checks label wiring.
+- Assert invalid state through `aria-invalid="true"` and the `FieldError` text, not class names.
+- Test dialogs, popovers and selects with a user-event based library; Base UI and Radix portals render outside the container, so query from `document.body`/`screen`.
+- Use Playwright for theme and responsive checks: set `colorScheme: "dark"` in the context and assert on `html.dark`.
+- Run `npx shadcn@latest build` in CI for registry repos and check the generated JSON exists for every item; install each item into a fixture app in a smoke test.
+- Typecheck after `migrate` commands and review the diff; migrations rewrite imports across files.
+
+## 12. Review Checklist
+
+- [ ] `components.json` matches reality: `tailwind.config` empty for Tailwind 4, correct `css` path, `iconLibrary`, aliases resolve in `tsconfig`.
+- [ ] One base only (`radix` or `base`); no mixed `asChild` and `render` usage.
+- [ ] No `forwardRef` in new components; `className` merged with `cn`; `data-slot` present.
+- [ ] Theme tokens defined in both `:root` and `.dark` and exposed in `@theme inline`; colors are OKLCH.
+- [ ] New components use semantic tokens, not hard-coded palette colors.
+- [ ] Forms: `data-invalid` on `Field`, `aria-invalid` on the control, `FieldError` rendered, server validation present.
+- [ ] `<html suppressHydrationWarning>` and `ThemeProvider attribute="class"` set; no theme flash.
+- [ ] Registry items reviewed before install; no secrets in registry files.
+- [ ] Chart containers have explicit height; chart colors use `var(--chart-N)`.
+- [ ] Customized components not overwritten by a blind `add --overwrite`.
+
+## 13. Production Notes
+
+- The CLI and docs move quickly (new bases, presets, commands). Run `npx shadcn@latest --help` and the docs page for the command you are about to use rather than relying on memory.
+- `style` and `tailwind.baseColor` are fixed at init in `components.json`; changing them later goes through `apply` (presets) and `migrate base-color`, or a reinstall.
+- `apply <preset>` reinstalls detected components and rewrites tokens and fonts; run it on a clean git tree and review the diff. `apply --only theme` limits it to tokens.
+- `eject` inlines `shadcn/tailwind.css` into your CSS and drops the `shadcn` dependency; it is irreversible, so later CLI updates to that file will not apply.
+- Registry hosting: static JSON on any CDN works; set caching headers sensibly and version item names (or URLs) if consumers must pin.
+- When a component library upgrade changes a primitive (Radix or Base UI minor releases), re-run `add <component> --diff` in a branch and test keyboard and focus behavior.
+- Treat `components/ui` as application code in code review, ownership and linting rules.
+
+## 14. Examples
+
+Initialize, add components, inspect before installing:
+
+```bash
+npx shadcn@latest init -t next --base radix
+npx shadcn@latest add button card field input sonner --dry-run
+npx shadcn@latest add button card field input sonner
+npx shadcn@latest view @acme/pricing-table        # read a registry item before installing
+npx shadcn@latest info --json                      # framework, aliases, base, installed components
 ```
-my-app/
-├── .github/workflows/
-│   ├── ci.yml
-│   └── lighthouse.yml
-├── public/
-├── src/
-│   ├── components/
-│   ├── lib/
-│   ├── styles/
-│   ├── features/
-│   ├── hooks/
-│   ├── stores/
-│   └── types/
-├── tests/
-│   ├── visual/               # Chromatic snapshots
-│   └── e2e/
-├── registry/                 # Custom registry items
-│   └── sidebar.json
-├── .eslintrc.cjs
-├── .prettierrc
-├── components.json
-├── next.config.ts
-├── package.json
-├── playwright.config.ts
-├── tailwind.config.ts
-├── tsconfig.json
-└── vitest.config.ts
+
+Global CSS wiring for Tailwind 4 with a custom semantic token (excerpt of the structure the docs generate):
+
+```css
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) * 0.8);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --success: oklch(0.527 0.154 150);
+  --success-foreground: oklch(0.985 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --success: oklch(0.696 0.17 162);
+  --success-foreground: oklch(0.145 0 0);
+}
 ```
 
-## 12. Design Patterns
-
-### Radix + Tailwind + cva Composition
-When to use: every shadcn component. When not to use: never. Sketch: `const DropdownMenu = Radix.DropdownMenu.Root; const DropdownMenuTrigger = forwardRef(({className, ...props}, ref) => <Radix.DropdownMenuTrigger ref={ref} className={cn(buttonVariants(), className)} {...props} />)`.
-
-### cn Utility
-When to use: every component. When not to use: never. Sketch: `export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }`.
-
-### Form Composition
-When to use: any form. When not to use: read-only displays. Sketch: `const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) }); <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)}>...</form></Form>`.
-
-### DataTable Pattern
-When to use: any tabular data. When not to use: simple lists. Sketch: `const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() }); <Table><TableHeader>...</TableHeader><TableBody>...</TableBody></Table>`.
-
-### Command Palette
-When to use: app-wide search and actions. When not to use: contextual menus. Sketch: `<Command><CommandInput placeholder="Search..." /><CommandList><CommandGroup>...</CommandGroup></CommandList></Command>`.
-
-### Sonner Toast
-When to use: transient notifications. When not to use: persistent errors. Sketch: `toast.success('Saved'); toast.error('Failed'); <Toaster />` mounted once at the root.
-
-### Custom Registry
-When to use: org-wide component distribution. When not to use: project-specific components. Sketch: a JSON registry pointing to component files; consumed via `npx shadcn-ui add @org/sidebar`.
-
-## 13. Best Practices
-
-- Always run `shadcn-ui init` and commit `components.json`.
-- Always export `cn` from `lib/utils/cn.ts`.
-- Always theme via CSS variables with HSL.
-- Always use `next-themes` for dark mode.
-- Always mount `<Toaster />` and `<TooltipProvider />` once at the root.
-- Always use `forwardRef` and spread props.
-- Always define `cva` variants outside the component.
-- Always pair `react-hook-form` with `zod` via `zodResolver`.
-- Always use TanStack Table for data tables.
-- Always include `focus-visible` and `disabled` styles.
-- Always test components with `jest-axe`.
-- Always document variants in Storybook.
-
-## 14. Anti Patterns
-
-### Anti-pattern: Importing shadcn from `node_modules`
-Why wrong: defeats the ownership philosophy; cannot customize. Correct alternative: copy components into `components/ui/` via the CLI.
-
-### Anti-pattern: Bypassing Radix for interactive elements
-Why wrong: loses accessibility, keyboard navigation, focus management. Correct alternative: always compose Radix primitives.
-
-### Anti-pattern: Hard-coding colors in components
-Why wrong: breaks theming and dark mode. Correct alternative: use semantic tokens backed by CSS variables.
-
-### Anti-pattern: Multiple `<Toaster />` mounts
-Why wrong: duplicate toasts, z-index conflicts. Correct alternative: mount once at the root layout.
-
-### Anti-pattern: Inline conditional classes instead of `cva`
-Why wrong: un-auditable, no type safety. Correct alternative: define `cva` variants.
-
-### Anti-pattern: Custom form state instead of `react-hook-form`
-Why wrong: duplicates validation, loses accessible error association. Correct alternative: `react-hook-form` + `zod` + shadcn `Form` components.
-
-## 15. Performance Rules
-
-- Always lazy-load dialogs and sheets with `next/dynamic` when they are not in the initial viewport.
-- Always virtualize data tables with more than 100 rows.
-- Always defer non-critical chart rendering with `useDeferredValue`.
-- Always memoize column definitions for TanStack Table.
-- Always preconnect to font origins.
-- Always set `font-display: swap`.
-- Always preload the LCP image.
-- Always purge unused CSS via scoped `content` paths.
-
-## 16. Security Rules
-
-- Never render user-supplied HTML inside shadcn components without sanitization.
-- Always validate form inputs with Zod.
-- Always sanitize `cmdk` inputs before use.
-- Always set `HttpOnly` cookies for auth; never store tokens in client state.
-- Always escape dynamic content in tooltips and popovers.
-- Always audit third-party Radix dependencies for vulnerabilities.
-- Always enforce CSP with nonces for scripts.
-- Never expose internal component state via global window objects.
-
-## 17. Testing Strategy
-
-- Always test components with `jest-axe` for accessibility.
-- Always test keyboard navigation for interactive components.
-- Always test `cva` variants with snapshot tests.
-- Always test form submission with valid and invalid inputs.
-- Always test data table sorting, filtering, and pagination.
-- Always test dark mode toggle.
-- Always test focus trap in dialogs and sheets.
-- Always test tooltip and popover positioning.
-- Always test command palette search and selection.
-- Always test toast rendering and dismissal.
-
-## 18. Documentation Standards
-
-- Document every component in Storybook with all variants and states.
-- Document the theme tokens in the design system README.
-- Document the form integration pattern with an example.
-- Document the data table pattern with column definitions.
-- Document the registry setup for org-wide distribution.
-- ADRs record component additions, theme changes, and major refactors.
-- `CHANGELOG.md` records breaking component changes.
-- Every component includes a JSDoc block describing purpose, props, and accessibility notes.
-
-## 19. Code Review Checklist
-
-- [ ] Component copied into `components/ui/`, not imported from `node_modules`.
-- [ ] `forwardRef` (or ref-as-prop) used; props spread onto the underlying element.
-- [ ] `className` prop accepted and merged with `cn`.
-- [ ] `cva` variants defined in a `*.variants.ts` file.
-- [ ] Semantic tokens used; no hard-coded colors.
-- [ ] `focus-visible` and `disabled` styles present.
-- [ ] `data-[state=*]` animations present for Radix components.
-- [ ] `displayName` set on forwardRef components.
-- [ ] `react-hook-form` + `zod` used for forms.
-- [ ] TanStack Table used for data tables.
-- [ ] `<Toaster />` mounted once at the root.
-- [ ] `<TooltipProvider />` mounted once at the root.
-- [ ] Dark mode tested.
-- [ ] `jest-axe` passes.
-- [ ] Keyboard navigation tested.
-- [ ] Storybook stories cover all variants and states.
-- [ ] Bundle size impact measured.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace `@radix-ui/react-toast` with `sonner`.
-- [ ] Replace inline conditional classes with `cva` variants.
-- [ ] Replace custom form state with `react-hook-form` + `zod`.
-- [ ] Replace hand-rolled tables with TanStack Table.
-- [ ] Replace hand-rolled command palette with `cmdk`.
-- [ ] Replace hard-coded colors with semantic tokens.
-- [ ] Replace `forwardRef` with ref-as-prop where React 19 is the minimum.
-- [ ] Replace multiple `<Toaster />` mounts with a single root mount.
-- [ ] Consolidate duplicate `cva` definitions into shared variants.
-- [ ] Migrate CSS variable values from RGB to HSL for shadcn compatibility.
-
-## 21. Deployment Checklist
-
-- [ ] `next build` completes with zero warnings.
-- [ ] `components.json` validated in CI.
-- [ ] Storybook built and published.
-- [ ] Chromatic snapshots approved.
-- [ ] `jest-axe` passes in CI.
-- [ ] Lighthouse accessibility score is 100.
-- [ ] Dark mode SSR-correct; no flash.
-- [ ] Fonts loaded with `display: swap`.
-- [ ] LCP image preloaded.
-- [ ] `prefers-reduced-motion` respected.
-- [ ] `prefers-color-scheme` fallback configured.
-- [ ] CDN configured for static assets with immutable cache headers.
-- [ ] Source maps uploaded to error tracking.
-- [ ] Bundle size measured.
-- [ ] Registry items versioned.
-- [ ] Custom registry endpoint deployed.
-
-## 22. Production Checklist
-
-- [ ] Accessibility score 100 on Lighthouse.
-- [ ] Keyboard-only test passes for every flow.
-- [ ] Screen reader test passes for every flow.
-- [ ] Dark mode tested across all routes.
-- [ ] Toaster mount verified.
-- [ ] Tooltip provider verified.
-- [ ] Focus trap verified in dialogs.
-- [ ] Focus return verified after dialog close.
-- [ ] Form validation accessible (errors announced).
-- [ ] Data table sorting and pagination work.
-- [ ] Command palette keyboard accessible.
-- [ ] Print stylesheet present for key flows.
-- [ ] `prefers-reduced-motion` respected.
-- [ ] Theme tokens documented and versioned.
-- [ ] Registry items documented.
-- [ ] On-call runbook links to component documentation.
-
-## 23. Logging Strategy
-
-- Always log dialog open/close events for analytics.
-- Always log form submission success and failure with `formId`.
-- Always log command palette selections with the command name.
-- Always log toast impressions with the toast variant.
-- Always log theme changes (light/dark/system).
-- Always log data table interactions (sort, filter, paginate) with the table name.
-- Never log form field values; redact PII.
-- Always log tooltip impressions at debug level.
-- Always log focus trap violations as warnings.
-- Never use `console.log` in production code.
-
-## 24. Monitoring Strategy
-
-- Always monitor Lighthouse accessibility score per route.
-- Always alert when accessibility score drops below 100.
-- Always monitor CLS; alert when p75 exceeds 0.1.
-- Always monitor LCP; alert when p75 exceeds 2.5 s.
-- Always monitor dialog open/close latency.
-- Always monitor form submission error rate.
-- Always monitor toast impression rate.
-- Always monitor theme toggle failures.
-- Always monitor data table render time for large datasets.
-- Always run visual regression on every PR.
-
-## 25. Error Handling
-
-- Always render an error message inside `FormMessage` for invalid fields.
-- Always render a fallback inside `Popover` and `Dialog` for failed async content.
-- Always handle TanStack Table errors with an error boundary.
-- Always handle command palette search errors gracefully.
-- Always handle toast queue overflow by dropping the oldest.
-- Always log original errors with `error.cause` chained.
-- Always render an empty state when data is absent.
-- Always handle `react-day-picker` date parse errors with a user message.
-- Always validate error shape with a type guard before rendering.
-- Always include a "contact support" affordance with a `traceId`.
-
-## 26. Examples
-
-### Example 1: Button with cva variants and cn
+A variant added to a component you own, with `data-slot` and React 19 props (no `forwardRef`):
 
 ```tsx
-// src/components/ui/button.tsx
-import { forwardRef, ButtonHTMLAttributes } from 'react';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils/cn';
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "@/lib/utils"
 
-const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+const badgeVariants = cva(
+  "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
   {
     variants: {
-      size: { sm: 'h-8 px-3', md: 'h-10 px-4', lg: 'h-12 px-6 text-base' },
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-input bg-background hover:bg-muted',
-        ghost: 'hover:bg-muted',
+        default: "bg-primary text-primary-foreground",
+        success: "bg-success text-success-foreground",
       },
     },
-    defaultVariants: { size: 'md', variant: 'default' },
-  },
-);
+    defaultVariants: { variant: "default" },
+  }
+)
 
-export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {}
-
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, size, variant, ...props }, ref) => (
-    <button ref={ref} className={cn(buttonVariants({ size, variant }), className)} {...props} />
-  ),
-);
-Button.displayName = 'Button';
-export { buttonVariants };
-```
-
-### Example 2: Login form with react-hook-form and zod
-
-```tsx
-// src/components/forms/login-form.tsx
-'use client';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-
-const schema = z.object({
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(12, 'Password must be at least 12 characters'),
-});
-type Values = z.infer<typeof schema>;
-
-export function LoginForm({ onSubmit }: { onSubmit: (v: Values) => Promise<void> }) {
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
+function Badge({
+  className,
+  variant,
+  ...props
+}: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(async (v) => { await onSubmit(v); })} className="space-y-4">
-        <FormField control={form.control} name="email" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Email</FormLabel>
-            <FormControl><Input type="email" autoComplete="email" {...field} /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
-        <FormField control={form.control} name="password" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Password</FormLabel>
-            <FormControl><Input type="password" autoComplete="current-password" {...field} /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
-        <Button type="submit" disabled={form.formState.isSubmitting} aria-busy={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? 'Signing in…' : 'Sign in'}
-        </Button>
-      </form>
-    </Form>
-  );
+    <span
+      data-slot="badge"
+      data-variant={variant ?? "default"}
+      className={cn(badgeVariants({ variant }), className)}
+      {...props}
+    />
+  )
 }
+
+export { Badge, badgeVariants }
 ```
 
-### Example 3: DataTable with TanStack Table
+## 15. Common Mistakes
 
-```tsx
-// src/components/data/data-table.tsx
-import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+- **Wrapping components in `forwardRef` or adding `displayName`**: unnecessary in React 19 and not what the current components do; take `ref` from props.
+- **Using `hsl(var(--primary))` or `tailwind.config.js` colors in a Tailwind 4 project**: current tokens are complete OKLCH colors mapped with `@theme inline`; chart code uses `var(--chart-1)`, not `hsl(var(--chart-1))`.
+- **Forgetting the `.dark` block or `@custom-variant dark`**: tokens change only if the same names are redefined under `.dark` and the variant matches the class strategy.
+- **Mixing `asChild` snippets into a Base UI project** (or `render` into Radix): the prop does not exist on the other base. Read the page for the active base.
+- **Rendering Base UI `Button` as an anchor**: use `buttonVariants` on a real link instead.
+- **Running `add --overwrite` on customized components**: wipes local changes; use `--diff` and merge.
+- **Hand-editing generated tokens in many components** instead of the CSS variables: themes then drift between components.
+- **Missing `suppressHydrationWarning` on `<html>`** with next-themes: causes a hydration warning because the class is set before hydration.
+- **Chart that renders at zero height**: `ChartContainer` needs `min-h-*`, `h-*` or `aspect-*`.
+- **Putting tokens or private components under `public/r` without auth**: the files are public.
+- **Copying legacy `Form`/`FormField` examples into new code**: the current forms docs use `Field` with `Controller` or `form.Field`.
+- **Changing `style` or `baseColor` by hand in `components.json`**: use `apply` or `migrate base-color`.
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
-  data: TData[];
-}
+## 16. References
 
-export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
-  const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
-  return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((hg) => (
-            <TableRow key={hg.id}>
-              {hg.headers.map((h) => (
-                <TableHead key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow><TableCell colSpan={columns.length} className="text-center text-muted-foreground">No results.</TableCell></TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-```
-
-## 27. Common Mistakes
-
-### Mistake: Importing shadcn from `node_modules`
-What: `import { Button } from 'shadcn-ui'`. Why wrong: shadcn is not a package; components must be copied. How to avoid: run `npx shadcn-ui@latest add button`.
-
-### Mistake: Forgetting `forwardRef`
-What: component does not forward refs. Why wrong: breaks tooltips, popovers, and other Radix consumers. How to avoid: always `forwardRef` and spread onto the underlying element.
-
-### Mistake: Hard-coded colors
-What: `bg-blue-500` in a shadcn component. Why wrong: breaks theming and dark mode. How to avoid: use `bg-primary` or another semantic token.
-
-### Mistake: Multiple `<Toaster />` mounts
-What: each route mounts its own toaster. Why wrong: duplicate toasts, z-index conflicts. How to avoid: mount once at the root layout.
-
-### Mistake: Inline conditional classes
-What: `className={isActive ? 'bg-primary' : 'bg-muted'}`. Why wrong: un-auditable. How to avoid: use `cva` variants.
-
-### Mistake: Custom form state instead of `react-hook-form`
-What: `useState` for every field. Why wrong: duplicates validation, loses accessible error association. How to avoid: `react-hook-form` + `zod` + shadcn `Form` components.
-
-### Mistake: Hand-rolled tables
-What: mapping over an array of rows without sorting or pagination. Why wrong: reinvents TanStack Table. How to avoid: use TanStack Table with shadcn `Table` primitives.
-
-## 28. Professional Workflow
-
-1. Read the design spec and identify the components needed.
-2. Run `npx shadcn-ui@latest init` and configure `components.json`.
-3. Add base components (`button`, `input`, `dialog`, `form`, `table`).
-4. Author the `cn` utility and the CSS variable theme.
-5. Install `next-themes` and mount `<ThemeProvider>`.
-6. Compose blocks (auth layout, dashboard layout).
-7. Build forms with `react-hook-form` + `zod`.
-8. Build data tables with TanStack Table.
-9. Add command palette, toasts, and tooltips at the root.
-10. Write `jest-axe` tests for every component.
-11. Write Storybook stories for every variant.
-12. Run Chromatic visual regression.
-13. Open a PR with the bundle size delta and accessibility score.
-14. Address review comments; never bypass accessibility.
-15. Ship behind a feature flag; monitor axe violations in production.
-
-## 29. Response Style
-
-- Always answer with code first, prose second.
-- Always state the shadcn/ui version compatibility for any component.
-- Always cite Radix UI documentation when introducing accessibility behavior.
-- Always explain trade-offs in terms of accessibility, theming, and ownership.
-- Never use hedging language; specify exact conditions.
-- Always propose the simplest accessible solution.
-- Always close with a checklist of next steps for multi-part answers.
-- Always refuse to write code that bypasses Radix for interactive elements.
-
-## 30. Output Format
-
-- Always prefix code blocks with a language tag (`tsx`, `ts`).
-- Always include the file path as a comment on the first line.
-- Always separate examples with horizontal rules.
-- Always number workflow steps with ordered lists.
-- Always use checklists for review and deployment sections.
-- Always bold key terms on first use.
-- Always quote documentation references with the URL.
-- Never inline more than 80 characters of code per line.
-- Always conclude with a one-line summary of the change.
-- Always annotate component additions with the accessibility notes.
+- [references/theming.md](references/theming.md): token table, adding tokens, radius scale, OKLCH notes, dark mode with next-themes, base colors, presets, `data-slot` styling.
+- [references/registry-and-cli.md](references/registry-and-cli.md): every CLI command with options, `components.json` keys, `migrate` commands, registry authoring, namespaces, authentication, dynamic routes, MCP.
+- [references/forms-and-charts.md](references/forms-and-charts.md): Field components with React Hook Form and TanStack Form, sonner, chart component with Recharts 3.
+- Official docs: https://ui.shadcn.com/docs , https://ui.shadcn.com/docs/cli , https://ui.shadcn.com/docs/components-json , https://ui.shadcn.com/docs/theming , https://ui.shadcn.com/docs/registry , https://ui.shadcn.com/docs/forms , https://github.com/shadcn-ui/ui
