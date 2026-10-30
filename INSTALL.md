@@ -34,7 +34,7 @@ Each skill is a folder that contains a `SKILL.md` file. Claude Code loads skills
 | Personal | `~/.claude/skills/<skill-name>/` (Windows: `%USERPROFILE%\.claude\skills\<skill-name>\`) | All your projects on this machine |
 | Project | `<project>/.claude/skills/<skill-name>/` | Sessions in that project; commit it to share with your team |
 
-If the same skill name exists in both places, the personal one wins. See the official [skills documentation](https://code.claude.com/docs/en/skills) for all locations.
+If the same skill name exists in both places, the personal one wins. This pack is plain skill folders; it is not packaged as a Claude Code plugin. Personal skills are not read by cloud or Cowork sessions. See the official [skills documentation](https://code.claude.com/docs/en/skills) for all locations.
 
 You do not have to install all 67 skills. Installing only the skills you use keeps the skill list short and makes activation more precise. The full list is in the [README](./README.md#skills).
 
@@ -191,7 +191,16 @@ v3.0.0 merges 27 skills into others (93 → 67) and adds one new folder, `androi
 | `ubuntu-server-expert` | `linux-expert` |
 | `openzeppelin-expert` | `solidity-expert` |
 
-If you used one of the old skills, install its new target with the [install](#install) commands. The old folders can be removed with the same steps as in [Uninstall](#uninstall), using this list of names instead of the current pack:
+Only remove a folder if it came from this pack and you have not edited it. Remove them one at a time, by exact name, after checking what is there:
+
+```bash
+ls ~/.claude/skills/jest-expert          # confirm it is the pack's folder
+rm -r ~/.claude/skills/jest-expert       # remove this one folder only
+```
+
+For a project install, use `<project>/.claude/skills/<name>` instead. On Windows, delete the folder in File Explorer (it goes to the Recycle Bin), or use the Recycle Bin snippet from [Uninstall](#uninstall) with a single name in `$names`.
+
+If you used one of the old skills, install its new target with the [install](#install) commands. The exact old folder names are:
 
 ```text
 software-architect enterprise-architect schema-org-expert structured-data-expert

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.0.0] — 2026-10-25
+## [3.0.0] - 2026-10-30
 
 ### Headline
 
@@ -48,6 +48,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Frontmatter.** `version` moved under `metadata` (`metadata.version: "3.0.0"`). Only the keys `name`, `description`, `license`, `allowed-tools`, `metadata` and `compatibility` are used.
 - **Body layout.** The 30-section layout was replaced by at most 16 numbered sections (Scope, Core Expertise, Workflow, Decision Rules, Coding Standards, Project Structure, Design Patterns, Best Practices, Performance, Security, Testing, Review Checklist, Production Notes, Examples, Common Mistakes, References). See [docs/skill-structure.md](./docs/skill-structure.md).
+- **Descriptions and triggers.** Descriptions were rewritten per skill ("Use when ..." plus "Not for ... (use ...)"), so skills trigger on different wording than in v2.x. A merged skill's description names the topics of the skills it absorbed.
+- **Install procedure.** Install, update and uninstall now work on named pack folders only and never overwrite or delete other skills. Commands from the v2.x `INSTALL.md` (bulk copy over `~/.claude/skills/`, removing the whole skills folder) no longer apply.
+
+### Renamed
+
+None. Every merge keeps the target skill's existing name; `android-expert` is the only new folder name.
+
+### Added
+
+- `android-expert`, covering Kotlin, Android architecture and Jetpack Compose (replaces three v2.x skills).
+- A `references/` folder in most skills, holding deeper material that Claude Code reads on demand.
+- A "Verified against" line in each rewritten skill, naming the versions or documentation it was checked against.
+- `scripts/generate_skill_index.py`, which writes `docs/skill-index.md` from the skill frontmatter (`--check` reports a stale index).
+- `scripts/validate_skills.py` updated for the v3 layout.
 
 ### Changed
 
@@ -62,15 +76,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `templates/skill-template/SKILL.md` rewritten for the new layout.
 - `scripts/` use paths relative to the repository and only write inside it; the validator only reads files and no longer installs packages.
 
+### Fixed
+
+- `anthropic-sdk-expert` no longer teaches `thinking.budget_tokens`, assistant prefill or forced `tool_choice`; it covers adaptive thinking, effort and current models.
+- `openai-sdk-expert` moved to the Responses API.
+- `gemini-sdk-expert` moved to the `google-genai` SDK.
+- `mcp-expert` uses Streamable HTTP and the current MCP specification.
+- `web3js-expert` is marked legacy and includes migration to ethers or viem.
+- `kubernetes-expert` was updated past Kubernetes 1.30 (native sidecars, in-place Pod resize, Gateway API).
+- `nestjs-expert`: the request lifecycle order was corrected.
+- `technical-seo-expert`: `robots.txt` and Content-Security-Policy examples were corrected.
+- `cicd-expert` never places `${{ inputs.* }}` or other user-controlled values in `run:`; they go through `env:`.
+- `git-expert` safety rules: force-push, remote branch deletion and global config changes only on request.
+
 ### Removed
 
 - The "Response Style" and "Output Format" sections and persona lines ("You are a Principal …", "final authority"). Your own instructions decide tone and reply format.
-- Documentation of commands that do not exist (`claude restart`, `/skill <name>`). Skills load by description, or directly as `/<skill-name>`.
+- Documentation of commands that do not exist in Claude Code (a restart command and a slash command for selecting a skill). Skills load by description, or directly as `/<skill-name>`; new skill folders are picked up in a running session, or after `/reload-skills`.
+- `scripts/migrate_skills.py`, the historical v1 to v2 migration tool.
 - Install instructions that deleted the whole skills folder, other packs' skills, or added antivirus exclusions.
 
 ---
 
-## [2.0.0] — 2026-08-04
+## [2.0.0] - 2026-08-04
 
 ### Headline
 
@@ -135,7 +163,7 @@ The commands look similar but the **semantics** changed: in v1.x, `cp -r skills/
 
 #### BC-5: Skill discovery mechanism changed
 
-In v1.x, skills were typically invoked manually with `@skill-name`. In v2.0, Claude Code auto-discovers skills by reading the `description` field of every `SKILL.md` and decides whether to activate based on the user's prompt. (Correction in v3.0.0: Claude Code has no `/skill <name>` command; a skill is called directly as `/<skill-name>`.)
+In v1.x, skills were typically invoked manually with `@skill-name`. In v2.0, Claude Code auto-discovers skills by reading the `description` field of every `SKILL.md` and decides whether to activate based on the user's prompt. (Correction in v3.0.0: Claude Code has no separate command for selecting a skill; a skill can also be called directly as `/<skill-name>`.)
 
 **Migration action**: none — auto-activation is a strict superset of manual invocation. 
 
@@ -243,10 +271,10 @@ All 93 skills migrated from `skills/<domain>/<skill-name>.md` to `skills/<skill-
 - `cypress-expert` — E2E, component testing, CI
 - `e2e-testing-expert` — E2E strategy, flakiness, parallelism
 - `integration-testing-expert` — service boundaries, contracts
-- `jest-expert` — Jest config, snapshots, mocking
+- `jest-expert` — Jest config, mocking
 - `playwright-expert` — Playwright, fixtures, browser contexts
 - `unit-testing-expert` — unit testing principles, mocking, coverage
-- `vitest-expert` — Vitest, workspace, snapshots
+- `vitest-expert` — Vitest, workspace
 
 ##### AI Domain (13 skills)
 - `ai-agent-architect` — agent anatomy, reasoning patterns, production hardening
@@ -309,7 +337,7 @@ Every skill in this release continues to enforce:
 
 ---
 
-## [1.0.0] — 2026-08-04 (historical, pre-migration)
+## [1.0.0] - 2026-08-04 (historical, pre-migration)
 
 ### Added
 
@@ -358,6 +386,6 @@ This project follows [Semantic Versioning](https://semver.org/):
 ---
 
 [Unreleased]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.0.0...HEAD
-[3.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/releases/tag/v3.0.0
-[2.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/releases/tag/v2.0.0
+[3.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v2.0.0...v3.0.0
+[2.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/releases/tag/v1.0.0

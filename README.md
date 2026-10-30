@@ -19,15 +19,16 @@ License: [MIT](./LICENSE)
 3. [Skills](#skills)
 4. [Merged skills](#merged-skills)
 5. [Skill layout](#skill-layout)
-6. [Using the skills](#using-the-skills)
-7. [Repository structure](#repository-structure)
-8. [Contributing](#contributing)
+6. [Validation](#validation)
+7. [Using the skills](#using-the-skills)
+8. [Repository structure](#repository-structure)
+9. [Contributing](#contributing)
 
 ---
 
 ## What's new in v3.0.0
 
-Released 2026-10-25. See the [changelog](./CHANGELOG.md#300--2026-10-25) for details.
+Released 2026-10-30. See the [changelog](./CHANGELOG.md#300---2026-10-30) for details.
 
 - 93 → 67 skills: overlapping skills were merged (see [Merged skills](#merged-skills)).
 - Every skill was rewritten into a shorter layout of at most 16 sections, with deeper material moved into `references/` files.
@@ -36,7 +37,7 @@ Released 2026-10-25. See the [changelog](./CHANGELOG.md#300--2026-10-25) for det
 - Versions, APIs and examples were checked against current documentation in October 2026; each skill names what it was checked against.
 - Frontmatter follows the Agent Skills format: the skill version is now `metadata.version`.
 
-If you have v2.x installed, read [INSTALL.md → Upgrade](./INSTALL.md#upgrade); some old folders have new names.
+If you have v2.x installed, read [INSTALL.md → From v2.x to v3.0.0](./INSTALL.md#from-v2x-to-v300); some old folders have new names.
 
 ---
 
@@ -52,7 +53,7 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 
 ## Skills
 
-### Architecture and code quality (8)
+### Architecture (8)
 
 | Skill | Covers |
 |---|---|
@@ -65,7 +66,7 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `refactoring-expert` | Behaviour-preserving refactoring and code smells |
 | `scalability-expert` | Scaling and performance optimisation of backend systems |
 
-### Frontend and SEO (11)
+### Frontend (11)
 
 | Skill | Covers |
 |---|---|
@@ -101,7 +102,7 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `elasticsearch-expert` | Elasticsearch mappings, analyzers, query DSL |
 | `prisma-expert` | Prisma ORM schema, migrations, queries |
 
-### Infrastructure (8)
+### Infrastructure and DevOps (8)
 
 | Skill | Covers |
 |---|---|
@@ -155,7 +156,7 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `nft-expert` | ERC-721, ERC-1155, metadata, royalties |
 | `enterprise-blockchain-architect` | Permissioned networks, including Hyperledger Fabric |
 
-### AI (9)
+### AI and LLM (9)
 
 | Skill | Covers |
 |---|---|
@@ -226,6 +227,18 @@ Body sections: Scope, Core Expertise, Workflow, Decision Rules, Coding Standards
 
 ---
 
+## Validation
+
+Run these from the repository root. `PyYAML` is required (`python -m pip install pyyaml`).
+
+```bash
+python scripts/validate_skills.py              # checks every skill; read-only
+python scripts/generate_skill_index.py         # rewrites docs/skill-index.md
+python scripts/generate_skill_index.py --check # exits 1 if the index is out of date
+```
+
+---
+
 ## Using the skills
 
 - **Automatic:** describe your task. Claude Code compares it with each installed skill's `description` and loads the ones that match.
@@ -256,8 +269,7 @@ Claude-Code-Ultimate-Pack/
 ├── examples/example-usage.md
 └── scripts/
     ├── validate_skills.py        # checks every skill (read-only)
-    ├── generate_skill_index.py   # writes docs/skill-index.md
-    └── migrate_skills.py         # historical v1 → v2 migration tool
+    └── generate_skill_index.py   # writes docs/skill-index.md
 ```
 
 ---
