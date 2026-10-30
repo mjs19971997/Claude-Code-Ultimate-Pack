@@ -1,7 +1,7 @@
 ---
 name: android-expert
 description: >-
-  Builds and reviews native Android apps in Kotlin, covering the former android-architecture-expert, android-kotlin-expert and jetpack-compose-expert skills: app architecture (UI, domain and data layers, modularization, Hilt, Room, Retrofit, WorkManager, DataStore, Paging), Kotlin coroutines and Flow, and Jetpack Compose UI with Material 3, navigation and adaptive layouts. Use when working on Android projects: .kt and build.gradle.kts files, libs.versions.toml, AndroidManifest.xml, ViewModels, composables, Room DAOs, Hilt modules, Gradle and AGP upgrades, offline-first sync, recomposition or ANR problems. Not for iOS or Swift (use swift-expert); not for Kotlin server back ends or React Native.
+  Builds and reviews native Android apps in Kotlin, covering the former android-architecture-expert, android-kotlin-expert and jetpack-compose-expert skills: app architecture (UI, domain and data layers, modularization, Hilt, Room, Retrofit, WorkManager, DataStore, Paging), Kotlin coroutines and Flow, and Jetpack Compose UI with Material 3, navigation and adaptive layouts. Use when working on Android projects: .kt and build.gradle.kts files, libs.versions.toml, AndroidManifest.xml, ViewModels, composables, Room DAOs, Hilt modules, Gradle and AGP upgrades, offline-first sync, recomposition or ANR problems. Not for iOS or Swift (use swift-expert); not for Kotlin server back ends; not for React Native or Flutter apps (use react-native-expert or flutter-expert).
 license: MIT
 metadata:
   version: "3.0.0"

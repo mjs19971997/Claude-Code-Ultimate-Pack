@@ -1,7 +1,7 @@
 ---
 name: aws-expert
 description: >-
-  Designs and reviews AWS architectures against the Well-Architected pillars: IAM least privilege (roles, IAM Identity Center, permission boundaries, SCPs and RCPs), multi-account setup with Organizations and Control Tower, VPC layout and endpoints, choosing between Lambda, ECS/Fargate, EKS and EC2, S3 and database choices (RDS, Aurora, DynamoDB), secrets handling, IMDSv2, CloudTrail, GuardDuty and Config, cost control, plus AWS SDK for JavaScript v3, boto3 and AWS CDK v2 usage. Use when making AWS service choices, writing IAM policies, hardening an account or reviewing AWS code. Not for Terraform or OpenTofu modules (use terraform-expert), Kubernetes manifests (use kubernetes-expert), or GitHub Actions pipelines (use cicd-expert).
+  Designs and reviews AWS architectures against the Well-Architected pillars: IAM least privilege (roles, IAM Identity Center, permission boundaries, SCPs and RCPs), multi-account setup with Organizations and Control Tower, VPC layout and endpoints, choosing between Lambda, ECS/Fargate, EKS and EC2, S3 and database choices (RDS, Aurora, DynamoDB), secrets handling, IMDSv2, CloudTrail, GuardDuty and Config, cost control, plus AWS SDK for JavaScript v3, boto3 and AWS CDK v2 usage. Use when making AWS service choices, writing IAM policies, hardening an account or reviewing AWS code. Not for Terraform or OpenTofu modules (use terraform-expert), Kubernetes manifests (use kubernetes-expert), GitHub Actions pipelines (use cicd-expert), Google Cloud (use gcp-expert), or Azure (use azure-expert).
 license: MIT
 metadata:
   version: "3.0.0"

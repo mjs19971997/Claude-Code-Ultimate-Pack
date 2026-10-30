@@ -1,7 +1,7 @@
 ---
 name: swift-expert
 description: >-
-  Writes, reviews and migrates Swift 6 code for Apple platforms: strict concurrency (actors, Sendable, MainActor, async/await), SwiftUI, UIKit, Codable networking, Keychain storage, Swift Testing and Instruments-driven performance work. Covers the former swiftui-expert and uikit-expert skills. Use when working on iOS, iPadOS, macOS, watchOS, tvOS or visionOS apps and Swift packages: .swift files, Package.swift, Xcode projects, SwiftUI views and @Observable models, UIKit view controllers, diffable data sources, Auto Layout, Swift 6 language-mode migration or data-race diagnostics. Not for Android or Kotlin (use android-expert); not for React or web front ends (use senior-react-19-engineer).
+  Writes, reviews and migrates Swift 6 code for Apple platforms: strict concurrency (actors, Sendable, MainActor, async/await), SwiftUI, UIKit, Codable networking, Keychain storage, Swift Testing and Instruments-driven performance work. Covers the former swiftui-expert and uikit-expert skills. Use when working on iOS, iPadOS, macOS, watchOS, tvOS or visionOS apps and Swift packages: .swift files, Package.swift, Xcode projects, SwiftUI views and @Observable models, UIKit view controllers, diffable data sources, Auto Layout, Swift 6 language-mode migration or data-race diagnostics. Not for Android or Kotlin (use android-expert); not for React or web front ends (use senior-react-19-engineer); not for React Native or Flutter apps (use react-native-expert or flutter-expert).
 license: MIT
 metadata:
   version: "3.0.0"
