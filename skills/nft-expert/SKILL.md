@@ -1,794 +1,274 @@
 ---
 name: nft-expert
-description: >
-  Ships NFT systems on ERC-721/1155/721A/721C/6551/404 with IPFS/Arweave metadata, Seaport marketplaces, ERC-4337 gasless minting, Chainlink VRF fair drops, EIP-2981 royalties, and The Graph subgraph indexing — never a random-mint without VRF.
-  
-  Use this skill when writing smart contracts, designing DeFi/DAO/NFT systems, or operating blockchain tooling such as Hardhat, Foundry, ethers.js, or Web3.js.
+description: >-
+  Designs and reviews NFT contracts and minting flows on OpenZeppelin Contracts 5.x: ERC-721 and ERC-1155, ERC-2981 royalties, ERC-4906 metadata updates, ERC-5192 soulbound tokens, ERC-721A batch minting, ERC-6551 token-bound accounts, Merkle allowlists, EIP-712 signature mints, metadata JSON, IPFS and Arweave storage, on-chain SVG and marketplace interoperability. Use when writing or auditing an NFT collection, tokenURI, safeMint, allowlist, royalty, reveal or freeze logic, or when metadata does not show on marketplaces. Not for generic Solidity or upgradeable proxies (use solidity-expert), exploit methodology (use smart-contract-security-expert), or NFT-backed lending and DeFi (use defi-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# NFT Expert
 
----
+This skill covers the contract and off-chain pieces of an NFT project: choosing the token standard, writing the collection contract with OpenZeppelin Contracts 5.x, selling it safely (allowlists, signatures, public mint), pointing tokens at durable metadata, and making royalties and marketplaces behave. It uses only verified standards and the v5 OpenZeppelin API; v4 patterns such as `_beforeTokenTransfer` and `Counters` do not apply.
 
-## 1. Role
+> Verified against OpenZeppelin Contracts 5.7.0 (changelog dated 2026-07-29; the npm `latest` tag still pointed to 5.6.1 and the `dev` tag to 5.7.0, so pin the version explicitly), Solidity 0.8.38, ERC721A 4.3.0, @openzeppelin/merkle-tree 1.0.8, viem 2.57.13. The example contracts were compiled with solc 0.8.38 and executed in an EVM harness, including the reentrancy demonstration (2026-10).
 
-The NFT Expert designs, deploys, and operates non-fungible token systems on EVM chains: ERC-721 (unique non-fungible tokens, EIP-721), ERC-1155 (multi-token with both fungible and non-fungible in one contract), ERC-721A (efficient batch minting by Azuki), ERC-721C (creator-enforced royalties via transfer hooks, EIP-721C), ERC-4337 (account abstraction for smart contract wallets), ERC-6551 (NFT-owned wallets — NFTs that own assets), ERC-404 (semi-fungible NFTs blending ERC-20 and ERC-721), ERC-865 (payable transfers).
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The expert owns the standards detail: ERC-721 (`safeTransferFrom`, `balanceOf`, `ownerOf`, `transferFrom`, `approve`, `setApprovalForAll`, `getApproved`, `isApprovedForAll`, `tokenURI`), `_safeMint` (calls `onERC721Received` for contract safety — always use `_safeMint`, never `_mint`), `_burn`, transfer checks (ownership, approval, operator approval), metadata via `tokenURI` returning IPFS URI or HTTP URL, enumeration via `ERC721Enumerable` (discouraged for gas but sometimes needed), extensions (`ERC721URIStorage`, `ERC721Pausable`, `ERC721Burnable`, `ERC721Consecutive` for EIP-2309 batch minting, `ERC721Royalty` for EIP-2981).
+## 1. Scope
 
-The expert owns metadata standards: ERC-721 metadata JSON (`name`, `description`, `image`, `external_url`, `attributes` array of `{trait_type, value}`), ERC-1155 metadata JSON with `{id}` substitution, OpenSea metadata standard for rich display, image as IPFS URI (`ipfs://CID/path`) or HTTP URL, `animation_url` for video/audio/HTML, `attributes` for trait-based filtering, `display_type` for numeric/date traits. They choose metadata storage: centralized HTTP (easy but single point of failure), IPFS (content-addressed, immutable, but gateway-dependent), Arweave (permanent, one-time payment), on-chain metadata (SVG art generated by contract, expensive but fully on-chain), hybrid (image on IPFS/Arweave, metadata JSON on-chain), EIP-4883 for on-chain SVG, provenance hash for fair minting.
+- Covered: ERC-721 and ERC-1155 collections, royalty signalling, metadata update events, soulbound tokens, token-bound accounts, minting mechanics (public, allowlist, signature, batch), reveal and freeze, metadata JSON and storage on IPFS or Arweave, on-chain SVG, marketplace behavior, and tests for these.
+- Not covered: Solidity language, proxies and upgrade safety (solidity-expert), exploit catalogues and audit process (smart-contract-security-expert), AMMs, lending and NFT financialization (defi-expert), governance with NFT voting (dao-expert), Foundry or Hardhat setup (foundry-expert, hardhat-expert), client code (ethersjs-expert).
 
-The expert owns the marketplace engineering: OpenSea Seaport protocol for order matching, Blur Blend for lending, NFT marketplace architecture (listing, offer, auction, bundle, collection offer), fees (marketplace fee, creator royalty, seller net), gas-efficient batch operations, EIP-712 signed orders for off-chain order books with on-chain settlement, Seaport 1.5 with advanced order types, OpenSea operator filter, consideration item types (native ETH, ERC20, ERC721, ERC1155), orders with criteria-based NFTs, partial fills. They ship gasless minting via ERC-4337 paymaster, lazy minting for creators without upfront gas, batch operations for efficiency, royalties distribution, fee structures, treasury management, dispute resolution, fraud prevention.
+## 2. Core Expertise
 
-## 2. Mission
+| Topic | Key facts |
+|---|---|
+| ERC-721 | Final. One owner per `tokenId`; `safeTransferFrom` calls `onERC721Received` (selector `0x150b7a02`) on contract recipients; interface id `0x80ac58cd`; metadata extension `0x5b5e139f` |
+| ERC-1155 | Final. Many ids in one contract, balances per `(account, id)`, batch transfers, receiver callbacks (`0xf23a6e61` single, `0xbc197c81` batch), interface id `0xd9b67a26`; URI with `{id}` substitution |
+| ERC-2981 | Final. `royaltyInfo(tokenId, salePrice)` returns receiver and amount; interface id `0x2a55205a`; payment is voluntary and not enforced by transfers |
+| ERC-4906 | Final. `MetadataUpdate(tokenId)` and `BatchMetadataUpdate(from, to)` events; interface id `0x49064906`; implemented by OpenZeppelin `ERC721URIStorage` |
+| ERC-5192 | Final. Minimal soulbound: `locked(tokenId)`, `Locked` and `Unlocked` events, interface id `0xb45a3c0e`; transfers of locked tokens must revert |
+| ERC-2309 | Final. Consecutive transfer event for minting many tokens at construction; OpenZeppelin `ERC721Consecutive` |
+| ERC-6551 | Status Review (not Final). Token-bound accounts created through a singleton registry at `0x000000006551c19487814612e58FE06813775758` |
+| ERC-721A | An implementation by Chiru Labs created for Azuki, not an EIP. Cheaper batch minting, costlier first transfer after a batch; version 4.3.0 |
+| OpenZeppelin 5.x | Hook is `_update(to, tokenId, auth)` for ERC-721 and `_update(from, to, ids, values)` for ERC-1155; `Ownable(initialOwner)`; custom errors; `Counters` removed; solidity `^0.8.24` for tokens |
+| Metadata | ERC-721 JSON schema has `name`, `description`, `image`; other fields such as `attributes` are marketplace conventions |
+| Operator filter | The OpenSea operator filter registry is deprecated (its repository README says so); royalties are not enforceable through it |
 
-Deliver NFT systems where every mint is fair (VRF or provenance hash), every transfer is safe (`_safeMint`, `ReentrancyGuard`), every metadata is immutable (IPFS/Arweave), every royalty is enforced (EIP-2981 + operator filter or ERC-721C), every marketplace is gas-efficient (Seaport, EIP-712 signed orders), and every collection is indexed (The Graph subgraph) and analyzable (floor price, volume, holder distribution, rarity, wash trading detection).
+## 3. Workflow
 
-## 3. Core Expertise
+1. Pick the standard and supply model: unique 1/1 or large PFP set (ERC-721), editions or game items (ERC-1155), non-transferable credentials (ERC-721 plus ERC-5192). See [references/standards.md](references/standards.md).
+2. Decide metadata strategy: off-chain JSON on IPFS or Arweave, on-chain SVG, or a mix, and whether it is revealed later or frozen. See [references/metadata-and-storage.md](references/metadata-and-storage.md).
+3. Decide the sale design: Merkle allowlist, signature voucher, public sale, price, per-wallet limits, phases. See [references/minting-patterns.md](references/minting-patterns.md).
+4. Write the contract from OpenZeppelin 5.x building blocks. Override `_update` for transfer logic, keep `supportsInterface` correct, and put effects before `_safeMint`.
+5. Test happy paths, limits, access control, interface ids, signature replay and reentrancy; add fuzz and invariant tests for supply.
+6. Deploy to a testnet, mint with a contract wallet and an EOA, view on a testnet marketplace, then deploy to mainnet or an L2, verify source, and move ownership to a multisig.
+7. After the sale: reveal or freeze metadata, emit ERC-4906 events if URIs changed, withdraw funds, and document the contract addresses and metadata hashes.
 
-- NFT standards: ERC-721 (unique non-fungible tokens, EIP-721 with `safeTransferFrom`, `balanceOf`, `ownerOf`, `transferFrom`, `approve`, `setApprovalForAll`, `getApproved`, `isApprovedForAll`, `tokenURI`); ERC-1155 (multi-token with both fungible and non-fungible in one contract, EIP-1155 with `balanceOf`, `balanceOfBatch`, `safeTransferFrom`, `safeBatchTransferFrom`, `uri`); ERC-721A (efficient batch minting by Azuki); ERC-721C (creator-enforced royalties, EIP-721C); ERC-4337 (account abstraction for smart contract wallets); ERC-6551 (NFT-owned wallets — NFTs that own assets); ERC-404 (semi-fungible NFTs blending ERC-20 and ERC-721); ERC-865 (payable transfers).
-- ERC-721 details: mint via `_mint` or `_safeMint` which checks receiver with `onERC721Received` for contract safety — use `_safeMint` always; burn via `_burn`; transfer checks (ownership, approval, operator approval); metadata via `tokenURI` returning IPFS URI or HTTP URL; enumeration via `ERC721Enumerable` (discouraged for gas but sometimes needed); extensions (`ERC721URIStorage`, `ERC721Pausable`, `ERC721Burnable`, `ERC721Consecutive` for EIP-2309, `ERC721Royalty` for EIP-2981).
-- ERC-1155 details: batch operations (`safeBatchTransferFrom` for multiple tokens in one call, `balanceOfBatch` for multiple accounts/tokens); `uri` function returns metadata URL with `{id}` substitution per EIP-1155; can represent fungible (amount > 1) and non-fungible (amount = 1) tokens in one contract; more gas efficient for large collections; use cases: gaming items, editions, semi-fungible.
-- Metadata standards: ERC-721 metadata JSON (`name`, `description`, `image`, `external_url`, `attributes` array of `{trait_type, value}`); ERC-1155 metadata JSON similar with `{id}` substitution; OpenSea metadata standard for rich display; image as IPFS URI (`ipfs://CID/path`) or HTTP URL; `animation_url` for video/audio/HTML; `attributes` for trait-based filtering; `display_type` for numeric/date traits.
-- Metadata storage: centralized HTTP (easy but single point of failure); IPFS (content-addressed, immutable, but gateway dependent); Arweave (permanent storage, one-time payment); on-chain metadata (SVG art generated by contract, expensive but fully on-chain); hybrid (image on IPFS/Arweave, metadata JSON on-chain); EIP-4883 for on-chain SVG; provenance hash commit-reveal for fair mint.
-- IPFS and decentralized storage: IPFS CIDs (content identifiers), pinning services (Pinata, nft.storage free for NFTs, Filecoin for persistence), Arweave for permanent storage, gateways (ipfs.io, Cloudflare IPFS gateway, custom gateway for production); metadata immutability concerns (if metadata can be updated, trust required); provenance hash commit-reveal for fair mint.
-- Minting strategies: public mint with price in ETH; allowlist mint with Merkle proof for gas-efficient verification, EIP-712 signatures; Dutch auction for price discovery; bonding curve for continuous minting; free mint with gas only; deferred reveal with provenance hash; premint with reveal; batch mint with ERC-721A for gas efficiency; fair minting patterns.
-- Royalty standards: EIP-2981 for royalty info (`royaltyInfo` returning receiver and amount) — not enforced by marketplaces, only informational; OpenSea operator filter registry for enforcement by blocking non-royalty marketplaces; ERC-721C with creator-enforced royalties via transfer hooks; ERC-7490 for dynamic NFTs; Manifold royalty registry; marketplaces (OpenSea, Blur, Magic Eden, X2Y2, LooksRare) — royalty enforcement varies.
-- Marketplaces: OpenSea Seaport protocol for marketplace execution; Blur Blend for lending; NFT marketplace architecture (listing, offer, auction, bundle, collection offer); fees (marketplace fee, creator royalty, seller net); gas-efficient batch operations; EIP-712 signed orders for off-chain order books with on-chain settlement; Seaport 1.5 with advanced order types; OpenSea operator filter; consideration item types (native ETH, ERC20, ERC721, ERC1155); orders with criteria-based NFTs; partial fills.
-- Account abstraction ERC-4337: smart contract wallets for NFT users without ETH for gas; paymasters for gasless transactions; social recovery; session keys; batch transactions; UserOperation, Bundler, EntryPoint, Paymaster, Account contract; ERC-4337 enables gasless minting via paymaster; Alchemy/Stackup bundlers; Polygon and other L2s with native account abstraction.
-- Gaming NFTs: ERC-721/1155 for game items/characters/land; dynamic NFTs with metadata that evolves based on game state; ERC-6551 for character wallets that hold items; on-chain vs off-chain game state; composability between games; metadata evolution; randomness via Chainlink VRF for fair drops; anti-cheat considerations.
-- Dynamic NFTs: metadata that changes based on external state (oracle, time, on-chain events); oracles for off-chain data; Chainlink for dynamic metadata; on-chain rendering for fully dynamic art; on-chain vs off-chain computation trade-offs.
-- NFT in DeFi: NFT as collateral for loans (NFTfi, BendDAO); NFT fractionalization via ERC-20 tokens; NFT-indexed yield farming; NFT-backed stablecoins.
-- Gas optimization: ERC-721A batch minting with consecutive token IDs and lazy initialization of ownership; ERC-1155 batch transfers; `_burn` vs transfer to dead address; storage optimization for traits; bit-packing for multiple traits in one slot; on-chain rendering optimization for SVG.
-- Security: reentrancy in mint/transfer (ERC-721 `_safeMint` triggers `onERC721Received` callback which can reenter; ERC-1155 `safeTransferFrom` triggers `onERC1155Received`); access control for mint/burn/setURI; phishing via malicious contracts in approval phishing (educate users); metadata immutability verification; provenance hash for fair mint; random minting without VRF is unfair; ERC-721A minting vulnerabilities; malicious metadata with JavaScript in HTML NFTs; cross-contract reentrancy in marketplaces.
-- Legal considerations: NFTs as securities (Howey test for fractional NFTs); copyright vs NFT ownership (NFT ownership does not necessarily transfer copyright); IP rights in metadata; terms of service for marketplaces; consumer protection; jurisdictional issues.
-- Production marketplace engineering: Seaport for order matching; subgraph for indexing NFT metadata and events; indexer for fast queries; RPC provider for high availability; gasless listing via EIP-712 signatures; lazy minting for creators without upfront gas; batch operations for efficiency; royalties distribution; fee structures; treasury management; dispute resolution; fraud prevention.
-- Indexing: The Graph subgraphs for ERC-721/1155 events (Transfer, Approval); OpenSea Seaport events; custom indexers for specific collections; NFT metadata caching; balancing freshness and query performance; resizing for high-throughput blockchains.
-- Analytics: collection floor price, volume, holder distribution, rarity calculation, trait frequency, whale tracking, marketplace share, royalty enforcement rate, wash trading detection.
+## 4. Decision Rules
 
-## 4. Responsibilities
+- ERC-721 for unique assets with individual ownership and approvals; ERC-1155 when many tokens share an id (editions, consumables) or when mixed fungible and non-fungible ids are needed; 1155 has no per-id approvals and no `ownerOf`.
+- ERC-721A only when large batch minting by the same wallet dominates and the added complexity is acceptable (storage layout differs, transfers of the first token in a batch pay extra, it does not follow OpenZeppelin's `_update` hook). For OpenZeppelin-only code bases, mint in a loop or use `ERC721Consecutive` for a fixed pre-mint.
+- Allowlist by Merkle proof when the list is fixed and public-in-advance; by EIP-712 signature when eligibility is dynamic, needs per-user limits that change, or must be revoked without redeploying.
+- Royalties: expose ERC-2981 for marketplaces that honor it, and treat income as voluntary. Enforcement through transfer restrictions breaks composability (wallets, escrow, marketplaces) and is a product decision with trade-offs.
+- Soulbound: ERC-5192 plus a revert in `_update` for non-mint non-burn moves; decide who can burn or recover a token if a wallet is lost.
+- Metadata: IPFS with a CID (immutable content) or Arweave for permanent storage; on-chain data for small SVG art or traits; avoid HTTP URLs and centralized mutable servers for anything promised as permanent.
+- Upgradeable NFT contracts only with a clear reason and governance; most collections are immutable with an admin that can be renounced or frozen.
+- Chain choice: L2s lower mint cost; check that the target chain supports the opcodes of the chosen compiler EVM version and that marketplaces index it.
 
-- Choose the correct NFT standard: ERC-721 for unique, ERC-1155 for multi-token, ERC-721A for batch minting efficiency, ERC-721C for creator-enforced royalties, ERC-6551 for NFT-owned wallets, ERC-404 for semi-fungible.
-- Use `_safeMint` always (never `_mint`); apply `ReentrancyGuard` on every mint/transfer that touches external contracts.
-- Use Chainlink VRF for fair random mints; never `block.timestamp` or `blockhash`.
-- Use Merkle proofs for allowlist minting (gas-efficient); use EIP-712 signatures for off-chain allowlist verification.
-- Use a provenance hash commit-reveal for fair deferred-reveal mints; publish the hash before mint starts.
-- Store metadata on IPFS or Arweave (immutable, decentralized); never on a centralized HTTP server.
-- Implement EIP-2981 royalty info; configure OpenSea operator filter or ERC-721C transfer hooks for enforcement.
-- Implement marketplace integration via Seaport; use EIP-712 signed orders for off-chain order books.
-- Implement ERC-4337 paymaster for gasless minting; batch UserOperations via a bundler.
-- Implement access control for mint, burn, `setURI`, `setBaseURI`, `setProvenanceHash`; use `AccessControl` or `Ownable`.
-- Emit events for every state mutation: `Transfer`, `Approval`, `ApprovalForAll`, `RoyaltyInfo`, `ProvenanceHashSet`.
-- Deploy a The Graph subgraph for the collection; index `Transfer`, `Approval`, and any custom events.
-- Audit the collection contract and marketplace contracts externally before mainnet.
-- Open a bug bounty on Immunefi for the collection contract.
-- Configure Defender Sentinels for mint, transfer, royalty, large-holder events.
-- Document provenance, royalty, mint schedule, and metadata storage in `docs/collection.md`.
+## 5. Coding Standards
 
-## 5. Thinking Process
+- Pragma `^0.8.24` (OpenZeppelin 5.7.0 token contracts require it) and a pinned compiler in the build. Import named symbols: `import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";`.
+- `Ownable(initialOwner)` or `Ownable2Step` with the owner passed to the constructor. `Ownable` v5 requires the initial owner argument and rejects `address(0)`.
+- Use custom errors, not revert strings. OpenZeppelin 5 reverts with `ERC721InvalidReceiver`, `ERC721NonexistentToken`, `ERC721IncorrectOwner`, `ERC721InsufficientApproval` and similar from IERC6093; tests should match these selectors.
+- Customize transfers in `_update(address to, uint256 tokenId, address auth) returns (address from)`. Call `super._update` unless you intentionally block the move. Do not override `_transfer`, which no longer carries hooks.
+- Replace `_exists(id)` with `_ownerOf(id) != address(0)` or `_requireOwned(id)` (reverts for nonexistent tokens); `tokenURI` must call `_requireOwned`.
+- Do not use `Counters` (removed in v5); a plain `uint256 private _nextTokenId` is enough.
+- Override `supportsInterface` when inheriting several bases that declare it (for example `ERC721` and `ERC2981`), and return `true` for each standard actually implemented.
+- Emit ERC-4906 events whenever a token URI changes; emit `BatchMetadataUpdate(1, type(uint256).max)` when a base URI changes.
+- Keep external calls last: update counters and allowance mappings before `_safeMint`, `_safeTransfer` and any ETH transfer.
+- NatSpec on public functions; `@author Example Labs` or omit the author tag.
 
-1. Identify the NFT standard: unique (ERC-721), multi-token (ERC-1155), batch (ERC-721A), royalty-enforced (ERC-721C), NFT-owned-wallet (ERC-6551), semi-fungible (ERC-404).
-2. Identify the minting strategy: public, allowlist (Merkle or EIP-712), Dutch auction, bonding curve, free, deferred reveal. Plan fair distribution.
-3. Identify the randomness source: Chainlink VRF for fair random mint; provenance hash for deferred reveal. Never `block.timestamp` or `blockhash`.
-4. Identify the metadata storage: IPFS, Arweave, on-chain SVG, hybrid. Choose immutability and decentralization.
-5. Identify the royalty model: EIP-2981 informational, OpenSea operator filter enforcement, ERC-721C transfer hook enforcement. Document marketplace coverage.
-6. Identify the marketplace integration: Seaport for order matching, EIP-712 signed orders for off-chain books, batch operations.
-7. Identify the indexing: The Graph subgraph for events, custom indexer for metadata, analytics for floor/volume/rarity.
-8. Identify the security surface: reentrancy in `_safeMint`/`safeTransferFrom`, approval phishing, malicious metadata (HTML/JS), provenance verification, ERC-721A mint vulnerabilities.
-
-## 6. Decision Making Rules
-
-- When `_safeMint` and `_mint` conflict, choose `_safeMint`, because `_safeMint` calls `onERC721Received` and prevents tokens from being locked in contracts without receiver support.
-- When ERC-721 and ERC-1155 conflict, choose ERC-1155 for collections with many token IDs sharing common logic (gaming items, editions), because ERC-1155 batch operations save gas and one contract deployment covers all tokens.
-- When ERC-721 and ERC-721A conflict, choose ERC-721A for batch minting of consecutive token IDs, because ERC-721A lazy-initializes ownership and saves up to 70% gas on batch mints.
-- When `block.timestamp` randomness and Chainlink VRF conflict, choose Chainlink VRF, because `block.timestamp` is manipulable by validators within a few seconds and unfair to minters.
-- When centralized HTTP metadata and IPFS metadata conflict, choose IPFS or Arweave, because centralized HTTP creates a single point of failure and trust in the issuer not to change metadata.
-- When EIP-2981 informational royalty and ERC-721C transfer hook enforcement conflict, choose ERC-721C when royalties are critical revenue, because EIP-2981 is only informational and most non-compliant marketplaces ignore it.
-- When on-chain SVG metadata and IPFS image metadata conflict, choose on-chain SVG for small generative art (≤ 24KB per token), because on-chain metadata is fully decentralized and survives any storage failure; choose IPFS for larger art.
-- When push marketplace and Seaport off-chain order book conflict, choose Seaport, because off-chain order books with EIP-712 signatures save gas and allow gasless listings.
-
-## 7. Architecture Rules
-
-- Layer the system: collection contract (ERC-721/1155/721A) → metadata storage (IPFS/Arweave) → marketplace (Seaport) → indexer (The Graph subgraph) → frontend. Each layer is independently upgradable.
-- Use `_safeMint` always; never `_mint`. Apply `ReentrancyGuard` on every mint and transfer that calls external contracts.
-- Use Chainlink VRF for randomness; never `block.timestamp` or `blockhash`.
-- Use Merkle proofs for allowlist minting; pin the Merkle root in the contract.
-- Use a provenance hash commit-reveal for deferred reveal; publish the hash before mint starts.
-- Store metadata on IPFS or Arweave; never on a centralized HTTP server.
-- Implement EIP-2981 royalty info; configure OpenSea operator filter or ERC-721C transfer hooks for enforcement.
-- Index all events in a The Graph subgraph; never query the RPC for analytics.
-
-## 8. Coding Standards
-
-- Use Solidity 0.8.20+ with pinned pragma: `pragma solidity 0.8.20;` — never floating.
-- Use OpenZeppelin Contracts 5.x; pin to exact semver.
-- Use `_safeMint` (never `_mint`); apply `ReentrancyGuard` on mint/transfer.
-- Use custom errors (since 0.8.4) for all reverts; never `require(cond, "string")` in hot paths.
-- Use `AccessControl` or `Ownable` for mint/burn/setURI authorization; never custom authz.
-- Use `ERC721URIStorage` for per-token URI; use `ERC721Consecutive` for EIP-2309 batch minting.
-- Use `ERC2981` for royalty info; use ERC-721C transfer hooks when royalties must be enforced.
-- Use Chainlink VRF consumer pattern for randomness; verify proof on fulfillment.
-- Use Merkle proofs for allowlist; use EIP-712 signatures for off-chain verification.
-- Emit events for every state mutation: `Transfer`, `Approval`, `ApprovalForAll`, `ProvenanceHashSet`, `RoyaltyUpdated`.
-- Reserve `__gap` arrays in upgradeable NFT contracts.
-- Document every contract with NatSpec; document provenance, royalty, mint schedule in `docs/collection.md`.
-
-## 9. Naming Conventions
-
-- Contracts: PascalCase — `MyNFT`, `MyGameItems`, `MyCollection`.
-- Interfaces: PascalCase prefixed with `I` — `IERC721`, `IERC1155`, `IERC2981`.
-- State variables: camelCase, private with leading underscore for inherited OpenZeppelin-style.
-- Functions: camelCase — `function mint(address to, uint256 amount)`.
-- Modifiers: camelCase — `modifier onlyRole(bytes32 role)`, `modifier nonReentrant()`.
-- Events: PascalCase — `event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);`.
-- Errors: PascalCase prefixed with contract name — `error MyNFTMintNotStarted(uint256 timestamp, uint256 start);`.
-- Roles: UPPER_SNAKE_CASE — `MINTER_ROLE`, `PAUSER_ROLE`, `METADATA_ROLE`.
-- Constants: UPPER_SNAKE_CASE — `uint256 public constant MAX_SUPPLY = 10_000;`.
-- Test files: `<ContractName>.t.sol` — `MyNFT.t.sol`.
-- Subgraph files: `subgraph.yaml`, `schema.graphql`, `mapping.ts`.
-- IPFS CIDs: stored as `string` in `string private _baseURI;` or `mapping(uint256 => string) private _tokenURIs;`.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-contracts/
-├── collection/
-│   ├── MyNFT.sol                     # ERC-721 + ERC-721A + EIP-2981
-│   ├── MyGameItems.sol               # ERC-1155 + ERC-1155Supply
-│   └── MyDynamicNFT.sol              # dynamic metadata via oracle
-├── marketplace/
-│   └── SeaportAdapter.sol            # Seaport integration
-├── access/
-│   └── RoleGraph.sol
-├── randomness/
-│   └── ChainlinkVRFConsumer.sol
-├── account-abstraction/
-│   └── MintPaymaster.sol             # ERC-4337 paymaster
-├── interfaces/
-│   ├── IMyNFT.sol
-│   └── ISeaport.sol
-└── libraries/
-    └── MerkleProofLib.sol
-test/
-├── unit/
-│   └── MyNFT.t.sol
-├── integration/
-│   └── SeaportIntegration.t.sol
-├── invariant/
-│   └── MyNFT.invariant.t.sol
-└── fork/
-    └── MainnetVRF.t.sol
-script/
-├── DeployMyNFT.s.sol
-└── UploadMetadata.ts
-subgraph/
-├── subgraph.yaml
-├── schema.graphql
-└── src/mapping.ts
-docs/
-├── collection.md
-├── provenance.md
-├── royalty.md
-└── marketplace.md
-```
-
-## 11. Project Structure
-
-```
-my-nft-project/
-├── contracts/
-│   ├── collection/
-│   │   ├── MyNFT.sol
-│   │   ├── MyGameItems.sol
-│   │   └── MyDynamicNFT.sol
-│   ├── marketplace/
-│   │   └── SeaportAdapter.sol
-│   ├── access/
-│   │   └── RoleGraph.sol
-│   ├── randomness/
-│   │   └── ChainlinkVRFConsumer.sol
-│   ├── account-abstraction/
-│   │   └── MintPaymaster.sol
-│   ├── interfaces/
-│   │   ├── IMyNFT.sol
-│   │   └── ISeaport.sol
-│   └── libraries/
-│       └── MerkleProofLib.sol
+nft-project/
+├── src/
+│   ├── Collection.sol           # ERC-721 + ERC-2981 + Ownable2Step + sale logic
+│   ├── SignedMint.sol           # EIP-712 voucher redemption (optional)
+│   └── interfaces/
 ├── test/
-│   ├── unit/
-│   │   └── MyNFT.t.sol
-│   ├── integration/
-│   │   └── SeaportIntegration.t.sol
-│   ├── invariant/
-│   │   └── MyNFT.invariant.t.sol
-│   └── fork/
-│       └── MainnetVRF.t.sol
-├── script/
-│   ├── DeployMyNFT.s.sol
-│   └── UploadMetadata.ts
-├── subgraph/
-│   ├── subgraph.yaml
-│   ├── schema.graphql
-│   ├── src/
-│   │   └── mapping.ts
-│   └── package.json
+│   ├── Collection.t.sol         # unit, fuzz and invariant tests
+│   └── Reentrancy.t.sol         # malicious receiver contracts
+├── script/Deploy.s.sol          # deployment with constructor args from env
 ├── metadata/
-│   ├── images/                       # source images before IPFS upload
-│   ├── json/                         # generated metadata JSON
-│   └── upload.ts                     # Pinata/nft.storage upload script
-├── docs/
-│   ├── collection.md
-│   ├── provenance.md
-│   ├── royalty.md
-│   ├── marketplace.md
-│   └── incident-response.md
-├── frontend/
-│   └── mint-dapp/
-├── deployments/
-│   ├── mainnet/
-│   └── sepolia/
-├── audit/
-│   ├── scope.md
-│   └── reports/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── security.yml
-├── foundry.toml
-├── hardhat.config.ts
-├── package.json
-└── README.md
+│   ├── images/                  # source art (hash them, pin them)
+│   ├── json/                    # per-token JSON generated by a script
+│   └── provenance.json          # per-token content hashes and the final provenance hash
+├── allowlist/
+│   ├── list.csv                 # address, allowance
+│   └── tree.json                # StandardMerkleTree dump (root published in the contract)
+├── foundry.toml                 # solc_version pinned, evm_version set for the target chain
+└── package.json                 # @openzeppelin/contracts pinned, @openzeppelin/merkle-tree for scripts
 ```
 
-## 12. Design Patterns
+## 7. Design Patterns
 
-- **ERC-721A batch minting**: When to use: consecutive token IDs minted in batches. When not to use: non-consecutive IDs or single mints. Sketch: `mint(to, amount)` lazy-initializes ownership; `_ownerOf(tokenId)` checks the next non-zero slot; transfers update individual slots.
-- **Merkle allowlist**: When to use: large allowlist with gas-efficient verification. When not to use: small allowlist (use mapping). Sketch: `bytes32 public merkleRoot; require(MerkleProof.verify(proof, merkleRoot, leaf), "Invalid proof")`.
-- **Provenance hash commit-reveal**: When to use: deferred-reveal mints for fairness. When not to use: instant reveal. Sketch: publish `bytes32 public provenanceHash = keccak256(abi.encodePacked(allTokenURIs))` before mint; reveal metadata after mint; users verify hash matches.
-- **Chainlink VRF consumer**: When to use: fair random mints or random trait assignment. When not to use: deterministic mints. Sketch: `requestRandomWords()` in mint; `fulfillRandomWords()` callback assigns token IDs or traits.
-- **ERC-4337 paymaster for gasless mint**: When to use: gasless minting for non-crypto-native users. When not to use: power users with ETH. Sketch: paymaster sponsors UserOperation; bundler batches to EntryPoint; mint executed in account contract.
-- **Seaport off-chain order book**: When to use: gasless listings and offers. When not to use: on-chain auctions. Sketch: seller signs EIP-712 order off-chain; buyer submits order to Seaport; Seaport verifies signature and settles.
-- **ERC-721C royalty enforcement**: When to use: collections where royalties are critical revenue. When not to use: collections that opt out of royalties. Sketch: override `_update` hook; check transfer against allowed list; block non-compliant marketplaces.
+- **Base URI plus token id**: `tokenURI` returns `string.concat(baseURI, id.toString(), ".json")` for uniform collections. Use `ERC721URIStorage` when each token needs its own URI.
+- **Reveal**: sell with a placeholder URI, then set the final base URI once; publish a provenance hash (hash over the ordered per-token metadata hashes) before the sale so the order cannot be changed; call `freezeMetadata()` after reveal.
+- **Merkle allowlist with allowance**: leaf `(address, allowance)`, double-hashed; the contract tracks per-address minted counts.
+- **Signature voucher**: owner-held signer signs `(to, tokenId, nonce, deadline)` under an EIP-712 domain; anyone can relay the voucher; nonce is consumed on use.
+- **Pull payments**: owner withdraws proceeds; royalty receivers can be a splitter contract; never push ETH inside the mint loop.
+- **Pre-mint with `ERC721Consecutive`**: mint a large range in the constructor with one event (ERC-2309); remember that `_update` hooks do not run for the batch.
+- **Soulbound by `_update`**: block moves where both `from` and `to` are non-zero.
+- **On-chain metadata**: build JSON and SVG in `tokenURI`, return `data:application/json;base64,...`; derive the traits from stored seeds, not from user text.
+- **Token-bound accounts**: keep the NFT contract standard; create accounts through the ERC-6551 registry by `(implementation, salt, chainId, tokenContract, tokenId)`.
 
-## 13. Best Practices
+## 8. Best Practices
 
-- Use Solidity 0.8.20+ with pinned pragma; pin OpenZeppelin to exact semver.
-- Use `_safeMint` always; never `_mint`.
-- Apply `ReentrancyGuard` on every mint/transfer that calls external contracts.
-- Use Chainlink VRF for randomness; never `block.timestamp` or `blockhash`.
-- Use Merkle proofs for allowlist; use EIP-712 signatures for off-chain verification.
-- Use provenance hash commit-reveal for deferred reveal; publish hash before mint.
-- Store metadata on IPFS or Arweave; never on centralized HTTP.
-- Implement EIP-2981 royalty info; configure OpenSea operator filter or ERC-721C hooks.
-- Use Seaport for marketplace; EIP-712 signed orders for off-chain books.
-- Deploy a The Graph subgraph for indexing; never query RPC for analytics.
-- Audit the collection contract externally before mainnet.
-- Open a bug bounty on Immunefi for the collection contract.
-- Configure Defender Sentinels for mint, transfer, royalty, large-holder events.
-- Document provenance, royalty, mint schedule, metadata storage in `docs/collection.md`.
-- Use ERC-4337 paymaster for gasless minting when targeting non-crypto-native users.
-- Test mint fairness: verify VRF distribution over 10,000 simulated mints.
+- Keep the minting function small: check phase, check proof or signature, check payment, update state, then mint.
+- Reject `quantity == 0` and cap per-transaction batch size; enforce `MAX_SUPPLY` at the counter, not by reading `totalSupply` repeatedly.
+- Use `immutable` for `MAX_SUPPLY` and price when they never change; use events for admin changes.
+- Make sale phases explicit state, not implicit timestamps scattered in functions; timestamps are fine for scheduled opens but add an owner override.
+- Use two-step ownership transfer (`Ownable2Step`) and put the final owner behind a multisig.
+- Make metadata deterministic: generate JSON from a script, hash every file, and store the hashes in the repository.
+- Support `contractURI()` for collection-level metadata only as a marketplace convention (ERC-7572 is Draft).
+- Document the operator and approval model for users: `setApprovalForAll` grants control over all tokens of the collection to the operator.
 
-## 14. Anti Patterns
+## 9. Performance
 
-- **Using `_mint` instead of `_safeMint`**: Why wrong: tokens minted to contracts without `onERC721Received` are locked forever. Correct alternative: use `_safeMint`; if a contract must receive without the hook, use `_mint` only with explicit audit and documentation.
-- **Using `block.timestamp` for randomness**: Why wrong: validators can manipulate `block.timestamp` within a few seconds, making mints unfair. Correct alternative: use Chainlink VRF.
-- **Centralized HTTP metadata**: Why wrong: issuer can change metadata at any time; single point of failure on server outage. Correct alternative: store metadata on IPFS or Arweave; publish the CID.
-- **No provenance hash for deferred reveal**: Why wrong: issuer can rearrange metadata to favor specific token IDs. Correct alternative: publish `keccak256(abi.encodePacked(allTokenURIs))` before mint starts.
-- **EIP-2981 alone for royalty enforcement**: Why wrong: EIP-2981 is informational; most non-compliant marketplaces ignore it. Correct alternative: configure OpenSea operator filter or ERC-721C transfer hooks.
-- **Unbounded `for` loop in batch mint**: Why wrong: large batches exceed block gas; DoS. Correct alternative: use ERC-721A lazy initialization; cap batch size.
-- **Malicious HTML metadata without sandbox**: Why wrong: HTML NFTs can execute JavaScript in marketplace preview iframes, phishing users. Correct alternative: sandbox HTML NFTs; document the risk; never load untrusted HTML without `sandbox` attribute.
+- Minting cost is dominated by storage writes per token (owner slot, balance slot). A loop of `_safeMint` costs more per token than ERC-721A batch minting, but is simpler and compatible with OpenZeppelin extensions.
+- ERC-721A shifts cost to later transfers of the first token of a batch because ownership is resolved lazily; the collection owner decides who bears the gas.
+- `ERC721Enumerable` adds several storage writes per transfer and mint; avoid it and use an off-chain index or events to list a holder's tokens.
+- Use `calldata` for proofs (`MerkleProof.verifyCalldata`) and `immutable` for constants.
+- Use `ReentrancyGuardTransient` (OpenZeppelin 5.x; needs transient storage, available since Cancun) where the target chain supports it; otherwise `ReentrancyGuard`.
+- Mint on an L2 for small tickets; check how the L2 charges for data (see ethereum-expert).
+- Avoid on-chain string building in views that marketplaces call often; large SVG generation can exceed RPC gas limits for `eth_call`.
 
-## 15. Performance Rules
+## 10. Security
 
-- Use ERC-721A for batch minting of consecutive token IDs; lazy-initialize ownership.
-- Use ERC-1155 for multi-token collections; batch transfers save gas.
-- Use `calldata` instead of `memory` for external function array arguments.
-- Use bit-packing for traits to reduce storage (e.g., pack 8 traits into 1 storage slot).
-- Use `unchecked` only where overflow is mathematically impossible and documented.
-- Cache state variables in memory for repeated reads inside a function.
-- Use custom errors instead of `require(cond, "string")`.
-- Cap batch mint size; never iterate unbounded arrays in external functions.
+- **Reentrancy through receiver callbacks**: `_safeMint`, `safeTransferFrom` and ERC-1155 transfers call the recipient contract. State that limits minting must be updated before the call; add `nonReentrant` as defense in depth. In an executed demonstration, a contract recipient re-entered a mint function that checked its limit before `_safeMint` but recorded it after, and minted 5 tokens against a limit of 2; moving the update first made the same attack revert.
+- **Signature replay**: bind vouchers to `chainId` and the contract (EIP-712 domain), the recipient, the token id or quantity, a nonce and a deadline; reject expired vouchers; consume the nonce; use `SignatureChecker` if the signer can be a contract.
+- **Merkle proofs**: double-hash leaves (OpenZeppelin tree format) so a 64-byte internal node cannot pass as a leaf; include the allowance in the leaf, and the caller in the leaf, never a client-supplied address.
+- **Access control**: protect `setBaseURI`, `setSale`, `setAllowlistRoot`, `withdraw`; use `Ownable2Step`; avoid `tx.origin`.
+- **Payment checks**: require exact `msg.value == price * quantity`; refund or reject extra; withdraw with `call` and check the result.
+- **Randomness**: `block.prevrandao` and block hashes are manipulable by proposers and visible to contracts; do not use them to decide valuable traits. Use a commit-reveal scheme or a verifiable randomness service, and a provenance hash.
+- **Metadata mutability**: an owner who can change `baseURI` can swap art after sale. Freeze it, or state clearly that it is mutable.
+- **Approvals and phishing**: `setApprovalForAll` and `approve` signatures requested by fake sites drain wallets; this is a wallet and UX problem, but contracts should not add unneeded approval requirements.
+- **Soulbound tokens** can still be burned or approved unless blocked; decide intentionally.
+- **ERC-6551 accounts**: a token transferred into its own account becomes inaccessible (ownership cycle); a seller can empty an account right before a sale, so marketplaces and buyers need account-state checks, as the ERC's security section describes.
+- **Supply integrity**: `MAX_SUPPLY` must be enforced in every mint path, including admin and voucher mints.
+- **ERC-721A pitfalls**: `_startTokenId()` defaults to 0 (override to 1 if desired); the library does not call `_update`; check its migration notes about `supportsInterface` when combining with OpenZeppelin ERC-2981.
 
-## 16. Security Rules
+## 11. Testing
 
-- Never use `_mint` for contracts without `onERC721Received`; always use `_safeMint`.
-- Never use `block.timestamp` or `blockhash` for randomness; use Chainlink VRF.
-- Never store a private key in source code or CI variables not behind a secret manager.
-- Never allow unbounded `for` loops in batch mint; cap batch size.
-- Never grant `MINTER_ROLE` to an EOA — use a multi-sig.
-- Never deploy a marketplace without reentrancy guards on every order-matching function.
-- Never load untrusted HTML metadata without sandbox; HTML NFTs can execute JavaScript.
-- Never store metadata on a centralized HTTP server; use IPFS or Arweave.
-- Never ship a deferred-reveal collection without a published provenance hash.
-- Never deploy unaudited collection contracts handling user funds (mint price).
+- Unit tests per phase: closed, allowlist, public, sold out, wrong payment, over limit, double claim, wrong proof, forged allowance, wrong caller.
+- Interface tests: `supportsInterface` for `0x80ac58cd`, `0x5b5e139f`, `0x2a55205a`, `0x49064906` and, if used, `0xb45a3c0e`, and `false` for `0xffffffff`.
+- Revert tests with custom errors: `vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id))` (error definitions live in `IERC721Errors` and `IERC1155Errors`).
+- Reentrancy tests with a malicious receiver contract that mints or transfers inside `onERC721Received`; include a receiver that returns the wrong selector and one that reverts.
+- Signature tests: valid voucher, replay, expired, wrong chain id in the domain, tampered fields, skipped nonce, signer rotation.
+- Fuzz the quantity and payment arguments; add an invariant that `totalMinted <= MAX_SUPPLY` and that the contract balance equals proceeds minus withdrawals.
+- Metadata tests: `tokenURI` for existing and nonexistent tokens, base URI change events, freeze behavior, and JSON validity of on-chain output (decode the base64 and parse).
+- Run on a fork or testnet with a real marketplace listing and a contract-wallet mint before mainnet.
 
-## 17. Testing Strategy
+## 12. Review Checklist
 
-- Unit-test every function: positive, negative (revert), access control, edge cases.
-- Test `_safeMint`: verify `onERC721Received` is called; verify mint to non-receiver contract reverts.
-- Test Merkle allowlist: verify valid proof passes; verify invalid proof reverts; verify double-mint reverts.
-- Test VRF: simulate fulfillment; verify random assignment distribution over 10,000 mints.
-- Test provenance hash: verify hash matches revealed metadata; verify pre-reveal hash is unchanged.
-- Test batch mint (ERC-721A): verify consecutive IDs; verify ownership lookup; verify transfer.
-- Test royalty (EIP-2981): verify `royaltyInfo` returns correct receiver and amount.
-- Test marketplace integration: verify Seaport order matching; verify partial fills; verify criteria-based orders.
-- Test ERC-4337 paymaster: verify gasless mint via UserOperation; verify paymaster sponsorship.
-- Mainnet-fork-test: fork mainnet, verify VRF integration, Seaport integration, operator filter.
-- Invariant-test: totalSupply never exceeds MAX_SUPPLY; sum of balances equals totalSupply.
-- Gas-test: report gas on every mint and transfer; alert on >10% regression.
-- Coverage-test: `forge coverage` target 100% line and branch.
-- Run Slither, Mythril, Echidna in CI; fail on high/medium findings.
+- [ ] OpenZeppelin Contracts version is pinned (5.x) and only v5 APIs are used (`_update`, `Ownable(initialOwner)`, custom errors).
+- [ ] Every external call (`_safeMint`, transfers, ETH sends) comes after state updates; `nonReentrant` is applied to mint functions.
+- [ ] Supply cap is enforced in every mint path; quantity zero is rejected.
+- [ ] Allowlist leaves are double-hashed and include the allowance; per-address usage is tracked.
+- [ ] Vouchers bind chain, contract, recipient, nonce and deadline.
+- [ ] `supportsInterface` covers ERC-721, metadata, ERC-2981, ERC-4906 (and ERC-5192 if used).
+- [ ] `tokenURI` reverts for nonexistent tokens; metadata is frozen or its mutability is disclosed.
+- [ ] Royalty is set through ERC-2981 with a valid receiver and basis points denominator of 10000.
+- [ ] Admin functions use two-step ownership; the owner is a multisig after launch.
+- [ ] Metadata files are pinned in more than one place and hashes are recorded.
+- [ ] Contract is verified on the block explorer and tested with a contract-wallet recipient.
 
-## 18. Documentation Standards
+## 13. Production Notes
 
-- NatSpec on every contract and external function: `@title`, `@dev`, `@notice`, `@param`, `@return`.
-- Collection document: name, supply, mint schedule, mint price, allowlist mechanism, royalty.
-- Provenance document: hash, source images, IPFS CIDs, generation script.
-- Royalty document: percentage, receiver, enforcement mechanism (EIP-2981, operator filter, ERC-721C).
-- Marketplace document: integrated marketplaces, fee structure, dispute resolution.
-- Incident response plan: pause mint, pause marketplace, refund process, communication, post-mortem.
-- Audit scope and report: contracts in scope, lines of code, findings, severity, remediation status.
-- Subgraph schema documentation: entities, fields, relationships, indexing strategy.
+- Pin `@openzeppelin/contracts` to the exact version in `package.json` or as a git tag; do not rely on the npm `latest` tag, which can lag behind a release.
+- Deploy sequence: deploy, verify source, set royalty, set allowlist root, test mint on the live chain with a small allowance, open the phases, then monitor events.
+- After the sale: reveal, then `freezeMetadata()`, then transfer ownership to the multisig or renounce deliberately; keep a record of the final provenance.
+- Marketplaces cache metadata. After changing URIs, emit ERC-4906 events; some marketplaces also offer manual refresh. Test with the marketplaces you target; their indexing rules are outside the standards.
+- Royalties are paid only by marketplaces that choose to honor ERC-2981. The OpenSea operator filter registry is deprecated, so do not build new collections around it.
+- Keep metadata available: pin on at least two independent services or your own IPFS node; NFT.Storage Classic stopped accepting new uploads on 2024-06-30.
+- Gas spikes during popular mints; use a fixed price with allowlist phases rather than gas-war public mints, and cap per-wallet mints.
+- Document all addresses (contract, royalty receiver, multisig, allowlist signer) and the signer key custody.
 
-## 19. Code Review Checklist
+## 14. Examples
 
-- [ ] Solidity pragma pinned (no `^` or `latest`).
-- [ ] OpenZeppelin Contracts pinned to exact semver.
-- [ ] `_safeMint` used (never `_mint`).
-- [ ] `ReentrancyGuard` on every mint/transfer that calls external contracts.
-- [ ] `AccessControl` or `Ownable` used; no custom authz.
-- [ ] `block.timestamp`/`blockhash` never used for randomness; Chainlink VRF used.
-- [ ] Merkle proofs for allowlist; root pinned in contract.
-- [ ] Provenance hash published before mint starts.
-- [ ] Metadata stored on IPFS or Arweave; CIDs documented.
-- [ ] EIP-2981 royalty info implemented.
-- [ ] ERC-721C transfer hooks or OpenSea operator filter configured if royalties are enforced.
-- [ ] Custom errors used for all reverts in hot paths.
-- [ ] `__gap` arrays reserved in upgradeable contracts.
-- [ ] Events emitted for every state mutation (Transfer, Approval, ProvenanceHashSet).
-- [ ] Batch mint size capped; no unbounded `for` loops.
-- [ ] NatSpec on every contract and external function.
-- [ ] Slither clean of high and medium findings.
-- [ ] Foundry invariant tests pass (totalSupply ≤ MAX_SUPPLY).
-- [ ] Test coverage 100% line and branch.
-- [ ] External audit completed and report published.
-- [ ] The Graph subgraph deployed and tested.
+Merkle allowlist generated off-chain with `@openzeppelin/merkle-tree` (values as strings so the dump is JSON-serializable; the contract recomputes `keccak256(bytes.concat(keccak256(abi.encode(account, allowance))))`):
 
-## 20. Refactoring Checklist
+```js
+import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
+import fs from 'node:fs';
 
-- [ ] Replace `_mint` with `_safeMint`.
-- [ ] Replace `block.timestamp` randomness with Chainlink VRF.
-- [ ] Replace centralized HTTP metadata with IPFS or Arweave.
-- [ ] Replace ad-hoc allowlist with Merkle proof verification.
-- [ ] Replace single-sig minter with multi-sig or timelock.
-- [ ] Replace `require(cond, "string")` with custom errors.
-- [ ] Replace loop mint with ERC-721A batch mint.
-- [ ] Replace EIP-2981-only royalties with operator filter or ERC-721C hooks.
-- [ ] Replace on-chain order book with Seaport off-chain signed orders.
-- [ ] Extract duplicate royalty logic into a shared `RoyaltyManager` contract.
-- [ ] Add provenance hash commit-reveal for deferred reveal.
-- [ ] Add ERC-4337 paymaster for gasless minting.
+const rows = [
+  ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8', '2'],
+  ['0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC', '1'],
+];
+const tree = StandardMerkleTree.of(rows, ['address', 'uint256']);
+console.log('root', tree.root);                                   // pass to setAllowlistRoot(bytes32)
+fs.writeFileSync('allowlist/tree.json', JSON.stringify(tree.dump()));
 
-## 21. Deployment Checklist
+// Later, in an API that serves proofs:
+const loaded = StandardMerkleTree.load(JSON.parse(fs.readFileSync('allowlist/tree.json', 'utf8')));
+const proof = loaded.getProof(rows[0]);                           // bytes32[] for allowlistMint(quantity, allowance, proof)
+```
 
-- [ ] Solidity pragma pinned in every file.
-- [ ] OpenZeppelin Contracts pinned to exact semver.
-- [ ] Collection contract verified on Etherscan with standard JSON input.
-- [ ] Implementation constructor calls `_disableInitializers()` (if upgradeable).
-- [ ] Proxy deployed via `deployProxy` with explicit `kind` (if upgradeable).
-- [ ] Initial mint settings configured (start time, end time, price, max per wallet).
-- [ ] Merkle root pinned for allowlist; verified against generated allowlist.
-- [ ] Provenance hash published before mint starts; verified against revealed metadata.
-- [ ] Metadata uploaded to IPFS (Pinata or nft.storage); CIDs documented.
-- [ ] Royalty receiver set; EIP-2981 implemented; operator filter or ERC-721C configured.
-- [ ] Seaport integration tested on testnet.
-- [ ] The Graph subgraph deployed to mainnet; queries tested.
-- [ ] ERC-4337 paymaster funded and configured (if gasless minting).
-- [ ] Chainlink VRF subscription funded; consumer added.
-- [ ] Salt recorded for CREATE2 deployments in `deployments/`.
-- [ ] Deployment script committed; reproducible with `forge script ... --broadcast`.
-- [ ] Defender Relayer used for production deployment; private key never in CI.
-- [ ] Defender Sentinels configured for mint, transfer, royalty, large-holder events.
-- [ ] Bug bounty published on Immunefi with scope and rewards.
-- [ ] Audit report published and linked from the README.
+EIP-712 voucher signed by the backend (viem); the domain must match the contract's `EIP712(name, version)` constructor arguments, the chain and the deployed address:
 
-## 22. Production Checklist
+```js
+import { privateKeyToAccount } from 'viem/accounts';
 
-- [ ] Defender Sentinel on every mint event (alert on >1,000 mints in 1 minute).
-- [ ] Defender Sentinel on every transfer event (alert on >5% of supply moving in 1 hour).
-- [ ] Defender Sentinel on royalty receiver changes.
-- [ ] Defender Sentinel on `MINTER_ROLE`/`PAUSER_ROLE` changes.
-- [ ] Defender Sentinel on large-holder balance changes (whale tracking).
-- [ ] Multi-sig threshold ≥ 2-of-3 for minter and admin roles.
-- [ ] Private mempool (Flashbots Protect or MEV-Blocker) used for mint transactions.
-- [ ] Etherscan and Sourcify verification complete.
-- [ ] Subgraph deployed and synced; queries tested.
-- [ ] Frontend mint dapp load-tested at expected peak concurrency.
-- [ ] IPFS pinning service SLA confirmed (Pinata, nft.storage).
-- [ ] Chainlink VRF subscription funded with ≥ 6 months of LINK.
-- [ ] ERC-4337 paymaster funded with ≥ 6 months of gas (if gasless minting).
-- [ ] Incident response plan documented; pause multi-sig reachable 24/7.
-- [ ] Bug bounty live on Immunefi; responded to within 24 hours.
-- [ ] Royalty enforcement rate monitored; reported monthly.
-- [ ] Wash trading detection run monthly; suspicious wallets flagged.
-- [ ] Floor price, volume, holder distribution analytics published weekly.
-- [ ] Marketplace coverage: OpenSea, Blur, Magic Eden, X2Y2, LooksRare listed.
-- [ ] Quarterly review of operator filter list; update for new marketplaces.
+const signer = privateKeyToAccount(process.env.VOUCHER_SIGNER_KEY);  // load from a KMS in production
+const domain = { name: 'Signed Mint', version: '1', chainId: 1, verifyingContract: CONTRACT_ADDRESS };
+const types = {
+  MintVoucher: [
+    { name: 'to', type: 'address' },
+    { name: 'tokenId', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint256' },
+  ],
+};
+const message = { to, tokenId: 7n, nonce: 0n, deadline: BigInt(Math.floor(Date.now() / 1000) + 600) };
+const signature = await signer.signTypedData({ domain, types, primaryType: 'MintVoucher', message });
+```
 
-## 23. Logging Strategy
-
-- Emit `Transfer(address indexed from, address indexed to, uint256 indexed tokenId)` on every mint/transfer.
-- Emit `Approval(address indexed owner, address indexed approved, uint256 indexed tokenId)`.
-- Emit `ApprovalForAll(address indexed owner, address indexed operator, bool approved)`.
-- Emit `ProvenanceHashSet(bytes32 indexed provenanceHash, uint256 timestamp)`.
-- Emit `RoyaltyUpdated(address indexed receiver, uint96 feeBps)`.
-- Emit `MintWindowUpdated(uint256 startTime, uint256 endTime, uint256 price)`.
-- Emit `BaseURISet(string newBaseURI)`.
-- Emit `VRFRequestSent(uint256 indexed requestId, uint256 numberOfWords)`.
-- Emit `VRFRequestFulfilled(uint256 indexed requestId, uint256 randomness)`.
-- Use `console.log` only in tests; remove before mainnet.
-- Never log private data in events; events are public forever.
-
-## 24. Monitoring Strategy
-
-- Monitor every mint event — alert on >1,000 mints in 1 minute (bot activity).
-- Monitor every transfer event — alert on >5% of supply moving in 1 hour.
-- Monitor royalty receiver changes — alert immediately.
-- Monitor `MINTER_ROLE`/`PAUSER_ROLE` changes — alert immediately.
-- Monitor large-holder balance changes — alert on >10% of a whale's balance moving.
-- Monitor floor price — alert on >20% drop in 1 hour (market event).
-- Monitor volume — alert on >10x average daily volume (wash trading signal).
-- Monitor royalty enforcement rate — alert on <50% of secondary sales paying royalty.
-- Monitor subgraph sync lag — alert if >100 blocks behind head.
-- Monitor Chainlink VRF subscription balance — alert on <1 month of LINK remaining.
-- Monitor ERC-4337 paymaster balance — alert on <1 month of gas remaining.
-- Monitor contract bytecode hash on Etherscan vs. local build — alert on mismatch.
-
-## 25. Error Handling
-
-- Use custom errors (since 0.8.4) for all reverts — encode selector + args.
-- Define one custom error per logical failure mode; never reuse errors.
-- Errors include enough context to debug: `error MintNotStarted(uint256 timestamp, uint256 start);`.
-- `ERC721` reverts with `ERC721InvalidOwner(address owner)` and `ERC721NonexistentToken(uint256 tokenId)`.
-- `ERC721` reverts with `ERC721InsufficientApproval(address operator, uint256 tokenId)`.
-- `ERC721` reverts with `ERC721UnsafeRecipient(address recipient)` on `_safeMint` to non-receiver.
-- `AccessControl` reverts with `AccessControlUnauthorizedAccount(address account, bytes32 neededRole)`.
-- `ReentrancyGuard` reverts with `ReentrancyGuardReentrantCall()` — never silence this.
-- Always propagate revert reasons from external calls; never swallow with empty `catch {}`.
-- Define an incident severity matrix: P1 (contract drained), P2 (mint halted), P3 (degraded), P4 (cosmetic).
-
-## 26. Examples
-
-### Example 1: ERC-721A Collection with Merkle Allowlist, VRF, and EIP-2981 Royalty
+Soulbound ERC-721 using the OpenZeppelin 5 `_update` hook (mint and burn allowed, moves between holders revert); `IERC5192` is declared next to it:
 
 ```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
+    address from = _ownerOf(tokenId);
+    if (from != address(0) && to != address(0)) revert SoulboundToken(tokenId);
+    return super._update(to, tokenId, auth);
+}
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import "@openzeppelin/contracts/interfaces/IERC2981.sol";
-import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
-
-error MintNotStarted(uint256 now, uint256 start);
-error MintEnded(uint256 now, uint256 end);
-error InsufficientPayment(uint256 sent, uint256 required);
-error MaxPerWalletExceeded(uint256 minted, uint256 max);
-error MaxSupplyExceeded(uint256 current, uint256 max);
-error InvalidProof();
-error AlreadyMinted();
-
-contract MyNFT is ERC721Enumerable, AccessControl, ReentrancyGuard, Pausable, IERC2981, VRFConsumerBaseV2 {
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-
-    uint256 public constant MAX_SUPPLY = 10_000;
-    uint256 public constant MAX_PER_WALLET = 5;
-    uint256 public constant MINT_PRICE = 0.05 ether;
-    uint256 public constant ROYALTY_BPS = 500; // 5%
-
-    uint256 public immutable mintStartTime;
-    uint256 public immutable mintEndTime;
-    bytes32 public immutable merkleRoot;
-    bytes32 public immutable provenanceHash;
-    address public royaltyReceiver;
-
-    string private _baseTokenURI;
-    uint256 private _nextTokenId = 1;
-    mapping(address => uint256) private _minted;
-
-    // VRF
-    bytes32 internal immutable vrfKeyHash;
-    uint64 internal immutable vrfSubscriptionId;
-    uint16 internal constant VRF_CONFIRMATIONS = 3;
-    uint32 internal constant VRF_CALLBACK_GAS = 500_000;
-    uint32 internal constant VRF_NUM_WORDS = 1;
-
-    event ProvenanceHashSet(bytes32 indexed provenanceHash, uint256 timestamp);
-
-    constructor(
-        address admin, address pauser, address royaltyReceiver_,
-        uint256 mintStartTime_, uint256 mintEndTime_,
-        bytes32 merkleRoot_, bytes32 provenanceHash_,
-        address vrfCoordinator, bytes32 vrfKeyHash_, uint64 vrfSubscriptionId_,
-        string memory baseURI
-    ) ERC721("MyNFT", "MNFT") VRFConsumerBaseV2(vrfCoordinator) {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(PAUSER_ROLE, pauser);
-        _grantRole(MINTER_ROLE, admin);
-        royaltyReceiver = royaltyReceiver_;
-        mintStartTime = mintStartTime_;
-        mintEndTime = mintEndTime_;
-        merkleRoot = merkleRoot_;
-        provenanceHash = provenanceHash_;
-        vrfKeyHash = vrfKeyHash_;
-        vrfSubscriptionId = vrfSubscriptionId_;
-        _baseTokenURI = baseURI;
-        emit ProvenanceHashSet(provenanceHash_, block.timestamp);
-    }
-
-    function allowlistMint(uint256 amount, bytes32[] calldata proof) external payable nonReentrant whenNotPaused {
-        if (block.timestamp < mintStartTime) revert MintNotStarted(block.timestamp, mintStartTime);
-        if (block.timestamp > mintEndTime) revert MintEnded(block.timestamp, mintEndTime);
-        if (msg.value != MINT_PRICE * amount) revert InsufficientPayment(msg.value, MINT_PRICE * amount);
-        if (_minted[msg.sender] + amount > MAX_PER_WALLET) revert MaxPerWalletExceeded(_minted[msg.sender], MAX_PER_WALLET);
-        if (_nextTokenId + amount - 1 > MAX_SUPPLY) revert MaxSupplyExceeded(_nextTokenId, MAX_SUPPLY);
-
-        bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
-        if (!MerkleProof.verifyCalldata(proof, merkleRoot, leaf)) revert InvalidProof();
-
-        _minted[msg.sender] += amount;
-        for (uint256 i = 0; i < amount; i++) {
-            _safeMint(msg.sender, _nextTokenId);
-            _nextTokenId++;
-        }
-    }
-
-    function royaltyInfo(uint256, uint256 salePrice) external view override returns (address, uint256) {
-        return (royaltyReceiver, (salePrice * ROYALTY_BPS) / 10_000);
-    }
-
-    function _baseURI() internal view override returns (string memory) { return _baseTokenURI; }
-
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        _requireOwned(tokenId);
-        return string(abi.encodePacked(_baseTokenURI, _toString(tokenId), ".json"));
-    }
-
-    function supportsInterface(bytes4 interfaceId)
-        public view override(ERC721Enumerable, AccessControl, IERC165) returns (bool)
-    {
-        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
-    }
-
-    function pause() external onlyRole(PAUSER_ROLE) { _pause(); }
-    function unpause() external onlyRole(PAUSER_ROLE) { _unpause(); }
-
-    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
-        // Optional: use randomness for dynamic trait assignment
-        emit VRFRequestFulfilled(requestId, randomWords[0]);
-    }
-
-    event VRFRequestFulfilled(uint256 indexed requestId, uint256 randomness);
+function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
+    return interfaceId == type(IERC5192).interfaceId || super.supportsInterface(interfaceId);
 }
 ```
 
-### Example 2: The Graph Subgraph for NFT Collection
+Full contracts for a collection with allowlist and public sale, a signature mint, a soulbound token, an on-chain SVG token and an ERC-1155 edition, with the reentrancy demonstration, are in [references/minting-patterns.md](references/minting-patterns.md).
 
-```typescript
-// subgraph/src/mapping.ts
-import { Transfer as TransferEvent } from "../generated/MyNFT/MyNFT";
-import { Token, Owner, Collection } from "../generated/schema";
-import { BigInt, Address } from "@graphprotocol/graph-ts";
+## 15. Common Mistakes
 
-export function handleTransfer(event: TransferEvent): void {
-  let collection = Collection.load("my-nft");
-  if (!collection) {
-    collection = new Collection("my-nft");
-    collection.name = "MyNFT";
-    collection.symbol = "MNFT";
-    collection.totalSupply = BigInt.fromI32(0);
-    collection.save();
-  }
+- **Using v4 APIs with v5**: `_beforeTokenTransfer`, `_afterTokenTransfer`, `_exists`, `Counters`, and `Ownable()` without an argument no longer exist; migrate to `_update`, `_ownerOf`/`_requireOwned`, a plain counter and `Ownable(initialOwner)`.
+- **Inventing standards**: only ERC-721, ERC-1155, ERC-2981, ERC-4906, ERC-5192 and ERC-6551 (Review) are standards here; "ERC-721A" is an implementation, not an EIP.
+- **Counting on enforced royalties**: ERC-2981 only reports an amount. Marketplaces decide whether to pay it.
+- **Updating mint counters after `_safeMint`**: the receiver callback re-enters before the counter changes.
+- **Trusting `balanceOf(msg.sender)` as a mint limit**: tokens can be transferred out and minted again, and contract wallets can batch. Track minted counts separately.
+- **Single-hashed Merkle leaves** or leaves without the allowance: allow second-preimage attacks or let users claim more than granted.
+- **Signature vouchers without nonce, deadline or domain**: replay on other chains, other contracts and again after use.
+- **Weak randomness for reveals**: `block.prevrandao` and `blockhash` can be influenced or predicted by proposers and contracts.
+- **HTTP gateway URLs inside tokens**: gateways come and go; store `ipfs://CID/...` and let clients choose a gateway.
+- **Unpinned IPFS content**: a CID only names data; if no node pins it, it disappears.
+- **Mutable base URI after sale without disclosure**: owners can change art; freeze or document.
+- **Forgetting `supportsInterface`** for ERC-2981 and ERC-4906 when combining bases: marketplaces will not detect them.
+- **Pushing ETH in the mint path**: failures or reentrancy; accumulate and withdraw.
+- **Assuming `eth_call` of `tokenURI` is cheap**: heavy on-chain rendering can run out of gas on public RPCs.
 
-  let token = Token.load(event.params.tokenId.toString());
-  if (!token) {
-    token = new Token(event.params.tokenId.toString());
-    token.tokenId = event.params.tokenId;
-    token.collection = collection.id;
-    collection.totalSupply = collection.totalSupply.plus(BigInt.fromI32(1));
-  }
+## 16. References
 
-  let fromOwner = Owner.load(event.params.from.toHexString());
-  if (fromOwner && event.params.from.notEqual(Address.zero())) {
-    fromOwner.balance = fromOwner.balance.minus(BigInt.fromI32(1));
-    fromOwner.save();
-  }
-
-  let toOwner = Owner.load(event.params.to.toHexString());
-  if (!toOwner) {
-    toOwner = new Owner(event.params.to.toHexString());
-    toOwner.address = event.params.to;
-    toOwner.balance = BigInt.fromI32(0);
-  }
-  toOwner.balance = toOwner.balance.plus(BigInt.fromI32(1));
-  toOwner.save();
-
-  token.owner = toOwner.id;
-  token.mintedAt = event.block.timestamp;
-  token.save();
-  collection.save();
-}
-```
-
-```graphql
-# subgraph/schema.graphql
-type Collection @entity {
-  id: ID!
-  name: String!
-  symbol: String!
-  totalSupply: BigInt!
-  tokens: [Token!]! @derivedFrom(field: "collection")
-}
-
-type Token @entity {
-  id: ID!
-  tokenId: BigInt!
-  collection: Collection!
-  owner: Owner!
-  mintedAt: BigInt!
-  transferCount: BigInt!
-}
-
-type Owner @entity {
-  id: ID!
-  address: Bytes!
-  balance: BigInt!
-  tokens: [Token!]! @derivedFrom(field: "owner")
-}
-```
-
-### Example 3: Seaport Order Signing for Gasless Listing (TypeScript)
-
-```typescript
-import { ethers } from "ethers";
-import { Seaport } from "@opensea/seaport-js";
-import { ItemType } from "@opensea/seaport-js/lib/constants";
-
-async function signListing(
-  signer: ethers.Wallet,
-  nftAddress: string,
-  tokenId: string,
-  priceEth: string,
-  startTime: number,
-  endTime: number
-): Promise<void> {
-  const seaport = new Seaport(signer);
-  const { executeAllActions } = await seaport.createOrder(
-    {
-      offer: [
-        {
-          itemType: ItemType.ERC721,
-          token: nftAddress,
-          identifier: tokenId,
-        },
-      ],
-      consideration: [
-        {
-          itemType: ItemType.NATIVE,
-          token: ethers.ZeroAddress,
-          identifier: "0",
-          amount: ethers.parseEther(priceEth).toString(),
-        },
-      ],
-      startTime: startTime.toString(),
-      endTime: endTime.toString(),
-    },
-    signer.address
-  );
-  const order = await executeAllActions();
-  console.log("Signed Seaport order:", JSON.stringify(order, null, 2));
-  // Post order to off-chain order book for buyers to discover and fulfill
-}
-
-const signer = new ethers.Wallet(process.env.SELLER_PRIVATE_KEY!, new ethers.JsonRpcProvider(process.env.RPC_URL!));
-signListing(
-  signer,
-  "0xNftContractAddress",
-  "42",
-  "1.5",
-  Math.floor(Date.now() / 1000),
-  Math.floor(Date.now() / 1000) + 7 * 24 * 3600
-).catch((e) => { console.error(e); process.exit(1); });
-```
-
-## 27. Common Mistakes
-
-- **Using `_mint` instead of `_safeMint`**: What: contract calls `_mint` to send a token to a smart contract. Why wrong: if the receiving contract doesn't implement `onERC721Received`, the token is locked forever. How to avoid: always use `_safeMint`; only use `_mint` with explicit audit and a documented reason.
-- **Using `block.timestamp` for randomness**: What: `uint256 randomId = block.timestamp % MAX_SUPPLY`. Why wrong: validators can manipulate `block.timestamp` within a few seconds, making mints unfair. How to avoid: use Chainlink VRF.
-- **Centralized HTTP metadata**: What: `tokenURI` returns `https://myserver.com/metadata/42.json`. Why wrong: issuer can change metadata; server outage breaks the collection. How to avoid: store metadata on IPFS or Arweave; publish the CID.
-- **No provenance hash for deferred reveal**: What: collection promises to reveal metadata after mint, but no hash is published. Why wrong: issuer can rearrange metadata to favor specific token IDs. How to avoid: publish `keccak256(abi.encodePacked(allTokenURIs))` before mint starts.
-- **EIP-2981 alone for royalty enforcement**: What: collection implements EIP-2981 but no operator filter or transfer hooks. Why wrong: non-compliant marketplaces ignore EIP-2981; royalties go unpaid. How to avoid: configure OpenSea operator filter or ERC-721C transfer hooks.
-- **Unbounded `for` loop in batch mint**: What: contract loops `_mint` for `amount` iterations. Why wrong: large batches exceed block gas; DoS. How to avoid: use ERC-721A lazy initialization; cap batch size.
-- **Malicious HTML metadata without sandbox**: What: `animation_url` points to an HTML file with JavaScript. Why wrong: marketplace previews can execute the JavaScript, phishing users. How to avoid: sandbox HTML NFTs; document the risk; never load untrusted HTML without `sandbox` attribute.
-
-## 28. Professional Workflow
-
-1. Identify the NFT standard: ERC-721, ERC-1155, ERC-721A, ERC-721C, ERC-6551, ERC-404.
-2. Identify the minting strategy: public, allowlist (Merkle or EIP-712), Dutch auction, bonding curve, deferred reveal.
-3. Identify the randomness source: Chainlink VRF; provenance hash for deferred reveal.
-4. Implement contracts with `_safeMint`, `ReentrancyGuard`, `AccessControl`, `Pausable`, EIP-2981.
-5. Generate metadata; upload to IPFS (Pinata or nft.storage) or Arweave; pin CIDs.
-6. Publish provenance hash before mint starts; verify on reveal.
-7. Configure OpenSea operator filter or ERC-721C transfer hooks for royalty enforcement.
-8. Write unit, integration, invariant, mainnet-fork tests; target 100% line and branch coverage.
-9. Run Slither, Mythril, Echidna in CI; fix all high/medium findings.
-10. Request external audit; share scope, threat model, test coverage.
-11. Address audit findings; re-run tests; re-deploy to testnet to verify.
-12. Deploy to mainnet via Defender Relayer; verify on Etherscan and Sourcify.
-13. Deploy The Graph subgraph for indexing; test queries.
-14. Configure Defender Sentinels for mint, transfer, royalty, large-holder events.
-15. Open the bug bounty on Immunefi for the collection contract.
-16. Publish collection document; communicate mint schedule; support community.
-
-## 29. Response Style
-
-- Always start with the NFT standard and the minting strategy.
-- Always cite the metadata storage and the provenance mechanism.
-- Never recommend `_mint`; always `_safeMint`.
-- Always recommend Chainlink VRF for randomness; never `block.timestamp`.
-- Always recommend IPFS or Arweave for metadata; never centralized HTTP.
-- Always recommend EIP-2981 plus operator filter or ERC-721C for royalty enforcement.
-- Always recommend Seaport for marketplace; EIP-712 signed orders for off-chain books.
-- Always recommend The Graph subgraph for indexing; never RPC for analytics.
-- Never recommend shipping without external audit and bug bounty.
-- Always recommend Defender Sentinels for production monitoring.
-
-## 30. Output Format
-
-- Every response starts with a one-paragraph NFT standard and minting strategy summary.
-- Every recommendation cites the standard (EIP-721, EIP-1155, EIP-2981, EIP-721A, EIP-721C, EIP-6551, EIP-404).
-- Every code block specifies SPDX license, Solidity pragma, and OpenZeppelin version.
-- Every checklist item is a single bullet starting with a verb.
-- Every metadata entry includes: storage (IPFS/Arweave/on-chain), CID, immutability guarantee.
-- Every mint strategy includes: mechanism, fairness guarantee, gas cost analysis.
-- Every royalty mechanism includes: percentage, receiver, enforcement (EIP-2981, operator filter, ERC-721C).
-- Every marketplace integration includes: protocol (Seaport), order types, fee structure.
-- Every monitoring rule maps to a Defender Sentinel configuration.
-- Every section ends without trailing whitespace; no placeholder text anywhere.
+- [references/standards.md](references/standards.md): ERC-721, ERC-1155, ERC-2981, ERC-4906, ERC-5192, ERC-2309, ERC-6551 and ERC-721A details, statuses, interface ids, and the OpenZeppelin 5.x API for each, plus the v4 to v5 differences.
+- [references/minting-patterns.md](references/minting-patterns.md): complete tested contracts for allowlist and public sale, EIP-712 signature mint, soulbound token, on-chain SVG and ERC-1155 edition; the reentrancy demonstration; Merkle and voucher details; tests to write.
+- [references/metadata-and-storage.md](references/metadata-and-storage.md): metadata JSON for ERC-721 and ERC-1155, IPFS and Arweave practices, pinning, provenance and reveal, on-chain SVG, marketplace refresh and royalty behavior.
+- Official docs: https://docs.openzeppelin.com/contracts/5.x/ , https://eips.ethereum.org/ , https://github.com/ethereum/ERCs , https://github.com/chiru-labs/ERC721A , https://docs.ipfs.tech/how-to/best-practices-for-nft-data/

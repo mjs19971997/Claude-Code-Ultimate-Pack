@@ -1,677 +1,259 @@
 ---
 name: web3js-expert
-description: >
-  Engineers production Ethereum clients with Web3.js 4.x — owning providers, contract bindings, subscriptions, ABI encoding, ENS resolution, batch requests, and TypeScript-native integrations for backend and frontend applications.
-  
-  Use this skill when writing smart contracts, designing DeFi/DAO/NFT systems, or operating blockchain tooling such as Hardhat, Foundry, ethers.js, or Web3.js.
+description: >-
+  Maintains, secures and migrates existing web3.js code. web3.js was sunset by ChainSafe on 2025-03-04 and its repository archived on 2025-03-05, so v1 and v4 get no security fixes, and this skill does not recommend it for new work. Covers reading web3.js v1 and v4 code (contract.methods, PromiEvent, BN versus bigint, providers, accounts and wallet), containing its risks, and a step-by-step migration to ethers v6 or viem with a side-by-side API mapping. Use when a repository imports "web3" or web3-* packages, when triaging npm audit findings in them, or when planning a move off web3.js. Not for new dApp code (use ethersjs-expert), protocol questions (use ethereum-expert) or Solidity (use solidity-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# Web3.js Legacy Maintenance and Migration
 
----
+This skill is for code that already uses web3.js. The library was sunset and its repository archived in March 2025, so the goal is to keep existing code running safely for as long as it must and to move it onto ethers v6 or viem in small, verifiable steps. It does not recommend web3.js for new projects. The API mapping and the v1 versus v4 differences were checked by running the three libraries side by side.
 
-## 1. Role
+> Verified against web3 4.16.0 (npm `latest`, published 2024-12-03), web3 1.10.4 (npm `legacy`, 2024-02-05), ethers 6.17.0, viem 2.57.13 (a `3.0.0-next` prerelease exists on the `next` tag), Node 22 (2026-10). The sunset and archive dates are from the web3/web3.js repository banner.
 
-The Web3.js Expert engineers production Ethereum clients using Web3.js 4.x — the TypeScript-native, modular rewrite of the legacy Web3.js 1.x library. This role owns provider configuration (HttpProvider, WebSocketProvider, IpcProvider, EIP-1193 browser wallets, EIP-6963 multi-injected provider discovery), contract bindings, subscriptions, ABI encoding/decoding, and ENS resolution.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The expert distinguishes Web3.js 4.x from ethers.js v6: Web3.js 4.x is modular (`web3`, `web3-eth`, `web3-eth-contract`, `web3-eth-accounts`, etc.), TypeScript-native, and supports both ESM and CJS; ethers.js v6 is more popular but Web3.js 4.x has native batch request support and a more granular module structure. The expert selects Web3.js 4.x for projects that need fine-grained module composition, native batch requests, or migration from Web3.js 1.x.
+## 1. Scope
 
-The expert owns transaction signing: `personal_sign` (EIP-191), `eth_signTypedData_v4` (EIP-712), signing with private key (backend) versus signing with provider wallet (frontend via MetaMask). They manage wallets via `web3.eth.accounts.wallet` for in-memory multi-account management, with `encrypt`/`decrypt` for keystore persistence. They use `BatchRequest` for batching multiple JSON-RPC calls into a single HTTP request to reduce latency.
+- Covered: recognizing web3.js v1 and v4 code, understanding its type conventions, keeping it stable while it remains in production, assessing the supply-chain and security impact of an unmaintained dependency, and migrating to ethers v6 or viem.
+- Not covered: writing new application code (use ethersjs-expert, or the viem documentation), Ethereum protocol behavior such as gas, finality and reorgs (ethereum-expert), contract development and tests (solidity-expert, hardhat-expert, foundry-expert), and exploit review (smart-contract-security-expert).
+- Note that `@solana/web3.js` is a different, unrelated library.
 
-## 2. Mission
+## 2. Core Expertise
 
-Deliver a Web3.js 4.x integration where every transaction is correctly signed, every contract call is type-safe via TypeChain-generated bindings, every subscription is resilient to reconnection, every error is classified and retried appropriately, and every private key is handled with maximum security.
+| Topic | Key facts |
+|---|---|
+| Status | The web3/web3.js repository banner states the libraries were sunset on 2025-03-04 and the repository was archived (read-only) on 2025-03-05. The last npm releases are 4.16.0 (2024-12-03) and 1.10.4 (2024-02-05); later 4.16.1 builds exist only as `dev` prereleases. Nothing is maintained or patched |
+| Packages | Umbrella `web3` plus `web3-eth`, `web3-eth-contract`, `web3-eth-accounts`, `web3-eth-abi`, `web3-utils`, `web3-core`, `web3-validator`, `web3-providers-http`, `web3-providers-ws` and others at the same major |
+| v1 conventions | Numbers return as strings or JS numbers, `web3.utils.toBN` and BN.js, callbacks and PromiEvent, `new Web3(url)` as default export, `contract.methods.fn().call()/send()` |
+| v4 conventions | Named export `import { Web3 } from 'web3'`, `bigint` for quantities by default, `web3.eth.getBlockNumber()` returns `bigint`, `FMT_NUMBER` and `FMT_BYTES` return formats, plugins, TypeScript-first types |
+| v4 local signing | `web3-eth-accounts` 4.3.1 implements legacy, EIP-2930 and EIP-1559 transactions only; there are no classes for blob (`0x03`) or set-code (`0x04`) transactions |
+| Missing helpers | v4 has no `eth_getBlockReceipts`, `eth_blobBaseFee` or `eth_simulateV1` helper methods; call them through `web3.requestManager.send` or migrate |
+| Targets | ethers 6.17.0 (class-based, `bigint`) and viem 2.57.13 (functional, strongly typed from ABIs). Both are maintained and support current transaction types |
+| Why migrate | No security updates, a growing `npm audit` backlog in transitive dependencies, no support for new protocol features, and shrinking ecosystem tooling |
 
-## 3. Core Expertise
+## 3. Workflow
 
-- Web3.js 4.x architecture: modular packages (`web3`, `web3-eth`, `web3-eth-contract`, `web3-eth-accounts`, `web3-eth-ens`, `web3-eth-iban`, `web3-eth-personal`, `web3-net`, `web3-providers-*`); TypeScript native; ESM and CJS.
-- Providers: `HttpProvider` for HTTP RPC, `WebSocketProvider` for subscriptions, `IpcProvider` for local node IPC, `WebsocketProvider` with reconnect, custom providers implementing `Provider` interface, EIP-1193 provider compatibility for browser wallets (MetaMask), EIP-6963 for multi-injected provider discovery.
-- Accounts and signing: `web3.eth.accounts.create` for new account, `web3.eth.accounts.privateKeyToAccount`, `account.sign` for signing transactions, `account.signTransaction`, signing messages with `personal_sign` (`eth_sign`) vs `eth_signTypedData_v4` (EIP-712), signing with private key vs signing with provider wallet.
-- Contracts: `new web3.eth.Contract(abi, address)`, `contract.methods.methodName(args).call()` for view, `contract.methods.methodName(args).send({from, value, gas})` for transactions, `contract.methods.methodName(args).estimateGas()`, `contract.methods.methodName(args).encodeABI()` for raw calldata, events: `contract.events.EventName({filter, fromBlock})` for past and future events, `contract.getPastEvents`, `contract.once` for one-time, event filter with indexed parameters, decoding event data.
-- Subscriptions: `web3.eth.subscribe('newBlockHeaders')`, `subscribe('pendingTransactions')`, `subscribe('logs', {address, topics})`, `subscribe('syncing')`, `unsubscribe`, WebSocket required for subscriptions.
-- Utilities: `web3.utils.toWei`/`fromWei` for unit conversion, `web3.utils.toChecksumAddress` for EIP-55, `web3.utils.isAddress`, `web3.utils.toBN`, `BN` for big numbers, `web3.utils.sha3`/`keccak256`, `web3.utils.soliditySha3`, `web3.utils.encodePacked`, `web3.utils.hexToNumber`/`numberToHex`, `web3.utils.toHex`, `web3.utils.bytesToHex`, `web3.utils.utf8ToHex`/`hexToUtf8`, `web3.utils.randomHex`.
-- ABI encoding/decoding: `web3.eth.abi.encodeFunctionCall`, `encodeFunctionSignature`, `encodeParameter`, `encodeParameters`, `decodeParameter`, `decodeParameters`, `decodeLog`.
-- Transactions: `web3.eth.sendTransaction`, `web3.eth.sendSignedTransaction`, transaction object (from, to, value, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, data, nonce, chainId, type), transaction receipts with status, logs, gasUsed, effectiveGasPrice.
-- Blocks and state: `web3.eth.getBlock`, `web3.eth.getBlockNumber`, `web3.eth.getBalance`, `web3.eth.getNonce`/`eth_getTransactionCount`, `web3.eth.getCode`, `web3.eth.getStorageAt`, `web3.eth.getChainId`, `web3.eth.getGasPrice`, `web3.eth.getMaxPriorityFeePerGas`, `web3.eth.getFeeHistory`.
-- ENS: `web3.eth.ens` for ENS resolution, ENS name resolution to address, reverse resolution, contenthash, supports EIP-55 checksum.
-- Wallet management: `web3.eth.accounts.wallet.create`, `wallet.add`, `wallet.remove`, `wallet.clear`, `wallet.encrypt`/`decrypt` for keystore, `wallet.save`/`load` for persistence.
-- Batch requests: `web3.BatchRequest`, `add` request, `execute` for batch JSON-RPC.
-- Extensions: `Web3.extend` for custom RPC methods, plugins with `Web3.registerPlugin`.
-- TypeScript integration: types from contract ABIs via TypeChain, generic typing for contracts, type-safe method calls.
-- Error handling: transaction reverted errors, gas estimation errors, RPC errors with code/message/data, network errors, custom error decoding.
-- Testing: hardhat-network with Web3.js, jest/vitest setup, fork mainnet for testing.
-- Performance: batch requests for multiple RPC calls, WebSocket for subscriptions instead of polling, cache where appropriate, use `contract.methods` directly to avoid creating new instances.
-- Security: never expose private keys in client-side code, use provider wallet for user-initiated transactions, signing server-side with private keys for backend integrations, validate all addresses with `isAddress` and `toChecksumAddress`, watch for transaction frontrunning on DEX interactions.
+1. Inventory: list every `web3`, `web3-*` and `@types/web3` dependency and import (`rg "from 'web3'|require\('web3'\)|web3-"`), the major version in the lockfile, and which modules use it (backend, scripts, front end).
+2. Identify the major version from the code shape: `new Web3(url)` with `toBN`/string numbers is v1; `import { Web3 } from 'web3'` with `bigint` is v4. Read [references/maintaining-web3js-v1-v4.md](references/maintaining-web3js-v1-v4.md) for the differences.
+3. Stabilize first: pin exact versions, add `overrides` (npm) or `resolutions` (yarn) only for vulnerable transitive packages after testing, set an explicit provider everywhere, and add characterization tests around the web3.js-dependent functions.
+4. Wrap: put all chain access behind a small interface (read balance, call contract, send transaction, get logs, sign) so call sites stop importing web3.js directly.
+5. Migrate module by module, using the mapping in [references/migration-to-ethers-and-viem.md](references/migration-to-ethers-and-viem.md). Run old and new implementations on the same inputs and compare results (parity tests).
+6. Remove web3.js dependencies, lockfile entries and polyfills (`Buffer`, `process`) that existed only for it, and re-run `npm audit` and the full test suite.
+7. Record decisions and remaining legacy islands (for example a v1 script scheduled for deletion) with owners and removal dates in the repository.
 
-## 4. Responsibilities
+## 4. Decision Rules
 
-- Select provider strategy: HttpProvider for backend, WebSocketProvider for subscriptions, EIP-1193 for frontend with browser wallet.
-- Implement contract bindings via TypeChain for type-safe method calls.
-- Implement transaction signing: backend with private key via `privateKeyToAccount`, frontend with provider wallet via `eth_requestAccounts`.
-- Implement EIP-712 typed data signing for structured off-chain signatures.
-- Implement subscriptions via WebSocketProvider with reconnection logic.
-- Implement batch requests for high-throughput RPC patterns.
-- Implement ENS resolution for user-friendly address display.
-- Implement wallet management for backend multi-account scenarios.
-- Implement error classification: rate limit, node error, revert, network error, with appropriate retry policy.
-- Implement custom error decoding via `web3.eth.abi.decodeParameter` for Solidity custom errors.
-- Configure jest/vitest with hardhat-network for testing.
-- Fork mainnet for integration tests with existing protocols.
+- New code does not use web3.js. Start new modules on ethers v6 or viem even while old modules stay.
+- Choose ethers v6 when the codebase is class and provider oriented, uses `Wallet`, `Contract` and event listeners heavily, and the team wants the smallest conceptual jump from web3.js. Choose viem when the codebase is TypeScript-heavy and wants ABI-derived types, tree-shaking, wagmi for React, or a functional client model.
+- One target per repository. Mixing ethers and viem in the same module doubles the review surface.
+- Migrate v1 to ethers or viem directly; going v1 to v4 first only moves you from one unmaintained version to another, unless a very large v1 code base must first be made type-safe.
+- Keep web3.js temporarily when: the module is scheduled for deletion, it is a one-off script with no secrets or network exposure, or a vendor SDK pins it. Isolate those in a separate package without production keys.
+- Prefer migrating read paths first (balances, calls, logs), then write paths (signing and sending), because reads are easy to parity-test and writes need testnet rehearsal.
+- Do not rewrite business logic during the migration. Change only the chain access layer, and keep numeric types explicit at each boundary.
 
-## 5. Thinking Process
+## 5. Coding Standards
 
-1. Identify the deployment context: backend (Node.js) or frontend (browser). Backend uses `HttpProvider` with private key; frontend uses EIP-1193 with browser wallet.
-2. Identify the RPC provider: Alchemy, Infura, QuickNode, Ankr, self-hosted. Configure failover.
-3. Identify the subscription needs: new blocks, pending transactions, logs. WebSocketProvider required.
-4. Identify the contract interaction patterns: view calls (`call`), transactions (`send`), events (`events`/`getPastEvents`).
-5. Identify the signing model: private key (backend) or provider wallet (frontend). Never mix.
-6. Identify the type safety strategy: TypeChain for contract bindings, never raw ABI calls in production code.
-7. Identify the error handling strategy: classify errors, retry policy, fallback provider.
-8. Identify the performance strategy: batch requests, WebSocket for subscriptions, cache for read-heavy patterns.
-9. Identify the security strategy: private key handling, address validation, frontrunning awareness.
-10. Identify the testing strategy: hardhat-network for unit tests, mainnet fork for integration tests.
+- When touching existing web3.js code, keep its style and fix only what the task requires; add types and tests before refactoring.
+- Treat numbers as untrusted until normalized: v1 returns strings or numbers, v4 returns `bigint` unless a return format says otherwise. Convert at the boundary: `BigInt(x)` for v1 values, and avoid `Number()` on wei amounts.
+- Always pass `from` explicitly to `send` and `estimateGas`; do not rely on `defaultAccount`.
+- Always construct `Web3` with an explicit provider. A v4 `Web3` created without a provider tried to contact a default hosted RPC endpoint in a signing test, which can leak activity or fail in restricted networks.
+- Never call `web3.eth.accounts.wallet.add` with a private key from a string literal or a file in the repository; read it from the environment or a signer service, and prefer remote signing.
+- In v4, `wallet.add(privateKey)` returns the wallet (use `wallet[0]` or `wallet.get(0)` for the account); in v1 it returns the account. Do not port the line verbatim.
+- For new helper code written during the migration, follow ethersjs-expert or the viem documentation, and write TypeScript.
 
-## 6. Decision Making Rules
-
-- When Web3.js 4.x and ethers.js v6 are both viable, choose Web3.js 4.x for projects migrating from Web3.js 1.x, projects needing native batch requests, or projects needing fine-grained module composition; choose ethers.js v6 for new projects preferring ecosystem momentum.
-- When HttpProvider and WebSocketProvider are both viable, choose HttpProvider for request-response patterns because it is simpler and connectionless; choose WebSocketProvider for subscriptions because HTTP does not support `eth_subscribe`.
-- When private key signing and provider wallet signing are both viable, choose provider wallet for frontend because the user's private key never leaves their wallet; choose private key signing for backend because there is no browser wallet.
-- When `contract.methods.fn().call()` and `web3.eth.call()` are both viable for view calls, choose `contract.methods.fn().call()` because it handles ABI encoding and decoding; raw `eth_call` requires manual ABI handling.
-- When `contract.methods.fn().send()` and `web3.eth.sendTransaction()` are both viable for transactions, choose `contract.methods.fn().send()` because it handles ABI encoding and provides event/transaction hash callbacks.
-- When `web3.eth.subscribe` and HTTP polling are both viable for new blocks, choose `subscribe` because it eliminates polling overhead and provides sub-block latency; choose HTTP polling only when WebSocket is unreliable.
-- When `BatchRequest` and individual requests are both viable for multiple RPC calls, choose `BatchRequest` because it batches into a single HTTP request, reducing latency; choose individual requests when calls depend on each other.
-- When TypeChain bindings and raw ABI are both viable for contract interactions, choose TypeChain because it provides compile-time type safety; raw ABI is acceptable for prototypes.
-
-## 7. Architecture Rules
-
-- Every production Web3.js integration must have at least 2 RPC providers from different vendors; never depend on a single provider.
-- Every contract interaction must use TypeChain-generated bindings for type safety; never raw ABI calls in production.
-- Every transaction signing path must distinguish backend (private key) from frontend (provider wallet); never mix.
-- Every subscription must implement automatic reconnection with exponential backoff.
-- Every private key must be loaded from environment variables (backend) or browser wallet (frontend); never hardcoded.
-- Every numeric value from RPC must be parsed as `bigint` or `BN`; never as `number` due to precision loss above 2^53.
-- Every address must be validated via `isAddress` and checksummed via `toChecksumAddress` before processing.
-- Every error must be classified (rate limit, node error, revert, network error) with appropriate retry policy.
-- Every batch request must respect provider rate limits; never exceed 100 calls per batch.
-- Every WebSocket subscription handler must be idempotent because providers may re-deliver events after reconnection.
-
-## 8. Coding Standards
-
-- All numeric values from RPC parsed as `bigint` (Web3.js 4.x native) or `BN`; never `number`.
-- All addresses validated via `web3.utils.isAddress` and checksummed via `web3.utils.toChecksumAddress` before processing.
-- All contract interactions via TypeChain bindings: `import { Vault } from './types/Vault';`
-- All transactions specify `from`, `gas`, `gasPrice` or `maxFeePerGas`/`maxPriorityFeePerGas`, `nonce`; never rely on defaults for high-value transactions.
-- All subscriptions wrapped in reconnection logic: `provider.on('error', reconnect); provider.on('end', reconnect);`
-- All private keys loaded via `process.env.PRIVATE_KEY` (backend) or `window.ethereum` (frontend); never hardcoded.
-- All errors caught and classified: `if (err.code === 429) backoff(); else if (err.code === -32000) failover();`
-- All batch requests limited to 100 calls; split into multiple batches if more.
-- All event subscriptions use `fromBlock` and `toBlock` to avoid scanning entire chain.
-- All `send()` calls await the transaction receipt via `.on('receipt', ...)` or `await`.
-
-## 9. Naming Conventions
-
-- Provider instances: `provider`, `httpProvider`, `wsProvider`, `fallbackProvider`. Always lowercase camelCase.
-- Web3 instances: `web3`, `web3Mainnet`, `web3Sepolia`. Chain-prefixed for multi-chain.
-- Contract instances: match contract name in camelCase — `vault`, `token`, `liquidityPool`. Never `contract1`, `c`.
-- Function names for wrappers: `getBalance`, `deposit`, `withdraw`, `transfer`. Match contract function names.
-- Address variables: `address` or named by role — `recipientAddress`, `spenderAddress`. Never `addr`, `a`.
-- Wei/Ether values: `amountWei`, `valueWei`, `balanceEther` (when converted). Never bare `amount` without unit.
-- Hash variables: `txHash`, `blockHash`, `logIndex`. Never `hash`, `h`.
-- Constants for chain IDs: `CHAIN_ID_MAINNET = 1`, `CHAIN_ID_BASE = 8453`. Never magic numbers.
-- Test files: `*.test.ts`, `*.spec.ts`. Integration tests: `*.integration.test.ts`. Fork tests: `*.fork.test.ts`.
-- Environment variables: `RPC_URL_MAINNET`, `RPC_URL_SEPOLIA`, `PRIVATE_KEY` (backend only), `ALCHEMY_API_KEY`. Always chain-prefixed for multi-chain.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-web3-project/
-├── src/
-│   ├── chains/                      # Per-chain config
-│   │   ├── mainnet.ts
-│   │   ├── sepolia.ts
-│   │   └── base.ts
-│   ├── providers/                   # Provider abstraction
-│   │   ├── http-provider.ts
-│   │   ├── ws-provider.ts
-│   │   └── provider-manager.ts      # Multi-provider failover
-│   ├── contracts/                   # Contract bindings
-│   │   ├── abis/
-│   │   │   ├── ERC20.json
-│   │   │   └── Vault.json
-│   │   ├── vault.ts
-│   │   └── token.ts
-│   ├── accounts/                    # Account management
-│   │   ├── signer.ts                # Backend signer with private key
-│   │   ├── wallet.ts                # In-memory wallet
-│   │   └── browser-wallet.ts        # EIP-1193 frontend
-│   ├── transactions/                # Transaction lifecycle
-│   │   ├── nonce-tracker.ts
-│   │   ├── fee-estimator.ts
-│   │   └── submitter.ts
-│   ├── subscriptions/               # WebSocket subscriptions
-│   │   ├── new-blocks.ts
-│   │   ├── logs.ts
-│   │   └── reconnect.ts
-│   ├── ens/                         # ENS resolution
-│   │   └── resolver.ts
-│   ├── utils/                       # ABI encoding, batch
-│   │   ├── abi.ts
-│   │   └── batch.ts
-│   └── index.ts
-├── test/
-│   ├── vault.test.ts
-│   ├── token.test.ts
-│   └── vault.fork.test.ts
-├── types/                           # TypeChain-generated (gitignored)
-├── config/
-│   ├── mainnet.json
-│   └── sepolia.json
-├── package.json
-├── tsconfig.json
-└── README.md
+src/
+├── chain/
+│   ├── types.ts              # ChainClient interface used by the rest of the app
+│   ├── web3js.adapter.ts     # legacy implementation (to be deleted)
+│   ├── ethers.adapter.ts     # target implementation (or viem.adapter.ts)
+│   └── index.ts              # exports one implementation chosen by config during rollout
+├── features/                 # business code: imports only ../chain, never web3 or ethers directly
+└── abi/                      # JSON ABIs as const, shared by both adapters
+test/
+├── parity/                   # same inputs through both adapters, compare outputs
+└── fixtures/                 # recorded JSON-RPC responses for deterministic tests
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-acme-web3-platform/
-├── .github/workflows/
-│   ├── ci.yml
-│   └── nightly-fork.yml
-├── apps/
-│   ├── backend-signer/              # Backend signer service
-│   │   ├── src/
-│   │   ├── test/
-│   │   └── package.json
-│   ├── frontend/                    # Frontend with browser wallet
-│   │   ├── src/
-│   │   └── package.json
-│   └── indexer/                     # Event indexer service
-│       ├── src/
-│       └── package.json
-├── packages/
-│   ├── web3-client/                 # Shared Web3 client
-│   ├── contract-bindings/           # TypeChain bindings
-│   └── types/                       # Shared types
-├── contracts/                       # Solidity contracts (separate)
-├── infra/
-│   ├── terraform/
-│   └── k8s/
-├── monitoring/
-│   ├── prometheus.yml
-│   └── dashboards/
-├── docs/
-│   ├── architecture.md
-│   ├── signing-strategy.md
-│   └── runbooks/
-├── scripts/
-├── package.json
-├── turbo.json
-├── README.md
-└── CONTRIBUTING.md
-```
+- **Adapter plus strangler**: define a narrow `ChainClient` interface, implement it twice, route traffic by configuration, and delete the legacy adapter after the new one has run in production.
+- **Parity tests**: for encoding, units, hashing, signing and decoding, feed identical inputs to both implementations. These are pure functions, so they need no network. The reference contains a runnable example.
+- **Recorded RPC fixtures**: run both clients against a local fake JSON-RPC server to verify request shapes and result conversion (bigint versus number versus string).
+- **Boundary normalization**: convert every quantity to `bigint` and every address to a checksummed string at the adapter boundary; the rest of the code never sees web3.js types.
+- **Canary rollout**: send a small share of read traffic through the new adapter first, compare outputs in logs, then move writes on a testnet or low-value account.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Pattern 1: Multi-Provider Failover
-**When to use**: Any production read path; never depend on a single RPC provider.
-**When not to use**: Local dev with hardhat node.
-**Sketch**: Provider manager wraps multiple providers (Alchemy, Infura, self-hosted); request routed round-robin; on error, failover to next; circuit breaker per provider.
+- Migrate one concern at a time: units and hashing, then ABI encoding, then reads, then event handling, then signing, then sending.
+- Keep a mapping document in the repository listing each replaced web3.js call and its new equivalent.
+- Check ABI formats: web3.js v1 accepts loose JSON ABI; ethers and viem accept human-readable ABI fragments too, and viem derives types from `as const` ABIs.
+- Normalize addresses: ethers rejects mixed-case addresses with a wrong checksum, so test fixtures with invalid case will fail after migration; fix the data, not the check.
+- Replace callbacks and event-emitter style (`.on('transactionHash')`, `.once('receipt')`) with promises and explicit receipt waits.
+- Remove browser polyfills and Node-only workarounds that existed for web3.js, one at a time, with a build check.
 
-### Pattern 2: TypeChain Contract Bindings
-**When to use**: Any contract interaction in production code.
-**When not to use**: Prototypes, one-off scripts.
-**Sketch**: `import { Vault } from './types/Vault'; const vault = new Vault(address, web3); const balance = await vault.methods.balances(addr).call();`
+## 9. Performance
 
-### Pattern 3: WebSocket Subscription with Reconnection
-**When to use**: Any subscription to new blocks, logs, or pending transactions.
-**When not to use**: One-off queries.
-**Sketch**: `provider.on('end', () => reconnect()); provider.on('error', () => reconnect()); subscription.subscribe(async (err, result) => { if (err) reconnect(); ... });`
+- web3.js v4 batches through `web3.BatchRequest`; ethers v6 `JsonRpcProvider` batches concurrent calls into one HTTP request by default, and viem batches with `http(url, { batch: true })`. In a mock test, two parallel reads produced one HTTP request in both ethers (default) and viem (batch enabled).
+- viem and ethers are tree-shakable enough that front-end bundles typically shrink after removing web3.js; measure with your bundler.
+- Avoid polling loops of `eth_getBalance`; use subscriptions or block-driven updates, and cache by block number.
+- Do not create a new provider or client per request; construct once and reuse.
 
-### Pattern 4: Batch Request for Multiple Calls
-**When to use**: Multiple independent RPC calls (e.g., fetch balances for 50 addresses).
-**When not to use**: Dependent calls (call B needs result of call A).
-**Sketch**: `const batch = new web3.BatchRequest(); addresses.forEach(a => batch.add(web3.eth.getBalance.request(a))); const results = await batch.execute();`
+## 10. Security
 
-### Pattern 5: EIP-712 Typed Data Signing
-**When to use**: Off-chain signatures for structured data (e.g., permit, EIP-2612).
-**When not to use**: Personal messages (`personal_sign`).
-**Sketch**: `const typedData = { types: { EIP712Domain: [...], Permit: [...] }, domain: {...}, message: {...} }; const signature = await web3.eth.accounts.signTypedData(privateKey, typedData);`
+- No security updates: a vulnerability found in web3.js or its internals will not be fixed. A fresh `npm install web3@4.16.0` followed by `npm audit` (2026-10) reported 19 high-severity findings from transitive dependencies (for example `zod` through `web3-validator`), and `web3@1.10.4` reported 49 findings including 3 critical ones in `request`, `form-data` and `tar`. Newer releases of web3.js that would fix them will not be published.
+- Do not paper over findings with `npm audit fix --force`. Use `overrides` for specific packages only after tests pass, and treat the override as technical debt that ends with the migration.
+- Treat web3.js as a risk for any process that holds private keys or signs value-bearing transactions. Migrate signing paths before read-only paths if you must prioritize by risk.
+- Private keys: never place keys in source, front-end bundles or `.env` files committed to git; use a KMS, HSM or hardware signer, and keep wallets in memory only as long as needed.
+- Supply chain: pin versions and lockfiles, verify package integrity, and watch for look-alike packages (`web3-*` names are abundant). Prefer packages published under the official scopes and review install scripts.
+- A default provider in a v4 `Web3` instance can send RPC traffic to a third-party endpoint; always set the provider.
+- Validate user-provided addresses and amounts before building transactions, and keep `chainId` pinned in configuration.
 
-### Pattern 6: Custom Error Decoding
-**When to use**: Solidity contracts using custom errors (since 0.8.4).
-**When not to use**: Legacy `require` with string.
-**Sketch**: `try { await contract.methods.fn().send(); } catch (err) { const selector = err.data.slice(0, 10); if (selector === '0x...') { const decoded = web3.eth.abi.decodeParameter(...); } }`
+## 11. Testing
 
-## 13. Best Practices
+- Characterization tests: before changing anything, record the current outputs of web3.js-dependent functions for representative inputs and keep them as golden files.
+- Parity tests for pure functions: `toWei`/`parseUnits`, `keccak256`, `soliditySha3` versus `solidityPackedKeccak256`, `encodeFunctionCall` versus `encodeFunctionData`, `encodeParameters`, `sign` versus `signMessage`, `signTypedData`, `recover` versus `verifyMessage`. All of these produced identical outputs across web3 4.16.0, ethers 6.17.0 and viem 2.57.13 in a verification run.
+- Fake JSON-RPC server tests for reads and event decoding; compare value types after conversion.
+- Testnet rehearsal for writes: Sepolia or Hoodi, with the new client sending real transactions from a throwaway key and the old client verifying them.
+- Property to test explicitly: same raw signed transaction bytes for the same fields (EIP-1559 transactions signed with the same key produced the same raw transaction in ethers and viem; web3.js signs through the same fields but needs a provider for missing ones).
+- Run `npm audit` in CI and fail the build on new high findings outside an allowlist with expiry dates.
 
-- Always use Web3.js 4.x (TypeScript-native, modular); never Web3.js 1.x for new projects.
-- Always use TypeChain for contract bindings; never raw ABI calls in production.
-- Always parse RPC numbers as `bigint` or `BN`; never `number`.
-- Always validate addresses via `isAddress` and checksum via `toChecksumAddress`.
-- Always implement multi-provider failover.
-- Always wrap subscriptions in reconnection logic.
-- Always load private keys from environment variables (backend) or browser wallet (frontend).
-- Always use `BatchRequest` for multiple independent RPC calls.
-- Always classify errors and apply appropriate retry policy.
-- Always use EIP-712 for structured off-chain signatures; never `personal_sign` for structured data.
-- Always fork mainnet for integration tests with real protocols.
-- Always use jest/vitest with hardhat-network for unit tests.
+## 12. Review Checklist
 
-## 14. Anti Patterns
+- [ ] No new `web3` imports are introduced; new code uses the migration target.
+- [ ] Every `Web3` instance has an explicit provider, and `chainId` is validated at startup.
+- [ ] Numeric conversions at the boundary are explicit, with no `Number()` on wei values.
+- [ ] Private keys come from a secure source and never from code, config in git, or the front end.
+- [ ] `overrides` or `resolutions` entries have a comment with the advisory and a removal condition.
+- [ ] Parity or characterization tests exist for each migrated function.
+- [ ] Legacy islands are listed with owners and a removal date.
+- [ ] `npm audit` output is reviewed and the remaining web3.js findings are acknowledged in writing.
+- [ ] Callbacks and `PromiEvent` handlers have equivalents (receipt waits, error handling) in the new code.
 
-### Anti-Pattern 1: Web3.js 1.x in New Projects
-**Why wrong**: 1.x is deprecated, no TypeScript support, no modular packages, slower.
-**Correct alternative**: Use Web3.js 4.x with TypeScript and modular packages.
+## 13. Production Notes
 
-### Anti-Pattern 2: Number Type for Wei Values
-**Why wrong**: JavaScript numbers lose precision above 2^53; wei values routinely exceed this.
-**Correct alternative**: Always use `bigint` (Web3.js 4.x native) or `BN` for wei values.
+- Plan the migration as a project with milestones; an unmaintained dependency in a signing path is a standing risk, not a backlog item.
+- Keep rollback simple: the adapter switch is configuration, and the legacy adapter stays until the new one has handled real traffic for a full release cycle.
+- Watch for behavior differences after switching: nonce management (web3.js can fill nonces from the provider, ethers `Wallet` with a provider does too, but concurrent sends need an explicit nonce manager), gas estimation and fee defaults, polling intervals and receipt confirmation semantics.
+- ethers returns block numbers as `number` and amounts as `bigint`; viem returns both as `bigint`; web3 v4 returns `bigint` for both by default, while v1 returns numbers and strings. Update every comparison and every JSON serialization (`bigint` is not JSON serializable without a replacer).
+- Front-end wallets: EIP-1193 providers (`window.ethereum`) and EIP-6963 discovery work with all three libraries; wagmi (viem-based) or ethers `BrowserProvider` replace `new Web3(window.ethereum)`.
+- Document which environments still run web3.js so incident response knows where an unpatched library lives.
 
-### Anti-Pattern 3: Raw ABI Calls in Production
-**Why wrong**: No type safety; typos in function names not caught at compile time.
-**Correct alternative**: Use TypeChain-generated bindings for type-safe method calls.
+## 14. Examples
 
-### Anti-Pattern 4: Single RPC Provider
-**Why wrong**: Provider outages take down the application.
-**Correct alternative**: Multi-provider failover with at least 2 providers from different vendors.
+Reading a token balance and sending a transfer, in web3.js v4 and its replacements (ABI abbreviated; keys come from the environment):
 
-### Anti-Pattern 5: Hardcoded Private Key
-**Why wrong**: Private key in source code is a security incident waiting to happen.
-**Correct alternative**: Load from `process.env.PRIVATE_KEY` (backend) or use browser wallet (frontend).
-
-### Anti-Pattern 6: No Reconnection for WebSocket
-**Why wrong**: WebSocket disconnects on network blip; subscriptions silently stop.
-**Correct alternative**: Wrap subscriptions in reconnection logic with exponential backoff.
-
-## 15. Performance Rules
-
-- Always use `BatchRequest` for multiple independent RPC calls.
-- Always use WebSocket for subscriptions to avoid polling overhead.
-- Always cache `eth_chainId`, recent block numbers, and contract ABIs.
-- Always reuse contract instances; never create per-call.
-- Never call `eth_getTransactionCount` per transaction in a high-throughput loop; maintain a nonce tracker.
-- Never call `eth_estimateGas` per transaction when a reasonable upper bound is known.
-- Always use `contract.methods.fn().call()` for view calls; never `send()` for reads.
-- Always colocate indexer with RPC node to reduce network latency.
-
-## 16. Security Rules
-
-- Never expose private keys in frontend code; sign only in backend or browser wallet.
-- Never log private keys, mnemonics, or keystore passwords.
-- Always store backend private keys in HSM or KMS; never in plaintext config.
-- Always validate addresses via `isAddress` and checksum via `toChecksumAddress`.
-- Always use HTTPS for RPC endpoints; never HTTP outside local dev.
-- Always rate-limit signers to prevent nonce exhaustion attacks.
-- Always verify chain ID before signing transactions.
-- Always use EIP-712 for structured off-chain signatures; never `personal_sign` for structured data.
-- Always watch for frontrunning on DEX interactions; use Flashbots or private RPC when MEV exposure is non-trivial.
-- Always audit contract interactions before approval; never sign blind transactions.
-
-## 17. Testing Strategy
-
-- Unit test contract wrappers with mocked Web3 instance.
-- Integration test against hardhat network with deployed contracts.
-- Fork test against mainnet for real protocol integration.
-- Test subscription reconnection by killing WebSocket and verifying resubscription.
-- Test batch request with realistic count (50-100 calls).
-- Test multi-provider failover by injecting errors.
-- Test EIP-712 signing with known test vectors.
-- Test custom error decoding with each error selector.
-- Test nonce tracker with concurrent submissions.
-- Test fee estimator with `eth_feeHistory` mocks.
-
-## 18. Documentation Standards
-
-- Document provider strategy: vendors, rate limits, failover policy.
-- Document signing strategy: backend (private key) vs frontend (browser wallet).
-- Document contract bindings: how to regenerate via TypeChain.
-- Document subscription strategy: which topics, reconnection policy.
-- Document batch request patterns: when to batch, batch size limits.
-- Document error classification: codes, retry policy, fallback.
-- Document ENS resolution: which TLDs supported, reverse resolution.
-- Document testing strategy: hardhat network, mainnet fork.
-
-## 19. Code Review Checklist
-
-- [ ] All RPC numbers parsed as `bigint` or `BN`, never `number`.
-- [ ] All addresses validated via `isAddress` and checksummed via `toChecksumAddress`.
-- [ ] Contract interactions use TypeChain bindings; no raw ABI calls.
-- [ ] Multi-provider failover configured.
-- [ ] WebSocket subscriptions implement reconnection.
-- [ ] Private keys loaded from env (backend) or browser wallet (frontend); never hardcoded.
-- [ ] Errors classified with appropriate retry policy.
-- [ ] Batch requests limited to 100 calls per batch.
-- [ ] EIP-712 used for structured off-chain signatures; not `personal_sign`.
-- [ ] Custom error decoding handles each error selector.
-- [ ] Nonce tracker accounts for pending transactions.
-- [ ] Fee estimator derives `maxFeePerGas` from `eth_feeHistory`.
-- [ ] HTTPS for all RPC endpoints; no HTTP in production.
-- [ ] Chain ID verified before signing.
-- [ ] Subscription handlers idempotent (providers may re-deliver events).
-- [ ] Contract instances reused; not created per-call.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace Web3.js 1.x with 4.x.
-- [ ] Replace `number` types with `bigint` for all wei values.
-- [ ] Replace raw ABI calls with TypeChain bindings.
-- [ ] Extract provider failover into a provider manager.
-- [ ] Add reconnection logic to WebSocket subscriptions.
-- [ ] Move private keys to environment variables; never hardcoded.
-- [ ] Extract error classification into a typed error catalog.
-- [ ] Replace `personal_sign` for structured data with EIP-712.
-- [ ] Add `BatchRequest` for multiple independent RPC calls.
-- [ ] Consolidate chain config into a single config module.
-
-## 21. Deployment Checklist
-
-- [ ] Web3.js 4.x installed and configured.
-- [ ] TypeChain bindings generated and committed.
-- [ ] RPC providers configured (at least 2 from different vendors).
-- [ ] Provider failover tested by injecting errors.
-- [ ] WebSocket subscriptions configured with reconnection.
-- [ ] Private keys in HSM/KMS (backend) or browser wallet (frontend).
-- [ ] Chain ID verified in deployment config.
-- [ ] Nonce tracker initialized from `eth_getTransactionCount('latest')` + pending pool scan.
-- [ ] Fee estimator seeded with `eth_feeHistory` for last 100 blocks.
-- [ ] Custom error decoding tested for each contract error selector.
-- [ ] Prometheus scraping configured for RPC latency, error rate.
-- [ ] Alerts configured for: provider outage, block lag, nonce gap, finality timeout.
-- [ ] HTTPS for all RPC endpoints.
-- [ ] Rate limiter on signer service.
-- [ ] Mainnet fork tests passing in CI.
-
-## 22. Production Checklist
-
-- [ ] At least 2 RPC providers from different vendors.
-- [ ] Provider failover automatic with circuit breaker.
-- [ ] TypeChain bindings for all contract interactions.
-- [ ] WebSocket subscriptions reconnect within 5 seconds of drop.
-- [ ] Private keys in HSM/KMS with audit logging.
-- [ ] Signer service rate-limited.
-- [ ] Chain ID verification in transaction signing.
-- [ ] Nonce tracker resilient to restart (pending queue persisted).
-- [ ] Fee estimator adapts to base fee spikes.
-- [ ] Custom error decoding for all contract error selectors.
-- [ ] Batch requests used for high-throughput read patterns.
-- [ ] ENS resolution cached for frequent lookups.
-- [ ] Block height lag alerting across all providers.
-- [ ] RPC error rate alerting.
-- [ ] Transaction submission failure rate alerting.
-- [ ] Hard fork readiness: Web3.js 4.x upgraded before fork activation.
-
-## 23. Logging Strategy
-
-- Log every transaction submission with: `txHash`, `from`, `to`, `nonce`, `gas`, `chainId`, `provider`.
-- Log every transaction confirmation with: `txHash`, `blockNumber`, `gasUsed`, `status`.
-- Log every RPC error with: `provider`, `method`, `code`, `message`, `latencyMs`.
-- Log every provider failover: `fromProvider`, `toProvider`, `reason`.
-- Log every WebSocket reconnection: `provider`, `attempt`, `delayMs`, `success`.
-- Log every nonce tracker state change: `account`, `confirmedNonce`, `pendingNonce`.
-- Log every batch request: `batchSize`, `totalLatencyMs`, `errorCount`.
-- Log every custom error decoded: `selector`, `decodedArgs`, `txHash`.
-- Never log private keys, mnemonics, or signed transaction bytes (log only `txHash`).
-- Log in JSON format with structured fields for aggregation.
-
-## 24. Monitoring Strategy
-
-- Prometheus metrics: `rpc_request_duration_seconds` (per provider, per method), `rpc_error_count` (per provider, per code), `block_height_lag_blocks` (per provider), `transaction_submission_count`, `transaction_confirmation_duration_seconds`, `nonce_gap_count`, `websocket_reconnect_count`, `batch_request_size`.
-- Grafana dashboard per chain: block height across providers, RPC latency p50/p95/p99, error rate, transaction throughput.
-- Grafana dashboard per provider: request volume, error rate, rate-limit hits, failover count.
-- Alert: block height lag >2 blocks on any provider.
-- Alert: RPC error rate >1% on any provider.
-- Alert: provider failover triggered >0 in 5 minutes.
-- Alert: WebSocket reconnect count >5 in 1 minute.
-- Alert: transaction submission failure rate >1%.
-- Alert: transaction confirmation p95 >5 minutes (indicates fee underpayment).
-- Alert: nonce gap detected (manual intervention required).
-- Alert: batch request error rate >5%.
-
-## 25. Error Handling
-
-- RPC errors classified: rate limit (429) → backoff and retry on same provider; node error (-32000) → failover to next provider; revert (-32603 with `data`) → surface revert reason, do not retry; network error (no response) → failover.
-- Transaction submission errors: `nonce too low` → resync nonce tracker; `replacement transaction underpriced` → bump fee by 10%; `insufficient funds` → alert, do not retry; `intrinsic gas too low` → re-estimate gas.
-- Custom error decoding: extract 4-byte selector from `err.data`; match against known selectors; decode args via `web3.eth.abi.decodeParameter`.
-- WebSocket disconnection: exponential backoff (1s, 2s, 4s, 8s, 16s, max 60s); resubscribe to all topics on reconnect.
-- Provider outage: circuit breaker trips after 5 consecutive errors; failover to next provider; retry tripped provider every 60 seconds.
-- Nonce gap: if pending nonce > confirmed nonce + 1, alert; manual intervention to replace stuck transaction.
-- Batch request partial failure: log which calls failed; retry failed calls individually.
-
-## 26. Examples
-
-### Example 1: Provider Manager with Failover
-
-```typescript
-import Web3 from 'web3';
-import { HttpProvider } from 'web3-providers-http';
-
-export class ProviderManager {
-  private providers: { provider: Web3; name: string; healthy: boolean }[] = [];
-  private currentIndex = 0;
-
-  constructor(urls: { url: string; name: string }[]) {
-    this.providers = urls.map(({ url, name }) => ({
-      provider: new Web3(new HttpProvider(url)),
-      name,
-      healthy: true,
-    }));
-  }
-
-  getWeb3(): Web3 {
-    const start = this.currentIndex;
-    for (let i = 0; i < this.providers.length; i++) {
-      const idx = (start + i) % this.providers.length;
-      if (this.providers[idx].healthy) {
-        this.currentIndex = idx;
-        return this.providers[idx].provider;
-      }
-    }
-    throw new Error('All providers unhealthy');
-  }
-
-  markUnhealthy(name: string): void {
-    const p = this.providers.find((p) => p.name === name);
-    if (p) p.healthy = false;
-    setTimeout(() => { if (p) p.healthy = true; }, 60000);
-  }
-}
-
-// Usage
-const manager = new ProviderManager([
-  { url: process.env.ALCHEMY_RPC!, name: 'alchemy' },
-  { url: process.env.INFURA_RPC!, name: 'infura' },
-]);
-const web3 = manager.getWeb3();
+```js
+// web3.js v4 (legacy)
+import { Web3 } from 'web3';
+const web3 = new Web3(process.env.RPC_URL);
+const sender = web3.eth.accounts.wallet.add(process.env.PRIVATE_KEY)[0];
+const token = new web3.eth.Contract(erc20Abi, TOKEN);
+const balance = await token.methods.balanceOf(sender.address).call();      // bigint
+const receipt = await token.methods.transfer(to, 1_000_000n).send({ from: sender.address });
 ```
 
-### Example 2: Contract Interaction with TypeChain Bindings
+```js
+// ethers v6
+import { JsonRpcProvider, Wallet, Contract } from 'ethers';
+const provider = new JsonRpcProvider(process.env.RPC_URL);
+const signer = new Wallet(process.env.PRIVATE_KEY, provider);
+const token = new Contract(TOKEN, erc20Abi, signer);
+const balance = await token.balanceOf(signer.address);                      // bigint
+const tx = await token.transfer(to, 1_000_000n);
+const receipt = await tx.wait();                                            // throws CALL_EXCEPTION on revert, TRANSACTION_REPLACED if replaced
+```
 
-```typescript
-import Web3 from 'web3';
-import { Vault } from './types/Vault';
+```js
+// viem
+import { createPublicClient, createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { mainnet } from 'viem/chains';
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
+const publicClient = createPublicClient({ chain: mainnet, transport: http(process.env.RPC_URL) });
+const walletClient = createWalletClient({ account, chain: mainnet, transport: http(process.env.RPC_URL) });
+const balance = await publicClient.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [account.address] });
+const { request } = await publicClient.simulateContract({ account, address: TOKEN, abi: erc20Abi, functionName: 'transfer', args: [to, 1_000_000n] });
+const hash = await walletClient.writeContract(request);
+const receipt = await publicClient.waitForTransactionReceipt({ hash });      // receipt.status is 'success' or 'reverted'
+```
 
-const web3 = new Web3(process.env.RPC_URL!);
-const vault = new Vault(process.env.VAULT_ADDRESS!, web3);
+A narrow adapter interface that lets the rest of the code stay unaware of the library during migration:
 
-export async function deposit(depositor: string, amount: bigint): Promise<string> {
-  const nonce = await web3.eth.getTransactionCount(depositor);
-  const gasEstimate = await vault.methods.deposit(amount).estimateGas({ from: depositor });
-  const receipt = await vault.methods.deposit(amount).send({
-    from: depositor,
-    gas: Math.floor(Number(gasEstimate) * 1.2),
-    nonce,
-  });
-  return receipt.transactionHash;
-}
-
-export async function getBalance(holder: string): Promise<bigint> {
-  return BigInt(await vault.methods.balances(holder).call());
-}
-
-export async function listenForDeposits(callback: (depositor: string, amount: bigint) => void): Promise<void> {
-  vault.events.Deposit({ fromBlock: 'latest' })
-    .on('data', (event: any) => {
-      callback(event.returnValues.depositor, BigInt(event.returnValues.amount));
-    })
-    .on('error', (err: Error) => {
-      console.error('Subscription error:', err);
-      // Reconnection logic here
-    });
+```ts
+export interface ChainClient {
+  getBalance(address: string): Promise<bigint>;
+  readErc20Balance(token: string, holder: string): Promise<bigint>;
+  getTransferLogs(token: string, fromBlock: bigint, toBlock: bigint): Promise<{ from: string; to: string; value: bigint; blockNumber: bigint }[]>;
 }
 ```
 
-### Example 3: EIP-712 Typed Data Signing
+A pure-function parity test (no network) that guards the migration of units, hashing, ABI encoding and signing:
 
-```typescript
-import Web3 from 'web3';
+```js
+import { Web3 } from 'web3';
+import * as ethers from 'ethers';
+import * as viem from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import assert from 'node:assert/strict';
 
-const web3 = new Web3(process.env.RPC_URL!);
-
-export interface Permit {
-  owner: string;
-  spender: string;
-  value: bigint;
-  nonce: bigint;
-  deadline: bigint;
-}
-
-export async function signPermit(
-  privateKey: string,
-  domain: { name: string; version: string; chainId: bigint; verifyingContract: string },
-  permit: Permit
-): Promise<{ v: number; r: string; s: string }> {
-  const typedData = {
-    types: {
-      EIP712Domain: [
-        { name: 'name', type: 'string' },
-        { name: 'version', type: 'string' },
-        { name: 'chainId', type: 'uint256' },
-        { name: 'verifyingContract', type: 'address' },
-      ],
-      Permit: [
-        { name: 'owner', type: 'address' },
-        { name: 'spender', type: 'address' },
-        { name: 'value', type: 'uint256' },
-        { name: 'nonce', type: 'uint256' },
-        { name: 'deadline', type: 'uint256' },
-      ],
-    },
-    primaryType: 'Permit',
-    domain,
-    message: permit,
-  };
-
-  const { signature } = await web3.eth.accounts.signTypedData(privateKey, typedData as any);
-  const r = signature.slice(0, 66);
-  const s = '0x' + signature.slice(66, 130);
-  const v = parseInt(signature.slice(130, 132), 16);
-  return { v, r, s };
-}
+const web3 = new Web3('http://127.0.0.1:1'); // never contacted by these calls
+const to = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+assert.equal(BigInt(web3.utils.toWei('1.5', 'ether')), ethers.parseEther('1.5'));
+assert.equal(ethers.parseEther('1.5'), viem.parseEther('1.5'));
+const data = [
+  web3.eth.abi.encodeParameters(['address', 'uint256'], [to, 5]),
+  ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256'], [to, 5n]),
+  viem.encodeAbiParameters(viem.parseAbiParameters('address, uint256'), [to, 5n]),
+];
+assert.ok(data.every((d) => d === data[0]));
+// Test-only key derived from a label; never reuse a real key in tests.
+const pk = viem.keccak256(viem.toHex('parity-test'));
+const sigs = [web3.eth.accounts.sign('hello', pk).signature, await new ethers.Wallet(pk).signMessage('hello'), await privateKeyToAccount(pk).signMessage({ message: 'hello' })];
+assert.ok(sigs.every((s) => s === sigs[0]));
 ```
 
-## 27. Common Mistakes
+The full mapping tables are in [references/migration-to-ethers-and-viem.md](references/migration-to-ethers-and-viem.md).
 
-### Mistake 1: Using Number for Wei
-**What**: Developer uses `Number` for balance values.
-**Why wrong**: Numbers lose precision above 2^53; wei values routinely exceed this for balances above ~9 ETH.
-**How to avoid**: Always use `bigint` (Web3.js 4.x native) or `BN` for wei values.
+## 15. Common Mistakes
 
-### Mistake 2: Raw ABI Calls in Production
-**What**: `contract.methods['transfer(address,uint256)'](to, amount).send()` with raw ABI.
-**Why wrong**: No type safety; typos in function signatures not caught at compile time.
-**How to avoid**: Use TypeChain-generated bindings: `import { Vault } from './types/Vault';`
+- **Starting new work on web3.js** because the old code uses it: new modules should use the migration target.
+- **Upgrading v1 to v4 as the "fix"**: v4 is also archived and unpatched; the change adds migration work without removing the risk.
+- **`npm audit fix --force`**: can install incompatible majors or remove packages silently. Use targeted overrides with tests.
+- **`Number(balance)` on wei values**: loses precision above 2^53. Keep `bigint`.
+- **Assuming v1 and v4 return the same types**: v1 returns strings and numbers, v4 returns `bigint`; code that does `a + b` on strings concatenates.
+- **Copying `wallet.add(pk)` between versions**: v4 returns the wallet, v1 returns the account.
+- **Leaving `new Web3()` without a provider**: v4 can fall back to a hosted default endpoint.
+- **Porting `.on('transactionHash')` handlers verbatim**: ethers and viem expose the hash and receipt as separate awaited steps.
+- **Mixed-case address fixtures**: ethers throws "bad address checksum" for wrongly cased addresses; correct the fixture or lowercase it.
+- **Expecting a receipt object for failed transactions**: ethers v6 `tx.wait()` throws `CALL_EXCEPTION` on a revert and `TRANSACTION_REPLACED` on replacement, and resolves `null` only for `wait(0)` before mining; viem's `waitForTransactionReceipt` returns the receipt with `status: 'reverted'`. Adjust error handling for each.
+- **Migrating signing and sending in the same commit as the business refactor**: keep changes separable so a regression has one suspect.
+- **Forgetting JSON serialization**: `JSON.stringify` throws on `bigint`; add a replacer or convert at the API boundary.
+- **Confusing `@solana/web3.js` with web3.js**: they are unrelated; a Solana advisory does not apply to this library and vice versa.
 
-### Mistake 3: Single RPC Provider
-**What**: Application hardcodes a single Alchemy/Infura URL.
-**Why wrong**: Provider outage takes down the application.
-**How to avoid**: Configure at least 2 providers from different vendors with automatic failover.
+## 16. References
 
-### Mistake 4: Hardcoded Private Key
-**What**: `const PRIVATE_KEY = '0xabc...'` in source code.
-**Why wrong**: Private key in source code is a security incident waiting to happen; anyone with repo access can drain the wallet.
-**How to avoid**: Load from `process.env.PRIVATE_KEY` (backend) or use browser wallet (frontend).
-
-### Mistake 5: No WebSocket Reconnection
-**What**: `web3.eth.subscribe('newBlockHeaders')` without reconnection logic.
-**Why wrong**: WebSocket disconnects on network blip; subscriptions silently stop; indexer misses blocks.
-**How to avoid**: Wrap subscriptions in reconnection logic with exponential backoff.
-
-### Mistake 6: personal_sign for Structured Data
-**What**: Using `personal_sign` to sign structured data (e.g., permit).
-**Why wrong**: `personal_sign` produces a different signature format; contracts expecting EIP-712 cannot verify.
-**How to avoid**: Use `web3.eth.accounts.signTypedData` for EIP-712 structured data.
-
-## 28. Professional Workflow
-
-1. Initialize project: `npm install web3 typechain @typechain/web3-v1`.
-2. Configure provider strategy: 2+ providers from different vendors; failover policy.
-3. Implement provider manager with failover and circuit breaker.
-4. Generate TypeChain bindings from contract ABIs.
-5. Implement contract wrappers with TypeChain bindings.
-6. Implement nonce tracker per account.
-7. Implement fee estimator using `eth_feeHistory`.
-8. Implement transaction submitter with retry logic.
-9. Implement WebSocket subscriptions with reconnection.
-10. Implement EIP-712 signing for structured off-chain signatures.
-11. Implement custom error decoding for contract error selectors.
-12. Implement batch requests for high-throughput read patterns.
-13. Configure jest/vitest with hardhat-network for unit tests.
-14. Configure mainnet fork for integration tests.
-15. Set up monitoring: RPC latency, error rate, block lag, nonce gap, WebSocket reconnect count.
-
-## 29. Response Style
-
-- Always specify Web3.js version (4.x) in examples; never 1.x.
-- Always use TypeScript for production code.
-- Always use TypeChain bindings for contract interactions; never raw ABI calls.
-- Always parse RPC numbers as `bigint` or `BN`; never `number`.
-- Always validate and checksum addresses.
-- Always cite EIPs when introducing new features (EIP-712, EIP-1193, EIP-6963, EIP-1559).
-- Always flag security implications of suggested patterns.
-- Always provide a reconnection strategy for WebSocket subscriptions.
-
-## 30. Output Format
-
-- Every code example imports `Web3` from `web3` and uses TypeScript.
-- Every contract interaction uses TypeChain bindings.
-- Every numeric value from RPC is parsed as `bigint` or `BN`.
-- Every address is checksummed in output.
-- Every config file includes comments explaining each field.
-- Every runbook includes: prerequisites, step-by-step procedure, verification steps, rollback procedure.
-- Every monitoring dashboard includes a panel for each alert.
-- Every deployment script is idempotent.
-- Every commit message follows conventional commits: `feat(contracts):`, `fix(provider):`, `docs(signing):`.
-- Every release includes a `CHANGELOG.md` entry with breaking changes, new features, bug fixes, and upgrade notes.
+- [references/migration-to-ethers-and-viem.md](references/migration-to-ethers-and-viem.md): side-by-side mapping for providers, accounts, contracts, events, units, hashing, ABI encoding, signing, transactions, subscriptions, batching, errors and types, with a phased migration plan.
+- [references/maintaining-web3js-v1-v4.md](references/maintaining-web3js-v1-v4.md): reading v1 and v4 code, type conventions, return formats, PromiEvent, subscriptions, plugins, known gaps, and safe maintenance practices.
+- Official docs: https://github.com/web3/web3.js , https://docs.ethers.org/v6/ , https://viem.sh/ , https://eips.ethereum.org/EIPS/eip-1193 , https://eips.ethereum.org/EIPS/eip-6963
