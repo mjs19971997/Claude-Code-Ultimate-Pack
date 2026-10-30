@@ -1,669 +1,321 @@
 ---
 name: playwright-expert
-description: >
-  Designs and writes Playwright 1.40+ browser automation suites with accessibility-first locators, auto-waiting, fixtures, network interception, authentication, tracing, and CI sharding.
-  
-  Use this skill when writing unit, integration, or end-to-end tests with Vitest, Jest, Playwright, or Cypress.
+description: >-
+  Designs and writes Playwright Test suites in TypeScript: role-based locators, web-first assertions and auto-waiting, setup projects with storageState authentication, test.extend fixtures, network mocking, API testing with the request fixture, aria and visual snapshots, traces, retries, sharding and merge-reports in CI. Use when working with playwright.config.ts, @playwright/test, *.spec.ts browser tests, page.route, expect.poll, toPass, toHaveScreenshot, toMatchAriaSnapshot, trace viewer, flaky E2E tests, or Playwright test agents and MCP. Not for choosing what to cover across the whole pyramid (use e2e-testing-expert), Jest or Vitest unit tests (use unit-testing-expert), or API and database integration tests without a browser (use integration-testing-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# Playwright Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers writing and operating browser tests with Playwright Test: locator and assertion habits that avoid flakiness, authentication done once per run, fixtures for setup and cleanup, mocking and API-assisted setup, snapshot assertions, and CI configuration with sharding and merged reports. Examples are TypeScript against `@playwright/test`. The browser automation library on its own (scraping, scripts without the test runner) is outside this skill's focus.
 
----
+> Verified against @playwright/test 1.64.1 (Node 20 or newer), release notes through 1.64, and the Playwright docs sources for auth, projects, sharding, webServer, assertions, clock and aria snapshots (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The Playwright Expert configures, writes, and maintains Playwright 1.40+ browser automation suites for end-to-end, visual regression, accessibility, and API testing. The role owns the Playwright configuration (playwright.config.ts, projects, browsers, channels), accessibility-first locators (getByRole, getByText, getByLabel, getByPlaceholder, getByAltText, getByTitle, getByTestId), auto-waiting, assertions (expect(locator).toBeVisible, toHaveText, toHaveCount, soft assertions), fixtures (test.beforeAll/beforeEach/afterEach/afterAll, custom fixtures, override pattern), network interception (route, fulfill, abort, continue, HAR recording, mock responses), authentication (storageState, global setup, per-test login, multi-account), frames, multiple tabs/windows, dialogs, downloads/uploads, screenshots/videos on failure, tracing, visual comparisons (toHaveScreenshot, mask, maxDiffPixelRatio), accessibility (axe-playwright), API testing (request fixture, APIRequestContext), component testing (experimental), sharding/parallel workers/retries, reporters (html, junit, github, custom), CI, debug mode (PWDEBUG), and codegen.
+## 1. Scope
 
-The expert operates on the principle that E2E tests must be deterministic, fast, and maintainable. The role demands fluency in the Playwright API, the browser automation landscape, and the integration with CI/CD pipelines.
+- Covered: `playwright.config.ts`, projects and dependencies, locators, web-first assertions, `expect.poll` and `toPass`, fixtures, `storageState` auth, `page.route` mocking, the `request` fixture, `page.clock`, `toHaveScreenshot`, `toMatchAriaSnapshot`, traces and the HTML report, retries, sharding, blob reports, `webServer`, Playwright test agents and the bundled MCP server.
+- Not covered: deciding which journeys deserve E2E coverage and test-pyramid strategy (e2e-testing-expert); unit tests of functions and components (unit-testing-expert); service and database integration tests (integration-testing-expert); building the CI platform itself (cicd-expert); accessibility rules beyond automated checks (accessibility-expert).
 
-The Playwright Expert is the final technical authority for E2E test architecture in Playwright-based projects. The role reports to engineering leadership and operates through test strategy reviews, code reviews, and direct pairing with implementation teams.
+## 2. Core Expertise
 
-## 2. Mission
+- **Auto-waiting**: actions wait for the element to be attached, visible, stable, enabled and able to receive events. Web-first assertions (`expect(locator).toBeVisible()`, `toHaveText`, `toHaveURL`) retry until the expect timeout.
+- **Locators**: `getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`, `getByAltText`, `getByTitle`, `getByTestId`; compose with `filter`, `and`, `or`, `first`, `nth`. Locators are lazy and re-resolve on every use.
+- **Isolation**: each test gets a fresh browser context (cookies, storage, cache). `fullyParallel: true` runs tests in one file in parallel; workers are separate processes that never share state.
+- **Projects**: named configurations (browser, device, `storageState`, `testMatch`). `dependencies: ['setup']` runs the listed projects first and skips dependents if they fail; `teardown` runs after dependents.
+- **Fixtures**: `test.extend<T, W>()` provides per-test or per-worker (`scope: 'worker'`) setup with automatic teardown after `await use(...)`; options (`option: true`) let projects override values; `auto: true` runs a fixture for every test.
+- **Retry helpers**: `expect.poll(fn)` retries a value, `expect(async () => {...}).toPass()` retries a block (default timeout 0, so pass `timeout`), `expect.soft` records a failure without stopping the test.
+- **Network**: `page.route` / `context.route` to fulfill, modify or abort; `routeFromHAR`; `page.waitForResponse`; the `request` fixture for direct HTTP calls that share `baseURL`, headers and `storageState` with the project.
+- **Time**: `page.clock.setFixedTime`, `install`, `pauseAt`, `fastForward`, `runFor` control `Date` and timers in the page.
+- **Snapshots**: `toHaveScreenshot` (pixel compare, per platform), `toMatchAriaSnapshot` (accessibility tree as YAML, stable across styling changes), `toMatchSnapshot` for text and binary data.
+- **Diagnostics**: `trace: 'on-first-retry'`, Trace Viewer (`npx playwright show-trace`), HTML report, UI Mode (`--ui`), `--debug`, `npx playwright codegen`.
+- **Agents**: `npx playwright init-agents --loop=claude` (also `vscode`, `codex`, `opencode`) writes planner, generator and healer agent definitions; the Playwright MCP server (`@playwright/mcp`, also bundled as `npx playwright mcp`) lets an agent drive a browser.
 
-The mission of the Playwright Expert is to deliver an E2E test suite that catches real user-facing regressions, runs fast enough to gate deploys, and is maintainable as the application evolves. Every test must use accessibility-first locators, auto-waiting, and deterministic data; flaky tests are defects that must be fixed immediately.
+## 3. Workflow
 
-The expert must refuse any test that relies on CSS selectors or XPath when accessibility-first locators are available. Tests must be resilient to UI refactors that preserve accessibility semantics.
+1. Pick a user journey and its pass/fail condition in one sentence; decide what must be real (the app, the login) and what can be mocked (third-party APIs, payment, email).
+2. Set up the config once: `baseURL`, `webServer`, a `setup` project for login, `trace: 'on-first-retry'`, retries only in CI.
+3. Explore with `npx playwright codegen` or UI Mode, then rewrite generated selectors to role and label locators.
+4. Seed data through the API or a fixture (unique per test), not by clicking through the UI.
+5. Write the test as steps with web-first assertions on user-visible outcomes; no fixed sleeps.
+6. Run it repeatedly: `npx playwright test path --repeat-each=20` plus `--workers=1` and a normal parallel run. Add `--shuffle` to find order dependence.
+7. Open the trace of any failure before changing code; fix the cause (missing assertion, shared data, race) rather than adding a retry.
+8. In CI: install browsers, run (sharded if needed), upload the report and traces, optionally fail the run on flaky tests (`--fail-on-flaky-tests`).
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- Playwright 1.40+ setup: `npm init playwright`, playwright.config.ts, project structure, browser installation.
-- Browsers: chromium, firefox, webkit, edge (channels: msedge, chrome), Mobile Safari, Mobile Chrome.
-- Locators (accessibility-first): getByRole, getByText, getByLabel, getByPlaceholder, getByAltText, getByTitle, getByTestId; CSS and XPath are discouraged except for escape hatches.
-- Auto-waiting: actionability checks (visible, stable, enabled, receives events); custom timeouts via timeout option; waitFor.
-- Navigation: page.goto, page.reload, page.goBack, page.goForward; networkidle caveat (prefer load or domcontentloaded).
-- Assertions: expect(locator).toBeVisible, toHaveText, toContainText, toHaveCount, toBeEnabled, toBeChecked, toHaveValue, toHaveAttribute, toHaveClass, toHaveCSS, toHaveURL, toHaveTitle; soft assertions via expect.soft.
-- Auto-retry: assertions retry until timeout; configurable per assertion.
-- Fixtures: test.beforeAll, beforeEach, afterEach, afterAll; custom fixtures via fixture builder; override pattern for base fixtures.
-- Page object vs fixture pattern: prefer fixtures for setup/teardown; page objects for complex flows.
-- Network: page.route for interception; route.fulfill, route.abort, route.continue; HAR recording; mock responses; aliasing.
-- Authentication: storageState for session persistence; global setup for one-time login; per-test login for isolation; multi-account scenarios.
-- Frames: page.frame, page.frameLocator; nested frames.
-- Multiple tabs/windows: context.waitForEvent('page'), popup handling.
-- Dialogs: page.on('dialog') for alert, confirm, prompt, beforeunload.
-- Downloads/uploads: page.waitForEvent('download'), page.setInputFiles, file choosers via page.waitForEvent('filechooser').
-- Screenshots/videos on failure: configured in playwright.config.ts; trace viewer for post-failure diagnosis.
-- Tracing: trace viewer; capture screenshots, DOM snapshots, network, console logs.
-- Visual comparisons: expect(page).toHaveScreenshot; mask dynamic regions; maxDiffPixelRatio, maxDiffPixels, threshold.
-- Accessibility: axe-playwright for WCAG/Section 508 checks; integrate into E2E suite.
-- API testing: request fixture, APIRequestContext; test APIs without browser overhead.
-- Component testing (experimental): @playwright/experimental-ct-react, ct-vue, ct-svelte; mount components in isolation.
-- Sharding: --shard=i/n for parallelism across CI runners.
-- Parallel workers: --workers=N; default to logical CPU count.
-- Retries: --retries=N for flaky test mitigation; prefer fixing root cause over retrying.
-- Reporters: html (default), junit (CI integration), github (annotations), custom reporters.
-- CI: GitHub Actions, GitLab CI; cache browser binaries; matrix across browsers.
-- Debug mode: PWDEBUG=1 for Playwright Inspector; --debug flag; --headed for local debugging.
-- Codegen: `npx playwright codegen <url>` for test generation; edit before merging.
+- Prefer `getByRole` with an accessible name; fall back to `getByLabel`/`getByText`, then `getByTestId`; avoid CSS and XPath tied to layout. A role locator that is hard to write often signals an accessibility defect.
+- Assert with web-first matchers on locators. Use `expect.poll` for values that are not locators (API state), `toPass` for multi-step retried blocks. Never `expect(await locator.isVisible()).toBe(true)`; it does not retry.
+- Share login across tests with a setup project and `storageState` when tests do not mutate per-account server state; use one account per worker (worker-scoped `storageState` fixture) when they do.
+- Mock only what is outside the system under test or too slow and flaky to call; keep at least one test per critical flow against the real backend.
+- Use `page.clock` for time-dependent UI instead of waiting real time or editing system clocks.
+- Choose `toMatchAriaSnapshot` for structure and content, `toHaveScreenshot` for layout and styling regressions. Screenshots need a pinned environment (same OS image, same browser build).
+- `fullyParallel: true` plus sharding balances at test level; without it sharding balances at file level.
+- Retries: 0 locally, 1-2 in CI. A test that passes only on retry is flaky; `failOnFlakyTests` makes that visible.
+- Use `test.describe.configure({ mode: 'serial' })` only for steps that truly depend on each other; prefer independent tests. Use `lock` (test locks, 1.63+) for a shared external resource, check the current docs for its exact semantics.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Configure Playwright for the project: playwright.config.ts, projects (browsers, devices), retries, reporters, webServer.
-- Write E2E tests using accessibility-first locators, auto-waiting, and deterministic data.
-- Mock network when integration is flaky or unavailable; use real integration when stability permits.
-- Manage authentication: storageState for session reuse; global setup for one-time login.
-- Maintain the test suite: fix flaky tests immediately, remove obsolete tests, update locators when UI changes.
-- Integrate Playwright with CI: sharding, parallelism, JUnit reporter, artifact retention.
-- Diagnose failures using trace viewer, screenshots, videos; capture root cause in the test failure.
-- Coach engineers in Playwright patterns through pairing and review.
-- Benchmark the E2E suite; keep under 10 minutes total; shard if longer.
-- Define visual regression strategy: baseline management, mask dynamic regions, review diffs in PRs.
+- Import `test` and `expect` from `@playwright/test`, or from one project fixtures module that re-exports `expect`.
+- One behavior per test; test titles describe the outcome ("shows an error when the card is declined").
+- No `page.waitForTimeout`, no `networkidle` waits, no `force: true` to silence actionability failures; wait on an observable condition instead.
+- Locators live in variables or page objects, assertions in the test body.
+- Use `baseURL` and relative `page.goto('/path')`.
+- `test.step('title', async () => {...})` groups long tests so traces and reports read as a story; `{ box: true }` hides helper internals from error locations.
+- Tag tests (`test('x', { tag: '@smoke' }, ...)`) and select with `--grep @smoke`.
+- `expect.soft` for independent checks in one page state; hard assertions when later steps depend on the result.
+- Names for stored state and test data include the worker or test id so parallel runs never collide.
+- Playwright's `expect` is not Jest's: there is no `expect.assertions()` or `expect.hasAssertions()`. Use `expect.configure({ timeout, soft })`, `expect.poll`, `expect.extend` for custom matchers.
 
-## 5. Thinking Process
-
-1. Identify the user journey under test: which user, which action, which outcome?
-2. Identify the test data: how to seed deterministic data (API, database, fixtures)?
-3. Identify the authentication: how to authenticate (storageState, per-test login, bypass)?
-4. Write the test scenario in BDD: given (state), when (action), then (assertion).
-5. Locate elements using accessibility-first locators: getByRole, getByLabel, getByText.
-6. Use auto-waiting: do not add manual waits; let Playwright wait for actionability.
-7. Assert outcomes: use expect(locator) with auto-retry; verify the user-visible result.
-8. Clean up: ensure test data is reset; use afterAll for shared cleanup.
-9. Run the test in isolation; verify it passes alone.
-10. Run the test in the full suite; verify it passes with others.
-11. Run the test multiple times; verify it is not flaky.
-12. Refactor the test for readability: extract fixtures, use page objects for complex flows.
-13. Review for flakiness: any timing, shared state, external dependency? Eliminate.
-14. Commit the test; run in CI; verify it passes across all configured browsers.
-
-## 6. Decision Making Rules
-
-- When accessibility locator and CSS selector both work, choose accessibility locator because tests survive UI refactors that preserve semantics.
-- When real backend and mocked backend both work, choose real backend because integration bugs are caught; mock only when stability is unacceptable.
-- When page object and fixture both work, choose fixture for setup/teardown and page object for complex flows; combine as needed.
-- When waitForTimeout and auto-waiting both work, choose auto-waiting because waitForTimeout introduces flakiness.
-- When storageState and per-test login both work, choose storageState for speed and per-test login for isolation when state must be fresh.
-- When soft assertion and hard assertion both work, choose hard assertion because soft assertions delay feedback; soft assertions only for non-critical checks.
-- When sharding and single-runner both work, choose sharding when the suite exceeds 5 minutes; the CI cost is justified by faster feedback.
-- When retry and root-cause-fix both work, choose root-cause-fix because retries mask flakiness; retry only as a stopgap while fixing.
-
-## 7. Architecture Rules
-
-- Every test must use accessibility-first locators (getByRole, getByLabel, getByText); CSS and XPath are escape hatches only.
-- Every test must use auto-waiting; manual waits (waitForTimeout) are forbidden except for explicit animation timing.
-- Every test must be deterministic: seeded data, controlled clock, no shared state.
-- Every test must be isolated: no order dependence; cleanup in afterAll.
-- Every test must verify user-visible outcomes, not implementation details.
-- Every test must be fast: under 30 seconds per test; shard the suite if total exceeds 10 minutes.
-- Every test must be retryable: failures are investigated, not retried indefinitely.
-- Visual regression baselines must be reviewed in PRs; never blindly update.
-
-## 8. Coding Standards
-
-- All tests must use TypeScript; type the page, locator, and fixture parameters.
-- All tests must use the AAA pattern: Arrange, Act, Assert (visible through spacing or comments).
-- All tests must use BDD naming: `test('should <expected> when <condition>')`.
-- All locators must be accessibility-first: getByRole, getByLabel, getByText, getByTestId.
-- All waits must use auto-waiting; waitForTimeout is forbidden except for animation timing.
-- All assertions must use expect(locator) with auto-retry; raw page.evaluate checks are forbidden.
-- All test data must be seeded via API or database; UI-driven setup is forbidden for speed.
-- All authentication must use storageState or API-based login; UI-driven login is forbidden in tests.
-- All tests must clean up after themselves; afterAll for shared cleanup, afterEach for per-test.
-- All tests must run in parallel by default; serial execution requires explicit test.describe.serial.
-
-## 9. Naming Conventions
-
-- Test files must be named `<feature>.spec.ts` (e.g., `checkout.spec.ts`).
-- Test descriptions must follow `should <expected> when <condition>` or BDD given/when/then.
-- test.describe blocks must name the feature: `test.describe('Checkout flow')`.
-- test blocks must name the scenario: `test('should complete checkout with valid payment')`.
-- Custom fixtures must be named for the resource: `authenticatedPage`, `seededInvoices`.
-- Page objects (when used) must be named `<Feature>Page`: `CheckoutPage`, `LoginPage`.
-- Test data fixtures must be in `fixtures/` directory.
-- Helper functions must be in `helpers/` directory.
-- Storage state files must be in `.auth/` directory; gitignored or committed with care.
-- Visual baselines must be in `<test-file>-snapshots/` directory.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-e2e/
-  tests/
-    checkout.spec.ts                   # Checkout flow tests
-    auth.spec.ts                       # Authentication tests
-    invoices.spec.ts                   # Invoice management tests
-  pages/                               # Page objects (when used)
-    CheckoutPage.ts
-    LoginPage.ts
-  fixtures/
-    users.ts                           # Test user fixtures
-    invoices.ts                        # Test invoice fixtures
-  helpers/
-    apiClient.ts                       # API helper for data seeding
-    auth.ts                            # Authentication helpers
-  .auth/                               # Storage state (gitignored or scoped)
-    user.json
-playwright.config.ts                   # Playwright configuration
-playwright.ct.config.ts                # Component testing config (if used)
+playwright.config.ts
+playwright/.auth/              # generated storageState, git-ignored
+fixtures/
+  index.ts                     # test.extend: page objects, API-seeded data
+tests/
+  auth.setup.ts                # setup project: log in, save storageState
+  orders.spec.ts
+  checkout.anon.spec.ts        # logged-out journeys, no stored state
+  a11y.spec.ts
+  orders.spec.ts-snapshots/    # written by toHaveScreenshot, one file per project and platform
 ```
 
-## 11. Project Structure
+Add `playwright/.auth`, `test-results`, `playwright-report` and `blob-report` to `.gitignore`.
 
-```
-my-project/
-  apps/
-    web/                               # Application under test
-      src/
-      package.json
-  e2e/                                 # See Folder Structure section
-  .github/
-    workflows/
-      e2e.yml                          # Playwright CI workflow
-  docs/
-    e2e-guide.md
-    test-patterns.md
-  .eslintrc.cjs
-  tsconfig.json
-  package.json
-  playwright.config.ts
-  README.md
-  CONTRIBUTING.md
-```
+## 7. Design Patterns
 
-## 12. Design Patterns
+- **Setup project**: a `*.setup.ts` test logs in once and writes `storageState`; test projects list it in `dependencies` and load the file via `use.storageState`.
+- **Fixture over page object inheritance**: expose page objects and seeded data as fixtures (`test.extend`); cleanup after `await use(...)` runs even when the test fails.
+- **API-seeded UI tests**: create preconditions with the `request` fixture, drive only the behavior under test in the browser, verify side effects through the API.
+- **Worker-scoped resources**: expensive setup (an account, a database schema per worker) as a `scope: 'worker'` fixture keyed by `testInfo.parallelIndex`.
+- **Mock at the edge**: `page.route('**/api/third-party/**', ...)` with typed fixtures for payloads; keep mocks next to the tests that use them.
+- **Option fixtures**: `base.extend<{ tenant: string }>({ tenant: ['acme', { option: true }] })` lets a project change the value through `use`. Do not reuse built-in option names such as `locale`.
 
-### 12.1 Custom Fixture
-**When to use**: When multiple tests share setup (authenticated page, seeded data); fixtures encapsulate setup and teardown.
-**When not to use**: For one-off setup; inline is simpler.
-**Sketch**: Define a fixture via `test.extend` with setup and teardown; tests receive the fixture as a parameter.
+## 8. Best Practices
 
-### 12.2 Page Object Model
-**When to use**: When complex flows repeat across tests; page objects encapsulate locators and actions.
-**When not to use**: In modern Playwright; fixtures and locators often suffice; page objects add indirection.
-**Sketch**: A class per page with methods for actions and getters for locators; tests instantiate the page object.
+- Keep tests independent: no reliance on order, on data from another test, or on leftover server state.
+- Create unique data per test (`crypto.randomUUID()` in names, emails on a test domain) and delete it in fixture teardown.
+- Configure `testIdAttribute` if the app uses `data-qa` instead of `data-testid`.
+- Use `locator.filter({ hasText })`, `filter({ has })` and chained parent-then-child locators to disambiguate instead of `nth`.
+- Wait for the outcome of an action (`await expect(page).toHaveURL(...)`) rather than for the action's side channel.
+- Run the suite headed or in UI Mode while authoring; run headless in CI against the same browser versions as the lockfile (`npx playwright install` after upgrading).
+- Upgrade `@playwright/test` and regenerate browsers together; regenerate agent definitions (`init-agents`) after upgrades.
+- Use `--only-changed` (optionally `--only-changed=main`) on pull requests for a fast first signal, and still run the full suite on the main branch.
 
-### 12.3 Storage State Authentication
-**When to use**: When authentication is expensive (OAuth, SSO); reuse the session across tests.
-**When not to use**: When each test needs a fresh session; per-test login is required.
-**Sketch**: Global setup logs in once, saves storageState to a file; tests load storageState in project config.
+## 9. Performance
 
-### 12.4 Network Mocking
-**When to use**: When the backend is flaky, slow, or unavailable; when testing edge cases (error responses).
-**When not to use**: When the backend is stable and integration bugs must be caught; mocking hides integration issues.
-**Sketch**: `page.route('**/api/invoices', route => route.fulfill({ json: [...] }))`; fulfill, abort, or continue.
+- Parallelize: `fullyParallel: true`, CI `workers` sized to the runner (the docs suggest 1 worker for stability; raise it on larger runners and measure), then shard across jobs with `--shard=i/n`.
+- Authenticate once (setup project) rather than per test; seed with API calls, not UI clicks.
+- Block heavy third-party resources (analytics, video) with `page.route` and `route.abort()` where they are irrelevant.
+- `trace: 'on-first-retry'` keeps passing runs cheap; `'retain-on-failure'` records every test and keeps failures only.
+- Keep screenshots small: use element screenshots and `mask` for dynamic areas.
+- Reuse the dev server locally (`reuseExistingServer: !process.env.CI`), build once and run `start` rather than `dev` in CI.
+- `retryStrategy: 'isolated'` (1.62+) runs retries at the end in one worker, so retries do not slow healthy tests; check the current docs before relying on it.
 
-### 12.5 Data Seeding via API
-**When to use**: When tests need specific data states; API seeding is faster and more reliable than UI navigation.
-**When not to use**: When the API is unavailable or the test specifically validates UI-driven data creation.
-**Sketch**: A helper uses the `request` fixture to POST/PUT data before the test; the test navigates to the UI and verifies.
+## 10. Security
 
-### 12.6 Visual Regression Testing
-**When to use**: When visual consistency matters; catch unintended UI changes.
-**When not to use**: For dynamic content (timestamps, randomized data); masking is required or the test will flake.
-**Sketch**: `expect(page).toHaveScreenshot('checkout.png')`; first run captures baseline; subsequent runs compare; mask dynamic regions.
+- Credentials come from environment variables or the CI secret store (`E2E_USER_EMAIL`, `E2E_USER_PASSWORD`); never hard-code them or commit `.env` files. Use dedicated test accounts with least privilege.
+- Authenticate through the real login flow or the real API in a setup project. Do not add a test-only login route, header or token that mints sessions; if the app needs one, build it only into non-production artifacts and verify the production build lacks it.
+- `playwright/.auth/*.json`, traces, HAR files and videos contain cookies, tokens and request bodies. Git-ignore them, set short artifact retention, and restrict who can download CI artifacts.
+- Run against local, preview or staging environments, never against production data; destructive tests need an environment guard (`if (baseURL.includes('prod')) throw ...`).
+- `ignoreHTTPSErrors: true` only for local self-signed certificates, never in shared configs.
+- In GitHub Actions, give the workflow `permissions: contents: read`, pass untrusted values (PR titles, inputs) through `env:` and never interpolate `${{ inputs.* }}` or `github.event.*` text into `run:`. Do not run workflows with secrets on `pull_request_target` against untrusted PR code.
+- Treat pages under test as untrusted input to the test: do not `eval` page content or write page text to paths.
 
-## 13. Best Practices
+## 11. Testing
 
-- Use accessibility-first locators (getByRole, getByLabel, getByText); tests survive UI refactors.
-- Use auto-waiting; never add manual waits (waitForTimeout) except for animation timing.
-- Seed test data via API or database; UI-driven setup is slow and brittle.
-- Use storageState for authentication; UI-driven login is slow.
-- Run tests in parallel by default; shard for CI parallelism.
-- Fix flaky tests immediately; retries are a stopgap, not a solution.
-- Use the trace viewer for post-failure diagnosis; configure tracing in CI.
-- Review visual baselines in PRs; never blindly update.
-- Keep the E2E suite under 10 minutes; shard if longer.
-- Test user-visible outcomes, not implementation details.
+- Stabilize a suspect test: `--repeat-each=30 --workers=4`, then `--shuffle`, then `--retries=0 --trace=on`.
+- Detect flakiness in CI: retries >= 1 with `--fail-on-flaky-tests` (or `failOnFlakyTests: true`), then track tests flagged as flaky in the report.
+- Verify the setup project actually authenticates: a spec that opens a signed-in page and asserts an account element, run in the authenticated project.
+- For mocked flows, add an assertion on the request payload the UI sent (`page.waitForRequest` or inspecting `route.request().postDataJSON()`).
+- Accessibility smoke checks with `@axe-core/playwright` complement, but do not replace, role-based locators and manual review.
 
-## 14. Anti Patterns
+## 12. Review Checklist
 
-### 14.1 CSS/XPath Selectors
-**Why wrong**: CSS and XPath selectors break on UI refactors that preserve accessibility semantics; tests are brittle.
-**Correct alternative**: Use accessibility-first locators (getByRole, getByLabel, getByText); reserve CSS/XPath for escape hatches.
+- [ ] Locators are role/label/text based; no brittle CSS chains or `nth` without justification.
+- [ ] Every assertion is web-first, `expect.poll` or `toPass`; no sleeps, no `waitForTimeout`.
+- [ ] Tests are independent and use unique data; fixtures clean up after `use()`.
+- [ ] Authentication happens in a setup project, writes git-ignored `storageState`, and reads credentials from the environment.
+- [ ] No test-only bypass reachable in production; no secrets in the repo, traces or logs.
+- [ ] Mocks cover only external dependencies; at least one real end-to-end path per critical flow.
+- [ ] Snapshot tests run in a pinned environment and mask dynamic content; snapshot updates are reviewed.
+- [ ] CI uploads reports and traces, uses `env:` for expressions in `run:`, and fails on `forbidOnly`.
+- [ ] No Jest-only APIs (`expect.assertions`, `jest.fn`) in Playwright files.
 
-### 14.2 Manual Waits (waitForTimeout)
-**Why wrong**: Fixed waits introduce flakiness; CI runners vary in speed; waits either fail (too short) or waste time (too long).
-**Correct alternative**: Use auto-waiting via expect(locator) with auto-retry; let Playwright wait for actionability.
+## 13. Production Notes
 
-### 14.3 UI-Driven Authentication
-**Why wrong**: UI-driven login is slow (5-10 seconds per test); the suite takes minutes longer than necessary.
-**Correct alternative**: Use storageState for session reuse; global setup logs in once.
+- Treat E2E failures like production incidents for flakiness: keep a flaky-test list, fix or quarantine with a tracked reason (`test.fixme` with a link) rather than raising retries.
+- Pin the Playwright version in the lockfile and use the matching Docker image (`mcr.microsoft.com/playwright:v1.64.1-noble`, run with `--ipc=host`) for consistent browsers and fonts.
+- Store blob reports per shard and publish one merged HTML report; keep traces for failures only.
+- Set `globalTimeout` in the config to bound CI cost.
+- Run a small `@smoke` subset after each deploy against the deployed environment, read-only or on disposable data.
+- Visual baselines belong to one platform; generate them in the same container image used by CI.
 
-### 14.4 UI-Driven Test Data Setup
-**Why wrong**: UI-driven setup is slow and brittle; the test setup takes longer than the test itself.
-**Correct alternative**: Seed data via API or database; the test navigates to the UI and verifies.
+## 14. Examples
 
-### 14.5 Retrying Flaky Tests
-**Why wrong**: Retries mask flakiness; the root cause is never fixed; the suite degrades over time.
-**Correct alternative**: Fix the root cause of flakiness; retries are a stopgap, not a solution.
-
-### 14.6 Shared State Across Tests
-**Why wrong**: Tests that share state fail when run in different order; isolation is lost; debugging is painful.
-**Correct alternative**: Each test sets up its own state; clean up in afterEach; never rely on test order.
-
-## 15. Performance Rules
-
-- Seed test data via API, not UI; UI-driven setup is 10-100x slower.
-- Use storageState for authentication; UI-driven login adds 5-10 seconds per test.
-- Run tests in parallel by default; shard for CI parallelism.
-- Keep tests under 30 seconds each; longer tests indicate over-scoping.
-- Keep the E2E suite under 10 minutes; shard if longer.
-- Use --workers=N to tune parallelism; too many workers cause resource contention.
-- Use --shard=i/n in CI to distribute tests across runners.
-- Avoid networkidle in page.goto; prefer load or domcontentloaded.
-
-## 16. Security Rules
-
-- Never hardcode credentials in tests; use environment variables or secret management.
-- Test users must be synthetic; never use production user accounts.
-- Test environments must be isolated from production; never run E2E against production data.
-- Storage state files contain session tokens; treat as secrets; gitignore or scope appropriately.
-- Visual baselines may contain UI text; review for PII before committing.
-- Mock third-party APIs in tests; never hit real third-party services.
-- Test data must be synthetic; production data in tests is forbidden without anonymization.
-- CI secrets must be passed via environment variables; never in the test code.
-
-## 17. Testing Strategy
-
-- E2E tests must cover the top 10-20 user journeys; cap to keep the suite fast.
-- Visual regression tests must cover key pages; mask dynamic regions.
-- Accessibility tests must run via axe-playwright; integrate into E2E suite.
-- API tests must cover critical endpoints; use the request fixture for speed.
-- Component tests (experimental) may be used for isolated component verification.
-- Tests must run in parallel by default; serial execution requires explicit test.describe.serial.
-- Flaky tests must be fixed immediately; retries are a stopgap.
-- Tests must be deterministic: seeded data, controlled clock, no shared state.
-- Tests must run across configured browsers (chromium, firefox, webkit) in CI.
-- Sharding must be used when the suite exceeds 5 minutes.
-
-## 18. Documentation Standards
-
-- Every test must have a descriptive name: `should <expected> when <condition>`.
-- Every test.describe must name the feature under test.
-- Complex fixtures must be documented with usage examples.
-- Page objects (when used) must document their public API.
-- The E2E guide must document the project's patterns and conventions.
-- Visual baseline updates must be reviewed in PRs with rationale.
-- Test architecture decisions must be documented in ADRs for non-trivial choices.
-- Runbooks must exist for diagnosing E2E failures in CI.
-
-## 19. Code Review Checklist
-
-- Does the test use accessibility-first locators (getByRole, getByLabel, getByText)?
-- Does the test use auto-waiting; no manual waits (waitForTimeout)?
-- Is the test deterministic (seeded data, controlled clock, no shared state)?
-- Is the test isolated (no order dependence, cleanup in afterEach)?
-- Is the test fast (under 30 seconds)?
-- Does the test verify user-visible outcomes, not implementation details?
-- Is the test data seeded via API, not UI?
-- Is authentication via storageState, not UI-driven login?
-- Does the test run in parallel by default?
-- Is the test name descriptive (`should <expected> when <condition>`)?
-- Are locators resilient to UI refactors that preserve accessibility?
-- Are network mocks reviewed; do they hide integration bugs?
-- Are visual baselines reviewed deliberately, not blindly updated?
-- Does the test pass across all configured browsers?
-- Is the test not flaky (verified by running multiple times)?
-
-## 20. Refactoring Checklist
-
-- Is the refactoring motivated by a concrete pain point (flaky tests, slow tests, brittle locators)?
-- Are tests in place to verify behavior preservation?
-- Is the refactoring scoped to one concern?
-- Are commits small enough to review?
-- Is the test suite green before and after each step?
-- Are locator changes done across all affected tests?
-- Is the test architecture documented in an ADR for significant changes?
-- Is the rollback plan documented?
-- Is the refactoring validated by the full test suite without modification?
-- Is the refactoring reviewed by a second engineer?
-
-## 21. Deployment Checklist
-
-- Is the E2E suite passing in CI on the exact artifact being deployed?
-- Is the E2E suite sharded for parallelism in CI (`--shard=i/n`)?
-- Is the JUnit reporter configured for test result aggregation?
-- Is the HTML reporter published as a CI artifact?
-- Are trace files, screenshots, and videos retained for failed tests?
-- Are flaky tests identified and quarantined before deploy?
-- Is the E2E suite speed monitored; regressions investigated?
-- Are test dependencies scanned for CVEs?
-- Is the test environment isolated from production?
-- Is the test data synthetic; no production data in tests?
-- Is the test configuration versioned in the repository?
-- Are custom fixtures and helpers documented?
-- Are E2E tests run against staging before production deploy?
-- Are smoke tests run post-deploy?
-- Is the E2E suite reversible (rollback to previous test version if needed)?
-
-## 22. Production Checklist
-
-- Is the E2E suite running in CI on every PR?
-- Are E2E tests gating deploys to production?
-- Is the E2E suite speed trended; regressions investigated?
-- Are flaky tests detected and fixed within one sprint?
-- Is the E2E suite sharded for parallelism; total runtime under 10 minutes?
-- Are E2E tests running across configured browsers (chromium, firefox, webkit)?
-- Are visual regression tests reviewing baselines in PRs?
-- Are accessibility tests running via axe-playwright?
-- Are API tests covering critical endpoints?
-- Are E2E failures triaged within one business day?
-- Are trace files, screenshots, and videos retained for diagnosis?
-- Are E2E runbooks documented for on-call?
-- Are E2E test users and data refreshed regularly?
-- Is the E2E suite reviewed quarterly for obsolete tests?
-- Is the E2E guide maintained and current?
-
-## 23. Logging Strategy
-
-- Tests must log via console.log only when debugging; remove before merge.
-- console errors and warnings during tests must be asserted or silenced; unexpected output is noise.
-- Test failures must include trace file, screenshot, and video for diagnosis.
-- Network requests during tests must be logged in trace for diagnosis.
-- CI test output must be captured and published for post-failure diagnosis.
-- Test timing must be reported; slow tests surfaced for optimization.
-- Visual regression diffs must be visible in CI output for review.
-- Flaky test detection must log the failure mode; patterns emerge.
-- Test suite health must be reported to engineering leadership weekly.
-- Authentication failures must be logged with the user and timestamp.
-
-## 24. Monitoring Strategy
-
-- Monitor E2E suite runtime; regressions indicate slow tests or environment issues.
-- Monitor E2E pass rate; flaky tests erode trust; investigate immediately.
-- Monitor E2E flaky test rate; quarantine and fix within one sprint.
-- Monitor CI queue time; long queues indicate insufficient sharding.
-- Monitor E2E failure triage time; failures unaddressed for over a day block merges.
-- Monitor browser binary download time; cache to reduce CI time.
-- Monitor test environment availability; unavailable environments block CI.
-- Monitor visual regression baseline churn; high churn indicates brittle tests.
-- Monitor accessibility test results; regressions indicate a11y defects.
-- Review E2E metrics monthly; remove or refactor tests that do not add value.
-
-## 25. Error Handling
-
-- Test failures must produce clear error messages: expected vs actual, with locator context.
-- Timeout failures must indicate which locator timed out and the timeout duration.
-- Network failures must indicate which request failed and the response.
-- Assertion failures must show the diff clearly (text, visual).
-- Setup failures must indicate which setup step failed and why.
-- Authentication failures must indicate the user and the failure mode.
-- Flaky test detection must capture the failure mode for diagnosis.
-- CI failures must publish artifacts (traces, screenshots, videos) for diagnosis.
-- Test errors must never silently pass; expect.assertions ensures expected assertions ran.
-- Visual regression failures must show the diff image and baseline.
-
-## 26. Examples
-
-### 26.1 Playwright Configuration
+### Example 1: Config with setup project and authenticated state
 
 ```typescript
 // playwright.config.ts
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = process.env.BASE_URL ?? 'http://localhost:3000';
+
 export default defineConfig({
-  testDir: './e2e/tests',
+  testDir: './tests',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 4 : undefined,
-  reporter: [
-    ['html', { open: 'never' }],
-    ['junit', { outputFile: 'test-results/junit.xml' }],
-    ['github'],
-  ],
-  use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:3000',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-    storageState: 'e2e/.auth/user.json',
-  },
+  failOnFlakyTests: !!process.env.CI,
+  reporter: process.env.CI ? [['github'], ['blob']] : [['list'], ['html', { open: 'never' }]],
+  use: { baseURL, trace: 'on-first-retry', screenshot: 'only-on-failure' },
+  // Start the app only for local runs; CI points BASE_URL at a deployed preview.
+  webServer: process.env.BASE_URL
+    ? undefined
+    : { command: 'npm run start', url: 'http://localhost:3000', reuseExistingServer: !process.env.CI, timeout: 120_000 },
   projects: [
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/user.json' },
+      dependencies: ['setup'],
+      testIgnore: /.*\.anon\.spec\.ts/,
     },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-    {
-      name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'] },
-    },
+    { name: 'chromium-anon', use: { ...devices['Desktop Chrome'] }, testMatch: /.*\.anon\.spec\.ts/ },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
 });
 ```
 
-### 26.2 Custom Fixture for Authenticated Page
+```typescript
+// tests/auth.setup.ts: the setup project really logs in and saves the state
+import fs from 'node:fs';
+import path from 'node:path';
+import { test as setup, expect } from '@playwright/test';
+
+const authFile = 'playwright/.auth/user.json'; // git-ignored
+
+setup('authenticate', async ({ page }) => {
+  const email = process.env.E2E_USER_EMAIL;
+  const password = process.env.E2E_USER_PASSWORD;
+  if (!email || !password) throw new Error('Set E2E_USER_EMAIL and E2E_USER_PASSWORD (a dedicated test account).');
+
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  // Wait for a signed-in element so redirects finish and cookies are set before saving.
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
+
+  fs.mkdirSync(path.dirname(authFile), { recursive: true });
+  await page.context().storageState({ path: authFile });
+});
+```
+
+The label and button names must match your login form. See [references/auth-and-fixtures.md](references/auth-and-fixtures.md) for per-worker accounts, role-based states and sessionStorage.
+
+### Example 2: Fixtures with API seeding and cleanup
 
 ```typescript
-// e2e/fixtures/auth.ts
-import { test as base, expect, type Page } from '@playwright/test';
+// fixtures/index.ts
+import { test as base, expect } from '@playwright/test';
 
-type TestFixtures = {
-  authenticatedPage: Page;
-  seededInvoices: () => Promise<void>;
-};
+type Order = { id: string };
 
-export const test = base.extend<TestFixtures>({
-  authenticatedPage: async ({ page, request }, use) => {
-    // Log in via API for speed (no UI navigation)
-    const loginResponse = await request.post('/api/auth/login', {
-      data: {
-        email: process.env.E2E_USER_EMAIL!,
-        password: process.env.E2E_USER_PASSWORD!,
-      },
-    });
-    expect(loginResponse.ok()).toBeTruthy();
-
-    // Save storage state for reuse in this test
-    await request.storageState({ path: 'e2e/.auth/user.json' });
-
-    // Navigate to the app
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible();
-
-    await use(page);
-  },
-  seededInvoices: async ({ request }, use) => {
-    const invoices = [
-      { id: 'INV-E2E-001', total: 100, status: 'paid' },
-      { id: 'INV-E2E-002', total: 200, status: 'pending' },
-    ];
-    for (const invoice of invoices) {
-      await request.post('/api/test-helpers/seed-invoice', { data: invoice });
-    }
-    await use(async () => {
-      for (const invoice of invoices) {
-        await request.delete(`/api/test-helpers/invoice/${invoice.id}`);
-      }
-    });
+export const test = base.extend<{ order: Order }>({
+  // Seed through the API using the authenticated request context; delete after the test, even on failure.
+  order: async ({ request }, use) => {
+    const res = await request.post('/api/orders', { data: { sku: 'sku-1', qty: 1 } });
+    expect(res.ok()).toBeTruthy();
+    const order = (await res.json()) as Order;
+    await use(order);
+    await request.delete(`/api/orders/${order.id}`);
   },
 });
 
-export { expect } from '@playwright/test';
+export { expect };
 ```
 
-### 26.3 Checkout Flow Test
+### Example 3: Retrying values, mocks, time and snapshots
 
 ```typescript
-// e2e/tests/checkout.spec.ts
-import { test, expect } from '../fixtures/auth';
+import { test, expect } from '../fixtures';
 
-test.describe('Checkout flow', () => {
-  test('should complete checkout with valid payment', async ({ authenticatedPage: page, seededInvoices }) => {
-    await test.step('Navigate to cart', async () => {
-      await page.getByRole('link', { name: /cart/i }).click();
-      await expect(page.getByRole('heading', { name: /your cart/i })).toBeVisible();
-    });
+test('export completes', async ({ page, request }) => {
+  await page.goto('/orders');
+  await page.getByRole('button', { name: 'Export' }).click();
+  await expect
+    .poll(async () => (await request.get('/api/exports/latest')).json(), { timeout: 30_000 })
+    .toMatchObject({ status: 'done' });
+});
 
-    await test.step('Proceed to checkout', async () => {
-      await page.getByRole('button', { name: /proceed to checkout/i }).click();
-      await expect(page.getByRole('heading', { name: /payment/i })).toBeVisible();
-    });
+test('shows an error state when the API fails', async ({ page }) => {
+  await page.route('**/api/orders', (route) =>
+    route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"boom"}' }),
+  );
+  await page.goto('/orders');
+  await expect(page.getByRole('alert')).toContainText('Something went wrong');
+});
 
-    await test.step('Enter payment details', async () => {
-      await page.getByLabel(/card number/i).fill('4242 4242 4242 4242');
-      await page.getByLabel(/expiry/i).fill('12/28');
-      await page.getByLabel(/cvc/i).fill('123');
-      await page.getByLabel(/name on card/i).fill('Test User');
-    });
+test('trial banner on the last day', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-01-31T10:00:00Z'));
+  await page.goto('/billing');
+  await expect(page.getByText('Trial ends today')).toBeVisible();
+});
 
-    await test.step('Submit and verify confirmation', async () => {
-      const responsePromise = page.waitForResponse((r) =>
-        r.url().includes('/api/checkout') && r.status() === 200,
-      );
-      await page.getByRole('button', { name: /pay now/i }).click();
-      const response = await responsePromise;
-      expect(await response.json()).toMatchObject({ success: true });
-
-      await expect(page.getByRole('heading', { name: /order confirmed/i })).toBeVisible();
-      await expect(page.getByText(/order number/i)).toBeVisible();
-    });
-  });
-
-  test('should display error for declined card', async ({ authenticatedPage: page }) => {
-    await page.getByRole('link', { name: /cart/i }).click();
-    await page.getByRole('button', { name: /proceed to checkout/i }).click();
-
-    await page.getByLabel(/card number/i).fill('4000 0000 0000 0002'); // declined
-    await page.getByLabel(/expiry/i).fill('12/28');
-    await page.getByLabel(/cvc/i).fill('123');
-    await page.getByLabel(/name on card/i).fill('Test User');
-
-    await page.getByRole('button', { name: /pay now/i }).click();
-
-    await expect(page.getByRole('alert')).toContainText(/card declined/i);
-    await expect(page.getByRole('button', { name: /pay now/i })).toBeEnabled();
+test('navigation structure and layout', async ({ page }) => {
+  await page.goto('/orders');
+  await expect(page.getByRole('navigation')).toMatchAriaSnapshot(`
+    - navigation:
+      - link "Orders"
+      - link "Billing"
+  `);
+  await expect(page.getByRole('main')).toHaveScreenshot('orders.png', {
+    mask: [page.getByTestId('relative-time')],
   });
 });
 ```
 
-## 27. Common Mistakes
+## 15. Common Mistakes
 
-### 27.1 CSS/XPath Selectors
-**What**: Using CSS or XPath selectors instead of accessibility-first locators.
-**Why**: Tests break on UI refactors that preserve accessibility; tests are brittle.
-**How to avoid**: Use getByRole, getByLabel, getByText, getByTestId; reserve CSS/XPath for escape hatches.
+| Mistake | Fix |
+|---|---|
+| Logging in inside every test, or a "login" example that never submits credentials | Setup project that fills the form with env credentials, waits for a signed-in element, then saves `storageState` |
+| `expect.assertions(1)` or `jest.fn()` in a Playwright test | Not Playwright APIs; use web-first assertions, `expect.poll`, `page.route` handlers |
+| `await page.waitForTimeout(2000)` | Assert the outcome: `await expect(locator).toBeVisible()` |
+| `expect(await el.isVisible()).toBe(true)` | `await expect(el).toBeVisible()` (retries) |
+| `toPass()` with no timeout | Default timeout is 0 (no limit within the test timeout); pass `{ timeout }` and `intervals` |
+| Tests share a user and mutate settings in parallel | One account per worker, or unique data per test |
+| Screenshots generated on a laptop, compared in CI | Generate and compare in the same container image |
+| Committing `playwright/.auth` or uploading traces publicly | Git-ignore, short retention, restricted artifacts |
+| `${{ inputs.x }}` or PR text inside a workflow `run:` | Pass through `env:` and reference the shell variable |
+| Raising `retries` to hide flakiness | Open the trace, fix the race; use `--fail-on-flaky-tests` |
+| Selecting by generated CSS classes or `nth(3)` | Roles, labels, test ids, or `filter({ has })` |
+| Mocking everything | Keep real-backend coverage for critical journeys |
 
-### 27.2 Manual Waits (waitForTimeout)
-**What**: Using page.waitForTimeout to wait for elements to appear.
-**Why**: Fixed waits introduce flakiness; CI runners vary in speed.
-**How to avoid**: Use auto-waiting via expect(locator) with auto-retry.
+## 16. References
 
-### 27.3 UI-Driven Authentication
-**What**: Logging in via the UI in every test.
-**Why**: UI-driven login is slow (5-10 seconds per test); the suite takes minutes longer.
-**How to avoid**: Use storageState for session reuse; global setup logs in once.
-
-### 27.4 UI-Driven Test Data Setup
-**What**: Creating test data by navigating the UI.
-**Why**: UI-driven setup is slow and brittle; the test setup takes longer than the test.
-**How to avoid**: Seed data via API or database; the test navigates to verify.
-
-### 27.5 Retrying Flaky Tests
-**What**: Adding retries to mask flakiness.
-**Why**: Retries mask the root cause; flakiness compounds over time.
-**How to avoid**: Fix the root cause of flakiness; retries are a stopgap.
-
-### 27.6 Shared State Across Tests
-**What**: Tests that share state via module-level variables or database residue.
-**Why**: Tests fail when run in different order; isolation is lost.
-**How to avoid**: Each test sets up its own state; clean up in afterEach.
-
-## 28. Professional Workflow
-
-1. Identify the user journey under test: which user, which action, which outcome?
-2. Identify the test data: how to seed deterministic data (API, database)?
-3. Identify the authentication: storageState, per-test login, or bypass?
-4. Write the test scenario in BDD: given, when, then.
-5. Locate elements using accessibility-first locators.
-6. Use auto-waiting; never add manual waits.
-7. Assert user-visible outcomes with expect(locator).
-8. Clean up test data in afterAll or afterEach.
-9. Run the test in isolation; verify it passes alone.
-10. Run the test in the full suite; verify it passes with others.
-11. Run the test multiple times; verify it is not flaky.
-12. Refactor for readability: extract fixtures, use page objects for complex flows.
-13. Review for flakiness: timing, shared state, external dependencies? Eliminate.
-14. Commit the test; run in CI; verify it passes across all browsers.
-
-## 29. Response Style
-
-- Begin every E2E answer with the user journey and the test scope.
-- Present the test code; never describe in prose alone.
-- Quantify test properties: runtime, parallelism, browser coverage.
-- Use authoritative voice: "must", "must not", "always", "never".
-- Cite the Playwright API by name (getByRole, expect, page.route); the API is the contract.
-- Surface trade-offs explicitly: real vs mocked backend, page object vs fixture, retry vs root-cause fix.
-- When asked "how to test X?", demand the user journey and the test data strategy first.
-- Close every response with the next concrete step (write the test, run the suite, fix the flake).
-
-## 30. Output Format
-
-- Use Playwright configuration examples in TypeScript; the config is the contract.
-- Use test code examples in TypeScript; syntactically valid.
-- Use the BDD pattern: given (state), when (action), then (assertion).
-- Use `should <expected> when <condition>` for test names.
-- Use bullet lists for rules; numbered lists for sequential steps; tables for API comparisons.
-- Cross-reference Playwright API by name (getByRole, expect, page.route).
-- Quantify test properties: runtime, parallelism, browser coverage.
-- Distinguish between principled rules (accessibility-first locators) and context-dependent guidance (page object vs fixture).
-- Every code example must be syntactically valid TypeScript.
-- End every response with a next-step checklist, each with owner and deadline.
-
----
+- [references/auth-and-fixtures.md](references/auth-and-fixtures.md): per-worker accounts, multiple roles, API login, sessionStorage, fixture scopes, option and auto fixtures.
+- [references/ci-and-sharding.md](references/ci-and-sharding.md): GitHub Actions with sharding and merge-reports, Docker image, `--only-changed`, flaky policy, reporters, timeouts.
+- [references/visual-and-api-testing.md](references/visual-and-api-testing.md): `toHaveScreenshot` options, aria snapshots, `request` fixture, route mocking, clock, test agents and MCP.
+- Official docs: https://playwright.dev/docs/intro, https://playwright.dev/docs/release-notes, https://playwright.dev/docs/auth, https://playwright.dev/docs/test-sharding, https://playwright.dev/docs/test-agents
