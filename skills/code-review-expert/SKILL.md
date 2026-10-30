@@ -1,607 +1,317 @@
 ---
 name: code-review-expert
-description: >
-  Conducts code reviews that detect defects, share knowledge, mentor engineers, and enforce collective ownership without bikeshedding or drive-by architecture.
-  
-  Use this skill when making system-design, scalability, refactoring, code-review, or enterprise-architecture decisions.
+description: >-
+  Reviews code changes (pull requests, patches, large or AI-generated diffs) for design, correctness, tests, security and readability, and writes actionable comments with severity labels in the Conventional Comments style. Covers author preparation and PR size, review order, per-area checklists (security, concurrency, error handling, performance), reviewing tests, automated gates (linters, CodeQL, Semgrep, secret scanning), and team norms such as turnaround time. Use when reviewing or preparing a pull request, writing review guidelines, auditing a diff before merge, or deciding what to automate. Not for restructuring existing code (use refactoring-expert) or full secure-coding rules and vulnerability audits (use secure-coding-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# Code Review Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers how to review a change well and how to make it easy to review: what the author prepares, what the reviewer looks at and in which order, how to word comments so they are acted on, what to automate so humans spend time on design and logic, and how to handle large and AI-generated diffs. The goal is the one stated in Google's Engineering Practices: the codebase's health improves with every merged change, without blocking progress.
 
----
+> Verified against Google Engineering Practices (Code Review), Conventional Comments, CodeQL CLI 2.27.x with github/codeql-action v4, Semgrep 1.183.0, Gitleaks 8.30.x (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The Code Review Expert owns the quality and consistency of the codebase through structured, defect-detecting, knowledge-sharing reviews. The role is not a gatekeeper of personal preference; it is the mechanism by which the team enforces architectural rules, security standards, performance budgets, and testing discipline.
+## 1. Scope
 
-The expert operates on the principle that reviews exist to catch what automation cannot: subtle design errors, missing edge cases, security reasoning, and knowledge transfer. Anything a linter or type checker can catch must be automated; reviewers must focus on what humans do best.
+- Covered: preparing a change for review, reviewing it, writing and receiving comments, review checklists, reviewing tests, automated review gates, reviewing AI-generated and very large diffs, and team conventions for turnaround and disagreement.
+- Not covered: refactoring technique (refactoring-expert), the full secure-coding rule set and penetration-style audits (secure-coding-expert, api-security-expert), CI pipeline design (cicd-expert), git branching and history hygiene (git-expert).
+- Reviews are for humans to judge what tools cannot: whether the design fits, whether the logic is right, whether the change is understandable and testable.
 
-The Code Review Expert is the final authority on what constitutes a mergeable change. The role reports to engineering leadership and operates through review etiquette, checklist enforcement, and coaching engineers to be better reviewers themselves.
+## 2. Core Expertise
 
-## 2. Mission
+| Area | Key facts |
+|---|---|
+| Standard | Approve a change once it improves overall code health, even if it is not perfect; do not approve changes that worsen it. Perfect is not the bar |
+| Order of attention | Intent and description, then design, correctness and edge cases, tests, security, readability and naming, then style (mostly automated) |
+| Speed | Google's guidance: one business day is the maximum time to respond to a review request; quick individual responses matter more than total completion time |
+| Size | Small, self-contained changes are reviewed faster and more thoroughly and are easier to roll back; split large work into reviewable steps |
+| Comment format | Conventional Comments: `label [decorations]: subject`, followed by optional discussion. Labels include praise, nitpick, suggestion, issue, todo, question, thought, chore, note; decorations include `(blocking)`, `(non-blocking)`, `(if-minor)` |
+| Automated gates | Formatter and linter, type checker, tests, SAST (CodeQL, Semgrep), secret scanning (Gitleaks, GitHub secret scanning), dependency audit; they block merges on defined severities |
+| AI-assisted changes | Same standard, more scrutiny on invented APIs and packages, plausible but wrong logic, tests that mirror the implementation, and overreach beyond the request |
+| Ownership | CODEOWNERS route reviews to the right people; the author owns the change until merged and in production |
 
-The mission of the Code Review Expert is to maximize the quality of merged code by detecting defects before they reach production, sharing knowledge across the team, mentoring engineers through feedback, enforcing consistency with standards, and building collective ownership of the codebase.
+## 3. Workflow
 
-The expert must refuse any review that descends into bikeshedding, personal preference, or drive-by architecture. Reviews must be constructive, scoped, and actionable. Blocking comments must be substantive; nits must be optional.
+Author:
+1. Self-review the full diff in the review tool before requesting review; remove debug code and unrelated edits.
+2. Keep the change to one purpose. Separate refactors and formatting from behavior changes (different commits or PRs).
+3. Write the description: what and why, how it was tested, risk and rollback, links to the issue or design, and screenshots for UI.
+4. Run the automated gates locally or wait for green CI before pinging reviewers.
+5. Respond to every comment: fix, or explain; mark resolved only after the change is pushed.
 
-## 3. Core Expertise
+Reviewer:
+1. Read the description and linked issue first; decide whether the change should exist and whether the approach is right before reading lines.
+2. Skim the whole diff for shape (files touched, size, surprises), then review in order: design, correctness, tests, security, readability.
+3. Review every line you are asked to approve; read surrounding code for context; for generated files, review the generator input.
+4. Write comments with labels (section 7); separate must-fix from preferences.
+5. Finish with a clear verdict: approve, approve with non-blocking comments, or request changes with the blocking items listed.
+6. Re-review quickly after updates; check only what changed and the blocking items.
 
-- Code review goals: defect detection, knowledge sharing, mentorship, consistency, collective ownership — in that order.
-- What to review: correctness, security, performance, maintainability, readability, testability, accessibility, observability.
-- What NOT to review: style and formatting (automated), naming nitpicks (automated), personal preferences (irrelevant).
-- Review heuristics: complexity (cyclomatic, cognitive), coupling (afferent, efferent), cohesion, error handling, edge cases, concurrency safety, resource cleanup.
-- Review process: author self-review, reviewer checklist, response time SLOs, approval requirements, blocking vs non-blocking.
-- Review etiquette: constructive tone, "ask don't tell", must-fix vs nits, praise for good work, separate the person from the code.
-- Anti-patterns: bikeshedding (low-value comments on trivial issues), LGTM-without-reading, drive-by architecture (suggesting unrelated redesigns), blocking on preferences.
-- Review at scale: stacked diffs (small PRs in sequence), code ownership (per-path owners), auto-assigners, review bots (for lint, security, dependency).
-- Reviewing for security: input validation, authorization checks, secrets handling, dependency vulnerabilities, crypto correctness.
-- Reviewing for performance: algorithm choice, N+1 queries, allocation in hot paths, async correctness, caching strategy.
-- Reviewing tests: coverage (line, branch, mutation), edge cases, determinism, speed, isolation.
-- Reviewing documentation: ADRs, README, API docs, runbooks — code without docs is unfinished.
-- Review metrics: review time (median, p90), defect escape rate, participation rate, comment quality.
+## 4. Decision Rules
 
-## 4. Responsibilities
+- Approve when the change improves code health and has no blocking issues. Leave non-blocking suggestions as such so the author can merge.
+- Request changes for defects, security problems, missing tests for new behavior, broken contracts, and designs that will be costly to undo.
+- Technical facts and data outrank opinion; for style not covered by the guide, defer to the author or the existing code; for design disputes, discuss synchronously after two rounds and escalate to an owner or tech lead if needed.
+- Ask for a split when the change mixes concerns or exceeds what you can review with attention. A rough ceiling is a few hundred changed lines of hand-written code; generated code, moves and mechanical renames are exceptions.
+- Do not ask for unrelated cleanup in the same PR; record it as a follow-up.
+- Prefer a question over an assertion when you may be missing context.
+- Block on process only where the team agreed to (tests, review of migrations, security review for auth changes).
+- Urgent fixes may be reviewed after merge under a stated emergency rule, with a follow-up review within the day.
 
-- Review pull requests against the code review checklist; block on substantive issues; nudge on minor.
-- Provide constructive, specific, actionable feedback; never vague or personal.
-- Enforce response time SLOs: initial review within 4 business hours, re-review within 2 hours.
-- Coach engineers in review etiquette and technique through pairing and feedback.
-- Maintain the code review checklist; evolve it as the codebase and standards evolve.
-- Track review metrics; surface trends to engineering leadership.
-- Identify review anti-patterns (bikeshedding, LGTM-without-reading) and intervene.
-- Approve or reject pull requests based on the checklist; never approve without reading.
+## 5. Coding Standards
 
-## 5. Thinking Process
+For the review itself:
 
-1. Read the PR description: what is the change, why is it needed, how was it tested?
-2. Run the self-review checklist as the author: did the author catch the obvious issues?
-3. Read the diff in full; never skim; never LGTM without reading.
-4. Identify the change type: feature, bugfix, refactoring, docs, test, config.
-5. Apply the appropriate review lens: security for new endpoints, performance for hot paths, etc.
-6. Check correctness: does the code do what it claims? Are edge cases handled?
-7. Check security: input validation, authorization, secrets, dependencies.
-8. Check performance: algorithm, N+1, allocation, async, caching.
-9. Check tests: coverage, edge cases, determinism, speed.
-10. Check documentation: ADR for non-trivial changes, API docs, runbooks.
-11. Classify each comment: blocking (must-fix), non-blocking (should-fix), nit (optional).
-12. Provide constructive feedback with concrete suggestions; never vague.
-13. Approve, request changes, or comment; never block on preferences.
-14. Verify the requested changes were made; re-review within SLO.
+- One comment, one point, one location. Say what is wrong, why it matters, and a way forward.
+- Label severity every time; unlabeled comments are read as blocking by anxious authors and ignored by others.
+- Comment on the code, not the person: "this function reads the file twice" instead of "you read the file twice".
+- Include evidence: a failing input, a reference to the rule or doc, a link to the similar code elsewhere.
+- Offer a snippet when the fix is small; ask a question when it is design.
+- Praise specific good decisions; it keeps the signal honest and teaches.
+- Keep style discussion out of review by encoding it in the formatter and linter.
 
-## 6. Decision Making Rules
+## 6. Project Structure
 
-- When a blocking issue and a non-blocking issue both arise, address the blocking issue first; non-blocking can wait.
-- When a substantive concern and a personal preference conflict, the substantive concern wins; preferences are nits.
-- When the author has more context than the reviewer, defer to the author after expressing the concern.
-- When automation can catch an issue, automate it; never use human review for what a machine can do.
-- When a comment is unclear, ask for clarification; never block on a misunderstanding.
-- When a change is risky and a change is safe, request more tests or staged rollout for the risky one.
-- When a comment would require a redesign, raise it as a separate discussion; do not block the PR on a redesign.
-- When a reviewer is unsure, request a second reviewer with the relevant expertise; never approve from ignorance.
-
-## 7. Architecture Rules
-
-- Every PR must be reviewable in 30 minutes or less; larger PRs must be split.
-- Every PR must include a description: what, why, how tested; "fix bug" is not a description.
-- Every PR with architectural impact must link to an ADR.
-- Every PR that changes public API must update the API documentation.
-- Every PR that adds a dependency must justify it and check the technology radar.
-- Every PR that changes a database schema must include forward-only, backwards-compatible migrations.
-- Every PR must pass CI (lint, type check, tests, security scan) before human review.
-- Every PR must be self-reviewed by the author before requesting review.
-
-## 8. Coding Standards
-
-- All code must pass linting and formatting checks in CI; humans do not enforce what machines can.
-- All public APIs must be typed; no `any`, no untyped maps across module boundaries.
-- All functions must do one thing; cyclomatic complexity must not exceed 10.
-- All error handling must be explicit at boundaries; swallowed exceptions are forbidden.
-- All I/O must be async by default; synchronous I/O in request paths is a defect.
-- All secrets must come from the secrets manager; hardcoded secrets are forbidden.
-- All cross-boundary writes must be idempotent; retries are mandatory.
-- All tests must be deterministic; flaky tests are defects.
-- All commits must be small enough to review in 5 minutes.
-- All PRs must include tests for new functionality; coverage must not decrease.
-
-## 9. Naming Conventions
-
-- Variables must be named for their role in the domain, not their type.
-- Functions must be verbs or verb phrases; classes must be nouns.
-- Interfaces must be named for the capability, not prefixed with `I`.
-- Constants must be `UPPER_SNAKE_CASE`; configurable values must be `camelCase`.
-- Files must be named after their primary export.
-- Tests must be named `should_<expected>_when_<condition>` or BDD form.
-- PRs must be titled with conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`.
-- Branches must be named `<type>/<short-description>-<issue>` (`feat/checkout-flow-PROJ-123`).
-- Review comments must be labeled: `[blocking]`, `[non-blocking]`, `[nit]`, `[question]`.
-- Review approvals must be explicit: `Approve`, `Request changes`, `Comment`.
-
-## 10. Folder Structure
+Review support files in the repository:
 
 ```
-code-review/
-  checklist/
-    code-review-checklist.md        # The master checklist
-    security-review-checklist.md
-    performance-review-checklist.md
-    test-review-checklist.md
-    api-review-checklist.md
-    database-review-checklist.md
-  templates/
-    pr-template.md                  # PR description template
-    review-comment-template.md      # Constructive feedback template
-    adr-template.md
-  guidelines/
-    review-etiquette.md
-    blocking-vs-non-blocking.md
-    self-review-guide.md
-    reviewing-legacy-code.md
-  metrics/
-    review-time.md
-    defect-escape-rate.md
-    participation.md
-  bot-config/
-    codeowners                      # Per-path ownership
-    auto-assign.yml                 # Auto-assigner rules
-    review-bot.yml                  # Bot configuration
-  training/
-    review-workshop.md
-    calibration-sessions.md         # Sample PRs for calibration
+.
+├── .github/
+│   ├── CODEOWNERS                    # routes reviews by path
+│   ├── pull_request_template.md      # description prompts: what, why, tests, risk, rollback
+│   └── workflows/
+│       ├── ci.yml                    # format, lint, typecheck, tests
+│       ├── codeql.yml                # SAST (or default setup in repo settings)
+│       └── semgrep.yml               # custom rules and registry rules
+├── .gitleaks.toml                    # secret-scanning allowlist for known fixtures
+├── .semgrep/                         # team rules, each with a test file
+└── docs/review-guidelines.md         # labels, turnaround, size limits, escalation
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
+Conventional Comments labels and when to use them:
+
+| Label | Use for | Blocking by default |
+|---|---|---|
+| `praise:` | Something done well | No |
+| `nitpick:` | Trivial preference | No |
+| `suggestion:` | A concrete improvement; say why | Depends: add a decoration |
+| `issue:` | A defect or problem; pair with a suggestion | Yes unless marked otherwise |
+| `todo:` | A small necessary change | Yes |
+| `question:` | A request for clarification | Depends |
+| `thought:` | An idea that may not apply to this PR | No |
+| `chore:` | A process step to complete (changelog, ticket link) | Yes |
+| `note:` | Something the reader should know | No |
+
+Decorations go in parentheses after the label: `issue (blocking):`, `suggestion (non-blocking):`, `nitpick (if-minor):`. Check the current Conventional Comments page for the full list before adopting it as a team rule.
+
+Other patterns:
+
+- **Review in layers**: first pass for design questions and a "shape" comment, second pass for line-level issues, so authors do not polish code that will be rewritten.
+- **Checklists by change type**: API change, database migration, concurrency, auth, UI. See [references/checklists.md](references/checklists.md).
+- **Two-key rule** for risky areas (auth, payments, migrations): two approvals, one from a domain owner.
+- **Review rota** with a visible queue so response time is shared and measurable.
+- **Pairing or walkthrough** call for large or contentious changes, followed by a written summary on the PR.
+- Comment wording guide with before and after examples: [references/comment-guide.md](references/comment-guide.md).
+
+## 8. Best Practices
+
+- Review early and in small pieces; stack or sequence changes so each is reviewable alone.
+- Read tests first when the code is unclear; the tests state the intended behavior.
+- Verify the claim in the description: run the branch when behavior or UI changes are subtle.
+- Check what is missing: error paths, tests for edge cases, docs, migration, feature flag, metrics, rollback.
+- Check how the change behaves in production: timeouts, retries, large inputs, concurrent calls, partial failure, and old clients.
+- Leave the code better: if the surrounding code has a smell, mention it as a follow-up, not a blocker.
+- Authors: explain non-obvious choices in the PR description or in a code comment; if the reviewer was confused, the next reader will be too.
+- Track review metrics (time to first response, time to merge, PR size) to find bottlenecks, not to rank people.
+
+## 9. Performance
+
+Review for performance proportionate to the path's importance:
+
+- Accidental N+1 queries, queries in loops, missing indexes for new filters, unbounded result sets, missing pagination.
+- Work in hot paths: repeated parsing or serialization, regex compilation in a loop, synchronous I/O on an event loop, large allocations.
+- Algorithmic complexity on inputs that can grow: nested loops over collections, `includes` in loops where a set fits.
+- Unbounded caches, queues or buffers; missing timeouts; retries without backoff and jitter.
+- Evidence beats guesses: ask for a benchmark or profile when the claim is performance, and do not accept micro-optimizations that hurt clarity without it.
+- Review speed itself: slow CI and slow reviews both cost; keep gates fast enough to run on every push.
+
+## 10. Security
+
+Look at every change for these, and apply extra scrutiny to auth, input handling and data access (details in [references/checklists.md](references/checklists.md)):
+
+- Untrusted input reaching interpreters: SQL, shell, template, regex, deserializers, URL fetchers (SSRF), file paths (path traversal).
+- Authorization on every new endpoint and object access: checked on the server, per object and per tenant, on writes as well as reads.
+- Secrets: none in code, config samples, logs, test fixtures or CI output; use a secrets manager or CI secrets.
+- Output encoding for HTML, headers and logs; no sensitive data in error messages.
+- Cryptography: use library defaults and vetted algorithms; no home-grown schemes; compare secrets in constant time.
+- New dependencies: necessity, maintenance, license, and that the package name is the real one (typosquats and invented package names are a risk, especially in AI-suggested code).
+- CI workflow changes: no untrusted event data interpolated into shell steps (pass through `env:` instead), least-privilege `permissions:`, pinned action versions.
+
+## 11. Testing
+
+Reviewing tests is part of reviewing the change:
+
+- Does a test fail without the change? For a bug fix, there should be a regression test that fails before and passes after.
+- Do tests assert behavior and outcomes rather than implementation details and call counts?
+- Are edge cases covered: empty, null, boundary, large, duplicate, concurrent, error from a dependency?
+- Are tests deterministic: fixed clocks and seeds, no sleeps, no dependence on order or network?
+- Is the test readable: arrange, act, assert; names that state the rule; minimal fixtures?
+- Snapshot tests: is the snapshot reviewed and small enough to be meaningful?
+- Coverage numbers are a hint, not a verdict; look for untested branches that matter (error handling, authorization denials).
+- Mocks: are they replacing the thing under test or hiding integration problems? Prefer fakes or real dependencies at the boundary that matters.
+
+## 12. Review Checklist
+
+- [ ] Description explains what, why, testing, risk and rollback; scope matches the title.
+- [ ] Change is small and single-purpose, or the split plan is stated.
+- [ ] Design fits the existing architecture; no new pattern without reason.
+- [ ] Logic is correct for edge cases, error paths and concurrency.
+- [ ] New behavior has tests; bug fixes have regression tests.
+- [ ] Inputs are validated; authorization and tenant checks are present on reads and writes.
+- [ ] No secrets, no debug leftovers, no commented-out code.
+- [ ] Public interfaces and migrations are backward compatible, or the break is planned.
+- [ ] Logs, metrics and errors are useful and free of sensitive data.
+- [ ] Names, comments and docs make the intent clear.
+- [ ] Automated gates are green; no suppressed warnings without a reason.
+- [ ] Verdict is explicit and blocking items are listed.
+
+## 13. Production Notes
+
+- Set team targets and review them: first response within one business day, and a shared definition of "ready for review".
+- Use branch protection: required approvals, required status checks, CODEOWNERS review for sensitive paths, dismiss stale approvals on new pushes for risky areas, and no force pushes to protected branches.
+- Run SAST on pull requests and on the default branch; triage findings with owners and track false positives as suppressed rules with comments.
+- Keep tool rules versioned and tested (Semgrep rule tests, CodeQL query packs), and update pinned tool and action versions on a schedule.
+- Feature flags and staged rollouts reduce review pressure: a reviewed change can still ship dark.
+- After incidents, add the missed check to the checklist or automate it; a review miss is a process finding.
+- AI-generated changes: treat the author as accountable for the diff. Ask for the spec or prompt used, require the author to explain the change, and run the code. See [references/checklists.md](references/checklists.md) section 8.
+
+## 14. Examples
+
+Rewriting a vague comment into an actionable one:
+
+```text
+Before: "This is wrong, fix it."
+
+After:  issue (blocking): `refund()` updates the invoice by id only.
+        Another tenant's invoice id would be updated. Add the tenant to the WHERE
+        clause (and to the tests): `... WHERE id = $2 AND tenant_id = $3`.
+        This is the same rule as in `getInvoice()`; reads and writes both need it.
 ```
-my-project/
-  src/
-    billing/
-    shipping/
-    shared/
-  tests/
-    unit/
-    integration/
-    e2e/
-  .github/
-    workflows/
-      ci.yml                        # Lint, type check, tests, security scan
-      code-review.yml               # Review automation
-    CODEOWNERS                      # Per-path ownership
-    PULL_REQUEST_TEMPLATE.md        # PR description template
-    review-config.yml               # Review rules (required reviewers, etc.)
-  docs/
-    code-review/
-    adr/
-    runbooks/
-  .eslintrc.cjs
-  .prettierrc
-  tsconfig.json
-  vitest.config.ts
-  README.md
-  CONTRIBUTING.md                   # Includes review guidelines
-  CHANGELOG.md
-  SECURITY.md
-```
 
-## 12. Design Patterns
+A path-handling fix requested in review. The reviewer asks for the resolved path to be verified against the base directory, including symlinks, before a user-supplied name is used:
 
-### 12.1 Stacked Diffs
-**When to use**: When a large feature requires multiple PRs; stack them for sequential review.
-**When not to use**: For independent changes; stacking adds tooling overhead.
-**Sketch**: PR A depends on PR B; review B first; after B merges, rebase A; small, focused, fast reviews.
+```ts
+import { realpath } from "node:fs/promises";
+import { resolve, sep } from "node:path";
 
-### 12.2 Code Ownership
-**When to use**: When the codebase has multiple teams; ensure the right reviewers are assigned.
-**When not to use**: In small teams where everyone owns everything.
-**Sketch**: CODEOWNERS file maps paths to teams; GitHub auto-requests review from the owning team.
-
-### 12.3 Review Bot
-**When to use**: For automated checks (lint, security, dependency, coverage) that complement human review.
-**When not to use**: For subjective judgments that require human reasoning.
-**Sketch**: Bot runs on PR open; comments with results; blocks merge on critical findings.
-
-### 12.4 Calibration Sessions
-**When to use**: When review quality varies across reviewers; align on standards.
-**When not to use**: In small teams with established norms.
-**Sketch**: Team reviews a sample PR together; discusses what to catch; aligns on blocking vs non-blocking.
-
-### 12.5 Self-Review Before Requesting Review
-**When to use**: Always; the author catches the most issues by reviewing their own diff.
-**When not to use**: Never; self-review is always required.
-**Sketch**: Author reviews their own diff before requesting review; catches typos, missing tests, debug logs.
-
-### 12.6 Pair Review for Risky Changes
-**When to use**: For changes with high blast radius (auth, payments, migrations).
-**When not to use**: For trivial changes; pair review adds overhead.
-**Sketch**: Two reviewers required for risky changes; both must approve; reduces single-point-of-failure review.
-
-## 13. Best Practices
-
-- Review the diff in full; never LGTM without reading.
-- Classify each comment: blocking, non-blocking, nit, question.
-- Provide concrete suggestions; never vague feedback.
-- Separate the person from the code; critique the code, not the author.
-- Praise good work; positive reinforcement builds culture.
-- Use "ask don't tell" for non-blocking; questions prompt reflection.
-- Respond within SLO: initial review 4 hours, re-review 2 hours.
-- Automate what you can: linting, formatting, type checks, security scans.
-- Track metrics: review time, defect escape rate, participation.
-- Run calibration sessions quarterly to align review standards.
-
-## 14. Anti Patterns
-
-### 14.1 Bikeshedding
-**Why wrong**: Spending disproportionate time on trivial issues (naming, formatting) while substantive issues go unaddressed.
-**Correct alternative**: Automate style and formatting; focus human review on correctness, security, performance, design.
-
-### 14.2 LGTM Without Reading
-**Why wrong**: Approving without review undermines the entire review process; defects escape to production.
-**Correct alternative**: Read the diff in full; verify the checklist; never approve from a skim.
-
-### 14.3 Drive-By Architecture
-**Why wrong**: Suggesting unrelated redesigns in a PR review; the PR's scope explodes; the author is demoralized.
-**Correct alternative**: Raise architectural concerns as separate discussions or ADRs; do not block the PR on a redesign.
-
-### 14.4 Blocking on Preferences
-**Why wrong**: Blocking merges over personal preferences (variable names, style) wastes time and demoralizes.
-**Correct alternative**: Automate style; block only on substantive issues (correctness, security, design); nits are optional.
-
-### 14.5 Vague Feedback
-**Why wrong**: "This is wrong" or "Consider improving" without specifics leaves the author unable to act.
-**Correct alternative**: Provide concrete suggestions with code examples; explain why; offer to pair.
-
-### 14.6 Personal Criticism
-**Why wrong**: Attacking the author rather than the code destroys psychological safety; engineers stop sharing work.
-**Correct alternative**: Separate the person from the code; critique the code; use "we" and "the code"; offer to pair.
-
-## 15. Performance Rules
-
-- Review hot paths for N+1 queries, allocation, and synchronous I/O.
-- Review new endpoints for caching opportunities and rate limiting.
-- Review database queries for index usage; full table scans are defects.
-- Review algorithms for complexity; O(n²) in hot paths is a defect.
-- Review async code for proper cancellation and backpressure.
-- Review new dependencies for performance impact; benchmark if needed.
-- Review memory usage for new allocations in hot paths.
-- Benchmark results must be attached to PRs that touch hot paths.
-
-## 16. Security Rules
-
-- Review all input validation at boundaries; never trust external input.
-- Review authorization checks at the resource level, not just the endpoint.
-- Review secrets handling: never hardcoded, never logged, never in error messages.
-- Review dependencies for known CVEs; critical findings block the merge.
-- Review crypto: never hand-roll; use vetted libraries.
-- Review PII handling: encryption at rest, redaction in logs, data minimization.
-- Review inter-service communication for mTLS or equivalent.
-- Review new endpoints for rate limiting and authentication.
-
-## 17. Testing Strategy
-
-- Review test coverage for new functionality; coverage must not decrease.
-- Review tests for edge cases: null, empty, boundary, negative, concurrent.
-- Review tests for determinism: no wall-clock, no randomness without seed.
-- Review tests for speed: unit tests in milliseconds, integration in seconds.
-- Review tests for isolation: no shared state, no order dependence.
-- Review tests for correctness: do they actually test the behavior?
-- Review tests for maintainability: are they readable? Brittle?
-- Review mutation testing results for critical domain modules.
-- Review contract tests for inter-service APIs and event schemas.
-- Review performance tests for hot paths; regressions block the merge.
-
-## 18. Documentation Standards
-
-- Every PR must include a description: what, why, how tested.
-- Every PR with architectural impact must link to an ADR.
-- Every PR that changes public API must update the API documentation.
-- Every PR that adds a dependency must document the rationale.
-- Every PR that changes operational behavior must update the runbook.
-- Every PR must update the CHANGELOG for user-facing changes.
-- Every PR must include inline comments for non-obvious logic.
-- Every PR must include examples for new public APIs.
-
-## 19. Code Review Checklist
-
-- Does the code do what the PR description claims?
-- Are edge cases handled: null, empty, boundary, negative, concurrent?
-- Are errors handled at boundaries with explicit error types?
-- Are inputs validated at every external boundary?
-- Are authorization checks enforced at the resource level?
-- Are secrets handled through the secrets manager, never hardcoded or logged?
-- Are new dependencies justified and on the technology radar?
-- Are database queries using indexes; are there N+1 patterns?
-- Are external calls protected by circuit breakers, timeouts, and bulkheads?
-- Are async operations cancellable; is backpressure handled?
-- Are cross-boundary writes idempotent with idempotency keys?
-- Are tests added at the appropriate level (unit, integration, contract)?
-- Are tests deterministic, isolated, and fast?
-- Is the public API documented and backwards compatible?
-- Is an ADR included for non-trivial architectural decisions?
-
-## 20. Refactoring Checklist
-
-- Is the refactoring PR separate from behavior changes?
-- Are characterization tests in place before refactoring?
-- Is the refactoring motivated by a concrete pain point?
-- Are commits small enough to review in 5 minutes each?
-- Are renames done through IDE tools, not manual?
-- Is the public API preserved?
-- Are database migrations forward-only and backwards-compatible?
-- Is the refactoring validated by the full test suite without modification?
-- Is the refactoring documented in an ADR for significant changes?
-- Is the rollback plan documented?
-
-## 21. Deployment Checklist
-
-- Is the deployment gated by successful CI on the exact artifact?
-- Is the deployment using blue-green, canary, or ring topology?
-- Are health checks defined (liveness and readiness)?
-- Are database migrations forward-only and backwards-compatible?
-- Is the rollback procedure documented and tested within 30 days?
-- Are feature flags used to decouple deploy from release for risky changes?
-- Are dependent services notified of contract changes?
-- Are smoke tests run post-deploy before traffic shift?
-- Is the deployment observed by on-call for 15 minutes?
-- Is the deployment audit-logged?
-- Are capacity headroom checks passed?
-- Is the deployment approved by the change advisory board for production?
-- Are monitoring dashboards observed for regressions?
-- Are secrets rotated as needed?
-- Is the deployment reversible within the rollback SLO (5 minutes)?
-
-## 22. Production Checklist
-
-- Is the system observable (metrics, logs, traces) with SLO dashboards?
-- Are SLOs defined and alerted on (error budget burn rate)?
-- Is the on-call rotation defined with escalation paths?
-- Are runbooks linked from every alert?
-- Is capacity planning performed monthly with 6-month forward look?
-- Is the DR procedure tested quarterly with documented RTO/RPO?
-- Are security incident drills conducted annually?
-- Is the dependency tree monitored for EOL and CVEs?
-- Are access controls reviewed quarterly; orphaned accounts removed?
-- Is data retention enforced automatically; manual deletion is forbidden.
-- Are backups verified by restore tests monthly.
-- Is the system fault-tolerant across availability zones?
-- Are rate limits and circuit breakers configured for all dependencies?
-- Is cost tracked monthly with variance review; variances over 10% are incidents?
-- Is the system registered in the service catalog with owner, SLA, dependencies?
-
-## 23. Logging Strategy
-
-- Logs must be structured JSON with stable schema; unstructured logs are forbidden.
-- Every log entry must include trace ID, span ID, and correlation ID.
-- Refactoring and feature PRs must not change log format without review.
-- PII must be redacted at the logging boundary.
-- Log levels: ERROR (actionable failure), WARN (degraded), INFO (lifecycle), DEBUG (dev only).
-- Logs must be sampled at high volume to control cost.
-- Error logs must include stack trace, sanitized input context, and the failed operation.
-- Logs must be shipped to a central platform within seconds.
-- Every service must emit a startup log with version, config hash, instance ID.
-- Log retention must match compliance; indefinite retention is forbidden.
-
-## 24. Monitoring Strategy
-
-- Monitor SLOs (user-facing reliability), not just infrastructure metrics.
-- Define SLIs as good/total ratios; alert on error budget burn rate.
-- Use histograms, not averages; alert on p99 and p99.9.
-- Dashboards must show user impact first, drill to component metrics.
-- Alerts must be actionable; alerts without runbooks are forbidden.
-- Synthetic checks must monitor top user journeys from outside the network.
-- Distributed tracing must be enabled across all service boundaries.
-- Capacity metrics must be trended with predictive alerts.
-- Dependency health must be monitored with circuit breakers tripping on failure.
-- Monthly alert noise review must remove or refine noisy alerts.
-
-## 25. Error Handling
-
-- Errors must be modeled as values within the domain; exceptions for infrastructure failure only.
-- Every error must be classified: transient (retryable), permanent (caller error), systemic (operator action).
-- Retry logic must use exponential backoff with jitter.
-- Circuit breakers must protect every external dependency.
-- Timeouts must be configured for every external call.
-- Errors at boundaries must be translated to caller-appropriate types.
-- Idempotency keys must accompany every retryable write.
-- Error responses must include a correlation ID; never expose stack traces.
-- Bulkheads must isolate critical paths from non-critical.
-- Dead-letter queues must capture failed messages with full context.
-
-## 26. Examples
-
-### 26.1 Constructive Review Comment
-
-```markdown
-[blocking] Authorization check missing for resource-level access
-
-The `deleteInvoice` endpoint checks that the user is authenticated but
-does not verify that the user owns the invoice. A user could delete
-another user's invoice by guessing the ID.
-
-Suggested fix:
-
-```typescript
-async function deleteInvoice(req: Request, res: Response): Promise<void> {
-  const user = req.user;
-  const invoiceId = req.params.id;
-  const invoice = await invoiceRepo.findById(invoiceId);
-  if (!invoice) return res.status(404).send();
-  if (invoice.ownerId !== user.id) {
-    return res.status(403).send(); // Forbidden, not 404 (avoid ID enumeration)
-  }
-  await invoiceRepo.delete(invoiceId);
-  res.status(204).send();
+export async function resolveUpload(baseDir: string, name: string): Promise<string> {
+  if (name.length === 0 || name.includes("\0")) throw new Error("Invalid file name");
+  const base = await realpath(baseDir);
+  const real = await realpath(resolve(base, name)); // follows symlinks; rejects if missing
+  if (real !== base && !real.startsWith(base + sep)) throw new Error("Path escapes upload directory");
+  return real;
 }
 ```
 
-Reference: OWASP API1:2023 — Broken Object Level Authorization.
+Automated review gates for pull requests: CodeQL and Semgrep with least-privilege permissions. Untrusted values are never interpolated into `run:` steps:
+
+```yaml
+name: security-scan
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install semgrep==1.183.0
+      - run: semgrep scan --config p/default --error --metrics=off .
 ```
 
-### 26.2 Reviewing an N+1 Query
+Pin third-party actions to a full commit SHA when the policy requires it, and keep the tag in a comment for readability.
 
-```markdown
-[blocking] N+1 query in the invoice listing
+Summary comment on a pull request using labels:
 
-The following code issues one query to fetch invoices, then one query
-per invoice to fetch the customer. For 100 invoices, this is 101
-queries. At production scale (10,000 invoices), this will be 10,001
-queries and the endpoint will time out.
+```text
+Verdict: request changes (2 blocking, 3 non-blocking)
 
-Current code:
-```typescript
-const invoices = await db.query('SELECT * FROM invoices LIMIT 100');
-for (const invoice of invoices) {
-  invoice.customer = await db.query('SELECT * FROM customers WHERE id = $1', [invoice.customer_id]);
-}
+praise: Splitting the parser from the loader made the diff easy to follow.
+issue (blocking): retry loop in `fetchRates()` has no backoff and no cap; a provider outage
+  will multiply load. Suggest exponential backoff with jitter and a max of 3 attempts.
+issue (blocking): no test for the empty-response branch added in `parseRates()`.
+suggestion (non-blocking): extract the currency whitelist into a constant shared with `validate()`.
+question (non-blocking): is the 30 s timeout agreed with the provider SLA?
+nitpick (if-minor): `tmp` -> `parsedRates`.
 ```
 
-Suggested fix (join):
-```typescript
-const invoices = await db.query(`
-  SELECT invoices.*, customers.name AS customer_name, customers.email AS customer_email
-  FROM invoices
-  JOIN customers ON invoices.customer_id = customers.id
-  LIMIT 100
-`);
-```
+## 15. Common Mistakes
 
-Or, if you need full customer objects, use a batched query:
-```typescript
-const invoices = await db.query('SELECT * FROM invoices LIMIT 100');
-const customerIds = [...new Set(invoices.map((i) => i.customer_id))];
-const customers = await db.query('SELECT * FROM customers WHERE id = ANY($1)', [customerIds]);
-const customersById = new Map(customers.map((c) => [c.id, c]));
-for (const invoice of invoices) {
-  invoice.customer = customersById.get(invoice.customer_id);
-}
-```
+- **Reviewing style by hand**: it burns time and goodwill. Automate formatting and lint rules.
+- **"LGTM" after scanning headlines** on a large diff: either split it, or review it properly and say what you did not review.
+- **Unlabeled severity**: authors cannot tell must-fix from preference. Use labels.
+- **Blocking on taste**: if the code works, is consistent and improves health, approve and leave a non-blocking note.
+- **Review that never ends**: raising new issues in each round. Collect everything in the first pass; later rounds check fixes.
+- **Reviewing only the diff**: missing callers, other implementations, config, migrations and docs the change should have touched.
+- **Tenant or permission checks verified on reads only**, while updates and deletes go unchecked.
+- **Trusting tests because they exist**: tests that mock the code under test or assert nothing meaningful.
+- **Accepting AI-generated code on plausibility**: invented functions, packages or flags look fine until run. Run it and verify the dependencies exist.
+- **Mixed-purpose PRs** (refactor plus feature plus dependency bump) that hide risk. Ask for separate changes.
+- **Slow turnaround without notice**: authors batch work and context goes stale. Respond within the agreed time even if only to say when you will review.
+- **Public shaming or sarcasm**: review is collaboration; critique code, thank authors, and take sensitive feedback to a call.
+- **Security scanners enabled but alerts ignored**: assign owners and a triage time, or the signal decays.
 
-Please add a test that verifies the query count for the listing endpoint.
-```
+## 16. References
 
-### 26.3 Self-Review Checklist Before Requesting Review
-
-```markdown
-## Self-Review Checklist (author completes before requesting review)
-
-- [ ] I have read the diff in full and caught obvious issues.
-- [ ] The PR description explains what, why, and how tested.
-- [ ] The PR is scoped to one concern; it can be reviewed in 30 minutes.
-- [ ] All commits are small and have descriptive messages.
-- [ ] CI passes (lint, type check, tests, security scan).
-- [ ] Tests are added for new functionality; coverage did not decrease.
-- [ ] Tests are deterministic (no wall-clock, no unseeded randomness).
-- [ ] Public API changes are documented and backwards compatible.
-- [ ] Database migrations are forward-only and backwards-compatible.
-- [ ] Secrets are not hardcoded or logged.
-- [ ] Error handling is explicit at boundaries.
-- [ ] An ADR is linked for non-trivial architectural decisions.
-- [ ] Debug logs and TODO comments are removed.
-- [ ] The CHANGELOG is updated for user-facing changes.
-```
-
-## 27. Common Mistakes
-
-### 27.1 LGTM Without Reading
-**What**: Approving a PR without reviewing the diff.
-**Why**: Defects escape to production; the review process is theater; trust erodes.
-**How to avoid**: Read the diff in full; verify the checklist; never approve from a skim; if you don't have time, defer the review.
-
-### 27.2 Bikeshedding
-**What**: Spending disproportionate time on trivial issues (naming, formatting).
-**Why**: Substantive issues go unaddressed; the author is demoralized; review time balloons.
-**How to avoid**: Automate style and formatting; focus on correctness, security, performance, design; nits are optional.
-
-### 27.3 Drive-By Architecture
-**What**: Suggesting unrelated redesigns in a PR review.
-**Why**: The PR's scope explodes; the author is demoralized; the redesign is rarely followed through.
-**How to avoid**: Raise architectural concerns as separate discussions or ADRs; do not block the PR on a redesign.
-
-### 27.4 Vague Feedback
-**What**: "This is wrong" or "Consider improving" without specifics.
-**Why**: The author cannot act; the review iterates without progress; frustration builds.
-**How to avoid**: Provide concrete suggestions with code examples; explain why; offer to pair.
-
-### 27.5 Personal Criticism
-**What**: Attacking the author rather than the code.
-**Why**: Destroys psychological safety; engineers stop sharing work; team culture degrades.
-**How to avoid**: Separate the person from the code; critique the code; use "we" and "the code"; offer to pair.
-
-### 27.6 Blocking on Preferences
-**What**: Blocking merges over personal preferences (variable names, style).
-**Why**: Wastes time; demoralizes; undermines the review process.
-**How to avoid**: Automate style; block only on substantive issues; nits are optional; preferences are irrelevant.
-
-## 28. Professional Workflow
-
-1. Receive the PR; read the description; understand the intent.
-2. Verify CI passes; do not review red PRs.
-3. Run the self-review checklist as the author did.
-4. Read the diff in full; never skim; never LGTM without reading.
-5. Identify the change type; apply the appropriate review lens.
-6. Check correctness: does the code do what it claims? Edge cases handled?
-7. Check security: input validation, authorization, secrets, dependencies.
-8. Check performance: algorithm, N+1, allocation, async, caching.
-9. Check tests: coverage, edge cases, determinism, speed.
-10. Check documentation: ADR, API docs, runbooks, CHANGELOG.
-11. Classify each comment: blocking, non-blocking, nit, question.
-12. Provide constructive feedback with concrete suggestions.
-13. Approve, request changes, or comment; never block on preferences.
-14. Verify requested changes were made; re-review within SLO.
-
-## 29. Response Style
-
-- Begin every review with a summary: "This PR adds X; overall looks good; I have N blocking comments."
-- Classify every comment: `[blocking]`, `[non-blocking]`, `[nit]`, `[question]`.
-- Provide concrete suggestions with code examples; never vague.
-- Use "ask don't tell" for non-blocking: "Have you considered...?" rather than "Change this to..."
-- Praise good work: "Nice extraction here" builds culture.
-- Use authoritative voice for blocking: "This must be fixed because..."
-- Separate the person from the code; critique the code, not the author.
-- Close the review with a clear verdict: Approve, Request changes, or Comment.
-
-## 30. Output Format
-
-- Use the PR template for descriptions; sections are mandatory.
-- Use `[blocking]`, `[non-blocking]`, `[nit]`, `[question]` labels on every comment.
-- Use code snippets for suggestions; never describe in prose alone.
-- Use the code review checklist as the structured review format.
-- Use conventional commit titles for PRs: `feat:`, `fix:`, `refactor:`, etc.
-- Use bullet lists for review comments; numbered lists for sequential fixes.
-- Cross-reference ADRs, issues, and documentation by ID.
-- Quantify review metrics: review time, defect escape rate, participation.
-- Distinguish between substantive (blocking) and preference (nit) feedback.
-- End every review with a clear verdict: Approve, Request changes, or Comment.
-
----
+- [references/checklists.md](references/checklists.md): review checklists by area (design, correctness, concurrency, error handling, security, performance, API and database changes, tests, dependencies, CI workflows) and a section on reviewing AI-generated and very large diffs.
+- [references/comment-guide.md](references/comment-guide.md): Conventional Comments in detail, tone and wording, before and after examples, receiving feedback, resolving disagreements, review turnaround norms.
+- Official docs: https://google.github.io/eng-practices/review/ , https://conventionalcomments.org/ , https://docs.github.com/en/code-security/code-scanning , https://semgrep.dev/docs/ , https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners

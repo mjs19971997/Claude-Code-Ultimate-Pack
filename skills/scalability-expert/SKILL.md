@@ -1,667 +1,339 @@
 ---
 name: scalability-expert
-description: >
-  Designs systems that scale predictably across the scale cube (cloning, decomposition, partitioning) while preserving consistency, observability, and cost efficiency at 1000x growth.
-  
-  Use this skill when making system-design, scalability, refactoring, code-review, or enterprise-architecture decisions.
+description: >-
+  Makes systems fast and able to grow under load: capacity planning (Little's law, utilization, Amdahl and the Universal Scalability Law), performance profiling (USE and RED methods, flame graphs), load testing with k6, Locust and Gatling, caching and invalidation, database scaling (indexes, pooling, read replicas, partitioning, sharding), queues and backpressure, autoscaling (HPA, KEDA), CDN, rate limiting, tail latency (p99, timeouts, hedging) and cost trade-offs. Absorbs the former performance-optimization-expert skill. Use when a service is slow, a load test or capacity estimate is needed, a bottleneck must be found, or an architecture must handle ten times the traffic. Not for the architecture of the whole product (use system-design-expert) or frontend vitals (use core-web-vitals-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# Scalability Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers how to find and remove bottlenecks and how to design for growth: measuring first, modeling capacity, testing load, and choosing among caching, data-layer scaling, asynchronous processing and autoscaling, with cost in view. It absorbs the former performance-optimization-expert skill; profiling and single-service tuning live in a dedicated reference, alongside references for load testing, data and traffic scaling, and capacity and autoscaling.
 
----
+> Verified against k6 2.3.0, Locust 2.47.0, Gatling 3.15.1, KEDA 2.21.0, Kubernetes 1.37 (HPA `autoscaling/v2`), PgBouncer 1.26.1, PostgreSQL declarative partitioning (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The Scalability Expert designs systems that scale predictably from current load to 1000x without rewrites. The role owns the scale cube (x-axis cloning, y-axis decomposition, z-axis partitioning), statelessness and session management at scale, database scaling (read replicas, sharding, federation, denormalization, CQRS), sharding strategies (range, hash, geographic, directory, consistent hashing with virtual nodes), multi-tenancy models, caching layers, message queues, and autoscaling.
+## 1. Scope
 
-The expert operates on the principle that scalability is a property of the architecture, not the implementation: no amount of optimization rescues a fundamentally unscalable design. The role demands fluency in queueing theory, the universal scalability law, and the operational disciplines (load testing, chaos engineering, capacity planning) that verify scale in production.
+- Covered: performance diagnosis and tuning of services, capacity planning, load and stress testing, caching layers, database and queue scaling, autoscaling policy, rate limiting and load shedding, tail latency, CDN offload, and cost/performance trade-offs.
+- Not covered: choosing the overall system architecture (system-design-expert), splitting into services (microservices-expert), PostgreSQL internals and query planning in depth (postgresql-expert), Redis data structures and clustering (redis-expert), Kubernetes object details (kubernetes-expert), browser performance and Core Web Vitals (core-web-vitals-expert).
+- Scaling is the last step, not the first: remove waste, then add capacity. A tenfold algorithmic fix beats ten more servers.
 
-The Scalability Expert is the final technical authority for scale-related decisions. The role reports to engineering leadership and operates through scalability reviews, load test gates in CI, and direct pairing with implementation teams.
+## 2. Core Expertise
 
-## 2. Mission
+| Area | Key facts |
+|---|---|
+| Little's law | `L = λ × W`: average items in the system equals arrival rate times average time in system. 200 req/s at 0.25 s means about 50 requests in flight, which sizes thread pools, connection pools and queues |
+| Utilization | `U = λ × S` (arrival rate times service time). In a single-server queue, response time grows like `S / (1 - U)`: at 50% busy the wait is about S, at 90% about 9S. Plan steady state at 60-70% for latency-sensitive paths |
+| Amdahl / USL | Amdahl: speedup `1 / ((1 - p) + p / N)` is capped by the serial fraction. Universal Scalability Law: `C(N) = N / (1 + α(N-1) + βN(N-1))`, with contention α and coherency (crosstalk) β; β makes throughput fall past a peak |
+| USE method | For every resource (CPU, memory, disk, network, pools): Utilization, Saturation, Errors |
+| RED method | For every service: Rate, Errors, Duration (histograms, not averages). Google's four golden signals add saturation: latency, traffic, errors, saturation |
+| Percentiles | Report p50, p95, p99, p99.9 from histograms; never average percentiles across instances; merge histograms instead |
+| Tail at scale | A request that fans out to N backends sees a slow one often: with a 1% slow rate per backend, 100 calls give `1 - 0.99^100 ≈ 63%` slow requests |
+| Open vs closed load | Closed model (fixed virtual users) slows down when the system slows, hiding overload and coordinated omission. Open model (fixed arrival rate) is the honest model for public services |
+| Autoscaling | HPA: `desired = ceil(current × currentMetric / targetMetric)`, with tolerance (default 10%) and stabilization windows; KEDA scales on events (queue length, lag, cron) and can scale to zero |
+| Data scaling | In order: query and index fixes, pooling, caching, read replicas, partitioning, sharding. Each step adds consistency and operational cost |
+| Caching | Cache-aside is the default; invalidation by TTL, explicit delete, or events; protect against stampedes with single-flight, jittered TTLs, stale-while-revalidate |
+| Backpressure | Bounded queues, concurrency limits, timeouts with deadlines, retry budgets with jitter, load shedding with 429/503 and `Retry-After` |
 
-The mission of the Scalability Expert is to deliver architectures that scale horizontally with the smallest complexity that satisfies the load target, preserving consistency, observability, and cost efficiency at every stage of growth. Every design must explicitly state its scaling dimension (cloning, decomposition, partitioning) and its capacity ceiling.
+## 3. Workflow
 
-The expert must refuse any design with a single point of contention (database, queue, cache, leader) that cannot scale horizontally. Every design must enumerate its scaling limits and the trigger for the next scale stage.
+1. State the goal as a number with a unit and a percentile: "p99 under 300 ms at 2,000 req/s with 1% errors at most", plus the cost ceiling.
+2. Establish a baseline in a production-like environment: build, config, data volume, dependencies. Record throughput, latency histograms, error rate, and resource usage per component.
+3. Locate the bottleneck with USE on resources and RED on services, then profile the saturated component (CPU, allocation, locks, I/O wait). Reference: [references/performance-optimization.md](references/performance-optimization.md).
+4. Form one hypothesis, change one thing, re-measure under the same load. Keep or revert based on numbers.
+5. Fix in this order: avoid the work, make the work cheaper (algorithm, query, serialization), cache, parallelize or batch, then add capacity.
+6. Model capacity from measurements: per-instance max throughput at the latency goal, headroom for failure of one zone, growth forecast. Reference: [references/autoscaling-capacity.md](references/autoscaling-capacity.md).
+7. Load test the change and the system limits (load, stress, spike, soak). Reference: [references/load-testing.md](references/load-testing.md).
+8. Add autoscaling, rate limits and backpressure so overload degrades gracefully; define SLOs and alerts.
+9. Record results and the remaining ceiling; repeat when traffic or architecture changes.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- Scale cube: x-axis (cloning — identical replicas behind a load balancer), y-axis (decomposition — split by service/capability), z-axis (partitioning — split by data within a service).
-- Vertical vs horizontal scaling: when each applies; vertical has a hard ceiling; horizontal adds operational complexity.
-- Statelessness: any state in a request must be externalized (cache, database, JWT); sticky sessions are a stopgap, not a design.
-- Session management at scale: sticky sessions (anti-pattern), external session store (Redis), JWT (stateless, scalable, trade-offs).
-- Database scaling: read replicas (read-heavy workloads), sharding (write-heavy), federation (split by function), denormalization (read-optimized), CQRS (separate read/write models).
-- Sharding strategies: range (hotspots on ordered keys), hash (uniform distribution), geographic (latency-driven), directory (centralized routing), consistent hashing with virtual nodes (rebalance minimization).
-- Shard rebalancing: split, merge, migrate; double-write during transition; backfill; cutover; verification.
-- Hotspot shards: detect via metrics, mitigate via salting, two-level sharding, or directory-based remapping.
-- Multi-tenancy: database-per-tenant (isolation, cost), schema-per-tenant (middle ground), row-level with RLS (density, complexity).
-- Caching layers: browser, CDN, edge, application (in-memory), database (buffer pool), object (Redis/Memcached).
-- Cache invalidation: TTL (simple, stale risk), write-through (consistent, slow), write-behind (fast, eventual), event-driven (complex, accurate).
-- Cache stampede prevention: probabilistic early expiration, single-flight, request coalescing.
-- Message queues: SQS (transient, point-to-point), Kafka (log, replayable, ordered), RabbitMQ (flexible routing), NATS (lightweight), Pulsar (segmented log).
-- Async processing: fan-out (one to many), fan-in (many to one), batch (efficiency), backpressure (load shedding).
-- Autoscaling: predictive (scheduled, ML-driven), reactive (metric-driven), scheduled (known peaks); headroom required.
-- Capacity headroom: 30% CPU, 50% memory, 40% disk; trigger scale-out before saturation.
-- Load testing: k6, Locust, Gatling, JMeter; test at 2x peak; identify the capacity ceiling.
-- Chaos engineering: inject failures (network, node, dependency) to verify graceful degradation.
+- Do not optimize without a measurement showing where the time goes. Profile before touching code; benchmark before and after.
+- A slow query, N+1 pattern, or missing index is fixed before adding replicas or caches.
+- Cache only when the read-to-write ratio and tolerance for staleness justify it, and when hit ratio can be measured. Define the invalidation rule before the cache.
+- Prefer stateless services behind a load balancer so scale-out is cloning; move session state to a shared store or to signed tokens.
+- Use asynchronous processing (queues) when work can complete after the response, when load is spiky, or when downstream capacity is lower than the peak arrival rate.
+- Add read replicas for read-heavy workloads that tolerate replication lag; partition large tables for maintenance and pruning; shard only when a single primary cannot handle writes or data size even after tuning.
+- Choose the shard key for even distribution and for keeping common transactions within one shard; avoid designs that need cross-shard joins on hot paths.
+- Autoscale on a metric that tracks load per instance (requests in flight, queue lag, CPU for CPU-bound work); not on a lagging or noisy proxy.
+- Set timeouts everywhere, shorter at each deeper layer; retry only idempotent calls, with exponential backoff, jitter and a retry budget.
+- Pay for latency or throughput only where users or the business value it: tier SLOs by endpoint.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Design systems that scale horizontally to the stated load target (current + 12-month projected).
-- Document the scale cube dimension used (x, y, z) and the rationale for each choice.
-- Define sharding scheme and rebalancing strategy for sharded datastores; document the trigger for the next split.
-- Define the caching topology and invalidation strategy; never cache without invalidation.
-- Define the autoscaling rules and headroom; defend with measurements.
-- Define the multi-tenancy model and the data isolation guarantees.
-- Define the load test plan: scenarios, load profiles, pass criteria, capacity ceiling identification.
-- Capacity-plan using Little's Law and queueing models; defend with measurements.
+- Every network call has a timeout and a cancellation path; propagate a deadline from the edge down.
+- Every queue, buffer, pool and cache has a bound; every unbounded collection fed by external input is a defect.
+- Use streaming and pagination for large results; do not materialize whole result sets.
+- Make hot paths allocation-light: reuse buffers, avoid per-request regex compilation and repeated parsing, avoid needless serialization round trips.
+- Batch small operations (bulk insert, multi-get, pipelining) instead of one call per item.
+- Keep handlers idempotent so retries and at-least-once queues are safe.
+- Emit metrics with bounded label cardinality (route template, not raw URL; no user ids).
+- Make configuration of pool sizes, timeouts, and concurrency limits explicit and environment-specific, not defaults copied from examples.
 
-## 5. Thinking Process
-
-1. Clarify the scaling target: current load, projected load (12 months), peak factor, growth rate.
-2. Identify the workload shape: read-heavy, write-heavy, mixed, bursty, sustained.
-3. Identify the scaling dimension: can the workload be cloned (x), decomposed (y), or partitioned (z)?
-4. Eliminate single points of contention: any stateful component that cannot scale horizontally is a bottleneck.
-5. Choose the database scaling strategy: read replicas for read-heavy, sharding for write-heavy, CQRS for asymmetric workloads.
-6. Choose the sharding scheme: hash for uniform, range for ordered access, geographic for latency, directory for flexibility.
-7. Choose the caching topology and invalidation strategy; never cache without invalidation.
-8. Choose the multi-tenancy model based on isolation requirements and tenant count.
-9. Define the autoscaling rules with headroom; defend with measurements.
-10. Define the load test plan; identify the capacity ceiling.
-11. Define the chaos test plan; verify graceful degradation under failure.
-12. Document the design as an ADR; conduct scalability review; ratify or iterate.
-13. Pair with implementation through the first iteration; calibrate the design against reality.
-14. Post-launch, monitor scaling metrics; verify the autoscaling rules trigger correctly; iterate.
-
-## 6. Decision Making Rules
-
-- When horizontal and vertical scaling both satisfy the load, choose horizontal because vertical has a hard ceiling and horizontal scales with commodity hardware.
-- When sharding and read replicas both satisfy the load, choose read replicas for read-heavy workloads (simpler), sharding for write-heavy (necessary).
-- When consistent hashing and directory-based sharding both work, choose consistent hashing when rebalance cost dominates, directory when flexibility dominates.
-- When database-per-tenant and row-level multi-tenancy both work, choose database-per-tenant for strong isolation (regulated workloads), row-level for high tenant density (SaaS).
-- When caching and not caching both satisfy latency, choose caching for read-heavy with stable keys; never cache write-heavy without invalidation discipline.
-- When queues and streams both satisfy messaging, choose queues for transient point-to-point, streams for replayable ordered logs.
-- When predictive and reactive autoscaling both work, choose predictive for known peaks (lower latency), reactive for unknown load (simpler, safer).
-- When stateless and stateful both work, choose stateless because stateless scales by cloning; stateful requires partitioning.
-
-## 7. Architecture Rules
-
-- Every stateful component must have a documented scaling strategy; stateful components without a strategy are forbidden in production.
-- Every datastore must have its partitioning scheme documented; unpartitioned datastores must justify why they will not exceed single-node capacity.
-- Every cache must have an explicit invalidation strategy; cache-without-invalidation is forbidden.
-- Every queue must have a documented consumer scaling strategy; unbounded queues are forbidden in production paths.
-- Every system must define its capacity ceiling: the load at which SLOs begin to violate; capacity beyond 80% of ceiling must trigger scale-out.
-- Every system must have autoscaling rules with headroom; manual scaling is forbidden for production workloads.
-- Every multi-tenant system must document its isolation model and the blast radius of a tenant's failure.
-- Every system must be load-tested at 2x expected peak before go-live; untested systems are not ready.
-
-## 8. Coding Standards
-
-- All request handlers must be stateless; any state must be externalized.
-- All session state must be stored in an external store (Redis) or encoded in a JWT; in-process session state is forbidden.
-- All database access must use the sharding key in every query; cross-shard queries are forbidden in hot paths.
-- All cache keys must include the tenant ID for multi-tenant systems; cross-tenant cache leakage is a security defect.
-- All queue consumers must be idempotent; the broker will deliver at-least-once.
-- All autoscaling rules must be defined in code (Terraform, Kubernetes HPA); manual scaling is forbidden.
-- All load tests must be versioned in the repository; ad-hoc load tests are not reproducible.
-- All connection pools must be sized to the database capacity; undersized pools cause artificial latency.
-- All external calls must have circuit breakers, timeouts, and bulkheads; unmitigated dependencies cascade.
-- All public APIs must have rate limiting; unbounded APIs invite abuse and unbounded load.
-
-## 9. Naming Conventions
-
-- Services must be named after the bounded context (`billing-service`, `inventory-service`).
-- Shards must be named `<service>-shard-<index>` (`billing-shard-0`, `billing-shard-1`).
-- Cache keys must be namespaced `<service>:<entity>:<shard>:<id>:<version>` for sharded entities.
-- Queue names must include the producer and consumer (`billing-events-for-inventory`).
-- Stream topics must be named `<domain>.<entity>.<event-type>.<version>` (`orders.order.created.v1`).
-- Tenants must be identified by a stable UUID; tenant IDs must never be reused.
-- Autoscaling rules must be named `<service>-autoscale-<metric>` (`billing-autoscale-cpu`).
-- Load test scenarios must be named `<user-journey>-<load-profile>.js` (`checkout-peak.js`).
-- Capacity reports must be named `<service>-capacity-<quarter>.md`.
-- Sharding keys must be explicitly documented in the schema (`-- sharding key: tenant_id`).
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-scalability/
-  design/
-    scaling-strategy.md            # Documented scale cube decisions
-    sharding-scheme.md             # Sharding key, scheme, rebalance plan
-    caching-topology.md            # Cache layers, invalidation strategy
-    multi-tenancy-model.md         # Isolation model, blast radius
-    autoscaling-rules.md           # HPA/KEDA rules with headroom
-  load-tests/
-    k6/
-      checkout-peak.js
-      checkout-burst.js
-      invoice-issuance-sustained.js
-    locust/
-      browse-catalog.py
-    gatling/
-      checkout-simulation.scala
-    soak/
-      soak-24h.yaml
-    stress/
-      stress-to-failure.yaml
-  chaos-tests/
-    network-partition.yaml
-    node-crash.yaml
-    dependency-failure.yaml
-    shard-loss.yaml
-  capacity/
-    capacity-plan-2025-q1.md
-    capacity-plan-2025-q2.md
-    littles-law-model.xlsx
-    ceiling-analysis.md            # Capacity ceiling identification
-  adr/
-    0001-shard-by-tenant-id.md
-    0002-adopt-cqrs-for-billing-reads.md
-    0003-cache-pricing-at-edge.md
-  runbooks/
-    scale-out-runbook.md
-    shard-rebalance-runbook.md
-    cache-stampede-runbook.md
-  reports/
-    load-test-2025-01-15.md
-    chaos-test-2025-01-22.md
+.
+├── load/
+│   ├── smoke.js              # 1 VU, correctness under the test harness
+│   ├── load.js               # expected peak, open model
+│   ├── stress.js             # beyond peak to find the knee and failure mode
+│   ├── soak.js               # hours at normal load for leaks and drift
+│   ├── lib/                  # shared helpers, data loaders
+│   └── data/                 # anonymized test data (never production PII)
+├── perf/
+│   ├── baselines/            # recorded results per release (json/csv)
+│   └── profiles/             # saved flame graphs and pprof files for comparison
+├── deploy/
+│   ├── hpa.yaml              # HorizontalPodAutoscaler
+│   └── keda-scaledobject.yaml
+└── docs/
+    ├── slo.md                # targets by endpoint, error budgets
+    └── capacity.md           # model, assumptions, headroom, forecast
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-my-project/
-  apps/
-    api/                            # Stateless HTTP API
-    worker/                         # Stateless async worker
-    aggregator/                     # Read model projector
-  packages/
-    contracts/
-      openapi/
-      asyncapi/
-      avro/
-    domain/
-    testkit/
-    perf-kit/
-  infrastructure/
-    terraform/
-      modules/
-        vpc/
-        rds-sharded/                # Sharded database cluster
-        elasticache/                # Cache cluster
-        kafka/                      # Stream cluster
-        autoscaling/                # ASG/KEDA rules
-      environments/
-        dev/
-        staging/
-        prod/
-    helm/
-      api/
-      worker/
-      aggregator/
-  observability/
-    dashboards/
-      scaling-dashboard.json
-      capacity-dashboard.json
-      cache-dashboard.json
-      shard-distribution.json
-    alerts/
-      autoscale-failure-alert.yaml
-      shard-hotspot-alert.yaml
-      cache-stampede-alert.yaml
-    synthetic-checks/
-  scalability/                      # See Folder Structure section
-  pipelines/
-    ci.yml
-    nightly-load-test.yml
-    weekly-chaos-test.yml
-  docs/
-    scaling-architecture.md
-    adr/
-    runbooks/
-  .github/
-    workflows/
-    CODEOWNERS
-  README.md
-  CHANGELOG.md
-  SECURITY.md
-```
+- **Cache-aside with single-flight**: check the cache, on miss one caller loads while others wait on the same promise; TTL with jitter; optional stale-on-error.
+- **Read replicas with read-your-writes**: route a user's reads to the primary for a short window after a write, or pass a replication position token.
+- **Partitioning and sharding**: range or hash partitions inside one database for pruning and maintenance; hash or directory-based shards across databases for write scale.
+- **Queue-based load leveling**: a durable queue between a bursty producer and a worker pool sized for average load; scale workers by queue lag.
+- **Bulkhead**: separate pools per dependency or tenant class so one slow dependency cannot exhaust all threads.
+- **Circuit breaker, timeout, retry budget**: fail fast when a dependency is down; retries limited to a small fraction of traffic.
+- **Hedged requests**: for idempotent reads with a heavy tail, send a second request to another replica after a delay near the p95 and use the first answer; cancel the loser.
+- **Load shedding and priority**: reject low-priority work early (429/503) when queue delay or concurrency passes a limit.
+- **CDN and edge caching**: cache static assets and cacheable API responses by URL; purge by tag or key; use an origin shield to protect the origin.
+- **Precompute and materialize**: compute expensive aggregates in background and serve from a table or cache.
+- Deep dives: [references/data-scaling.md](references/data-scaling.md) for databases, caches, queues and CDN.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### 12.1 Sharding with Consistent Hashing
-**When to use**: When distributing data across a dynamic set of nodes with minimal rebalancing.
-**When not to use**: When the node set is fixed and small; simple modulo hashing is sufficient.
-**Sketch**: Hash both nodes (with V virtual nodes each) and keys onto a ring; each key maps to the next clockwise virtual node; adding or removing a node moves only 1/V of the keys.
+- Define SLOs per endpoint and watch error-budget burn; use them to decide between performance work and features.
+- Keep a performance budget in CI: a smoke-scale load test with thresholds that fail the build on regressions.
+- Look at distributions: histograms with exemplars link a slow bucket to a trace.
+- Profile in production with low-overhead continuous profiling where available; compare profiles between releases.
+- Right-size resource requests and limits from measured usage; keep headroom for zone loss and deploys.
+- Test failure modes along with capacity: kill an instance during load, slow a dependency, fill a queue.
+- Keep a runbook of the top three bottlenecks and their known mitigations.
+- Re-run capacity tests after major dependency, runtime or schema changes.
 
-### 12.2 CQRS for Asymmetric Workloads
-**When to use**: When read and write workloads have different scale, consistency, or shape requirements.
-**When not to use**: When reads and writes are symmetric; the operational overhead of projection maintenance is unjustified.
-**Sketch**: Command handlers mutate the write model and emit events; query handlers read from materialized projections updated by event consumers; read models scale independently.
+## 9. Performance
 
-### 12.3 Read Replicas for Read-Heavy Workloads
-**When to use**: When reads dominate writes and the workload can tolerate replication lag (eventual consistency on reads).
-**When not to use**: When reads require strong consistency (read-after-write) or when writes dominate.
-**Sketch**: Writes go to the primary; reads go to replicas; replication is async (eventual) or sync (strong, slower); clients route reads to replicas, with fallback to primary for read-after-write.
+Quick wins to look for, in rough order of payoff:
 
-### 12.4 Backend for Frontend (BFF) for Decomposition
-**When to use**: When multiple frontends (web, mobile, partner) have different aggregation needs.
-**When not to use**: When frontends can consume a single generic API efficiently.
-**Sketch**: One BFF per frontend type; each BFF aggregates from downstream services; the BFF scales independently of backends; enables y-axis scaling.
+- Queries: missing indexes, N+1, `SELECT *`, unbounded `OFFSET` pagination (use keyset pagination), long transactions, lock waits.
+- Serialization and payload size: compress responses (gzip or Brotli at the proxy), trim fields, use binary formats on internal hot paths where measured.
+- Connection management: reuse HTTP and database connections (keep-alive, pools), avoid per-request TLS handshakes to dependencies.
+- Concurrency: parallelize independent calls; avoid blocking the event loop or request thread; size pools using Little's law.
+- Memory and GC: reduce allocation rate before tuning the collector; watch heap growth and pause times.
+- Algorithmic complexity: replace quadratic scans with indexed or hashed lookups.
+- Caching at the right layer: HTTP caching and CDN first for public data, application cache for computed data, database cache is automatic.
+- Details and per-runtime tools: [references/performance-optimization.md](references/performance-optimization.md).
 
-### 12.5 Cache-Aside with Stampede Prevention
-**When to use**: When read-heavy workloads with stable keys benefit from caching; prevents thundering herd.
-**When not to use**: When writes dominate or when keys are uniformly random (no cache hit ratio).
-**Sketch**: Cache-aside with single-flight (coalesce concurrent fetches for the same key) and probabilistic early expiration (refresh before TTL to avoid synchronous misses).
+## 10. Security
 
-### 12.6 Saga for Distributed Transactions
-**When to use**: When a business transaction spans multiple services and 2PC is unavailable.
-**When not to use**: When the transaction fits in one service's database.
-**Sketch**: Each step emits an event triggering the next; failures trigger compensating events that semantically undo prior steps; coordination is choreography or orchestration.
+- Rate limiting and quotas are security controls as well as capacity controls: limit per user, per IP and per API key; return 429 with `Retry-After`; keep limiter state in a shared store when running several instances.
+- Load tests must not hit production with real customer data or third-party systems without agreement; use synthetic, anonymized data and dedicated test tenants.
+- Never put credentials in test scripts or CI logs; read them from environment variables or the CI secret store.
+- Caches can leak data across users: include tenant, user or authorization context in the cache key for personalized content, and mark private responses `Cache-Control: private` or `no-store`.
+- Unbounded work from untrusted input (large bodies, deep JSON, regex backtracking, expensive queries) is a denial-of-service vector; cap sizes, depth, page size and query cost.
+- Autoscaling can be abused to run up cost; set maximum replicas and budget alerts.
+- Profilers and debug endpoints (pprof, heap dumps) expose internals; bind to localhost or protect with authentication.
 
-## 13. Best Practices
+## 11. Testing
 
-- Design for horizontal scaling from day one; vertical scaling has a hard ceiling.
-- Eliminate single points of contention; any stateful component must have a documented scaling strategy.
-- Externalize all state; in-process session state is forbidden in production.
-- Shard write-heavy datastores; replicate read-heavy; never rely on a single primary for write throughput.
-- Use consistent hashing with virtual nodes for shard distribution; minimize rebalancing cost.
-- Cache read-heavy workloads with stable keys; never cache without an invalidation strategy.
-- Use circuit breakers, bulkheads, and backpressure on every external dependency.
-- Autoscale with headroom (30% CPU, 50% memory); trigger scale-out before saturation.
-- Load test at 2x expected peak; identify the capacity ceiling.
-- Run chaos tests weekly in staging; verify graceful degradation under failure.
+- Smoke test: one virtual user checks the scripts and the system before every larger run.
+- Load test: expected peak at a steady arrival rate; verify SLO thresholds.
+- Stress test: ramp past peak to find the knee, the saturation point and the failure mode (graceful rejection versus collapse).
+- Spike test: sudden jump (for example 10x within seconds) to check autoscaling lag and queue behavior.
+- Soak test: hours to days at normal load for leaks, connection exhaustion, log growth and drift.
+- Use an open workload model (arrival-rate executors) for services receiving independent requests; use closed models only for fixed-concurrency clients.
+- Keep the test environment representative: same instance types, data volume and indexes, realistic think time and data skew; check the load generator itself is not the bottleneck.
+- Tests that count: thresholds on p95/p99 latency and error rate, and automatic abort on failure.
+- Reference: [references/load-testing.md](references/load-testing.md).
 
-## 14. Anti Patterns
+## 12. Review Checklist
 
-### 14.1 Single Primary Database
-**Why wrong**: Write throughput is capped by one node; the database becomes the scaling ceiling.
-**Correct alternative**: Shard the database by a high-cardinality key (tenant_id, user_id); use read replicas for read-heavy paths; use CQRS for asymmetric workloads.
+- [ ] A numeric goal exists (percentile, rate, error budget, cost).
+- [ ] Bottleneck evidence: profile, trace or metric, not intuition.
+- [ ] Every pool, queue, cache and retry has a bound, a timeout and a metric.
+- [ ] N+1, unbounded queries and missing indexes are checked on new endpoints.
+- [ ] Cache has an invalidation rule, a stampede guard, and a tenant-safe key.
+- [ ] Idempotency exists for retried and queued operations.
+- [ ] Autoscaling metric, min/max, stabilization and headroom are defined and tested.
+- [ ] Overload behavior is defined (shed, queue, degrade) and tested.
+- [ ] Load test uses an open model, realistic data, thresholds and a baseline comparison.
+- [ ] Cost impact is estimated (instances, storage, egress, cache memory).
 
-### 14.2 Sticky Sessions
-**Why wrong**: Sticky sessions break horizontal scaling; one server's load cannot be redistributed; server failure drops sessions.
-**Correct alternative**: Externalize session state (Redis) or use stateless JWTs; never depend on sticky sessions for correctness.
+## 13. Production Notes
 
-### 14.3 Synchronous Cross-Service Calls in Request Path
-**Why wrong**: Latency compounds; availability multiplies (99% × 99% = 98%); the request path becomes a chain of failures.
-**Correct alternative**: Use async events for cross-context communication; use materialized views for read paths; use BFFs to aggregate for the frontend.
+- Keep 30-40% headroom on latency-critical tiers so a zone failure or deploy does not push utilization past the knee. Compute N+1 capacity: after losing one zone, remaining zones must carry peak.
+- Scale-out lag matters: image pull, startup, warm-up of caches and JIT, and readiness checks add minutes. Set `minReplicas` for the predictable base, use scheduled or predictive scaling for known peaks, and pre-warm.
+- Roll out performance changes behind flags and compare real traffic with canary metrics.
+- During incidents prefer reversible mitigations first: shed load, raise cache TTLs, disable expensive features, add replicas, roll back.
+- Database changes (new index, partitioning, resharding) need their own rehearsal on production-sized data and a rollback path.
+- Watch saturation signals that are easy to miss: connection pool wait time, file descriptors, ephemeral ports, thread pool queue depth, disk IOPS and burst credits, cloud API rate limits, DNS.
+- Cost view: track cost per request or per tenant next to latency; scaling out is not free and caches have memory cost.
+- Review capacity quarterly and before launches and campaigns.
 
-### 14.4 Unbounded Queues
-**Why wrong**: Unbounded queues grow until OOM; backpressure is lost; latency grows unbounded under load.
-**Correct alternative**: Bounded queues with explicit overflow policy (drop, block, shed load); never build unbounded queues in production paths.
+## 14. Examples
 
-### 14.5 Cache Without Invalidation
-**Why wrong**: Cached data drifts from the source of truth; users see stale data; debugging is painful.
-**Correct alternative**: Define invalidation upfront (TTL, write-through, event-driven); never cache without a strategy.
+k6 open-model load test with thresholds (TypeScript also runs natively in current k6; this is plain JavaScript). The arrival rate stays fixed even when the service slows, so overload shows up in latency and errors:
 
-### 14.6 Manual Scaling
-**Why wrong**: Manual scaling is slow (humans react in minutes, not seconds); underprovisioning causes outages; overprovisioning wastes cost.
-**Correct alternative**: Autoscaling rules defined in code (HPA, KEDA, ASG); reactive for safety, predictive for known peaks; headroom required.
+```js
+import http from "k6/http";
+import { check } from "k6";
 
-## 15. Performance Rules
+export const options = {
+  scenarios: {
+    api_peak: {
+      executor: "ramping-arrival-rate",
+      startRate: 50,
+      timeUnit: "1s",
+      preAllocatedVUs: 200,
+      maxVUs: 1000,
+      stages: [
+        { target: 500, duration: "2m" }, // ramp to expected peak
+        { target: 500, duration: "10m" }, // hold
+        { target: 0, duration: "1m" },
+      ],
+    },
+  },
+  thresholds: {
+    http_req_failed: [{ threshold: "rate<0.01", abortOnFail: true }],
+    http_req_duration: ["p(95)<300", "p(99)<800"],
+    dropped_iterations: ["count==0"], // generator or VU limit reached means the result is invalid
+  },
+};
 
-- Define latency budgets end-to-end; allocate to each hop; alert on violations.
-- Use histograms (HDRHistogram), not averages, for latency; alert on p99 and p99.9.
-- Cache read-heavy workloads with stable keys; never cache without invalidation.
-- Batch database writes and external calls; single-row inserts in loops are forbidden.
-- Use connection pools sized to database capacity; undersized pools cause artificial latency.
-- Use async I/O for all network operations; sync I/O in request paths is a defect.
-- Capacity-plan with Little's Law (L = λW); defend estimates with measurements.
-- Run load tests at 2x expected peak; identify the capacity ceiling; alert when approaching 80%.
+const BASE = __ENV.BASE_URL || "http://localhost:8080";
 
-## 16. Security Rules
-
-- Every multi-tenant system must enforce tenant isolation at the data layer (RLS, schema-per-tenant, or database-per-tenant).
-- Every cache key must include the tenant ID; cross-tenant cache leakage is a security defect.
-- Every sharded query must include the shard key in the WHERE clause; cross-shard queries must be authorized and audited.
-- Every public API must have rate limiting per tenant and per IP; unbounded APIs invite abuse.
-- Every queue and stream must enforce producer and consumer authentication.
-- Every secret must be retrieved from a secrets manager; hardcoded secrets are forbidden.
-- Resource exhaustion (OOM, connection pool exhaustion) is a security risk; capacity limits are security controls.
-- All inter-service communication must use mTLS; plaintext internal traffic is forbidden.
-
-## 17. Testing Strategy
-
-- Load tests must run at 2x expected peak; verify SLOs hold.
-- Stress tests must run to failure; identify the capacity ceiling.
-- Soak tests must run for 24 hours; detect memory leaks and gradual degradation.
-- Chaos tests must inject failures (network, node, dependency, shard loss); verify graceful degradation.
-- Shard rebalancing must be tested in staging; verify zero data loss and zero downtime.
-- Autoscaling must be tested by injecting load and verifying scale-out triggers within the expected time.
-- Cache stampede prevention must be tested by simulating concurrent cache misses.
-- Multi-tenant isolation must be tested by attempting cross-tenant access; failures must be enforced.
-- Tests must run in parallel by default; serial execution requires explicit justification.
-- Performance regressions detected in CI must block the merge.
-
-## 18. Documentation Standards
-
-- Every system must have a Scaling Architecture document covering: scaling dimension, sharding scheme, caching topology, autoscaling rules, capacity ceiling.
-- Every architectural decision must be recorded as an ADR with context, decision, alternatives, consequences.
-- Every sharding scheme must document the shard key, the scheme, and the rebalancing strategy.
-- Every cache must document the invalidation strategy and the staleness window.
-- Every multi-tenant system must document the isolation model and the blast radius.
-- Every autoscaling rule must document the metric, the threshold, the headroom, and the scale-out/in time.
-- Every capacity plan must document assumptions and be updated quarterly.
-- Every load test must document the scenario, the load profile, the pass criteria, and the result.
-
-## 19. Code Review Checklist
-
-- Does the change introduce in-process state that breaks horizontal scaling?
-- Does the change include the shard key in all database queries?
-- Does the change include the tenant ID in all cache keys?
-- Does the change use parameterized queries and connection pooling?
-- Does the change add a new external dependency with circuit breaker, timeout, and bulkhead?
-- Does the change use async I/O for network operations?
-- Does the change add an unbounded queue or collection?
-- Does the change define autoscaling rules for new components?
-- Does the change include load test scenarios for new endpoints?
-- Does the change add metrics for observability of the new code path?
-- Does the change pass the CI benchmark gate?
-- Does the change affect the sharding scheme; if so, is the rebalancing plan documented?
-- Does the change affect the cache invalidation strategy; if so, is the staleness window documented?
-- Does the change respect tenant isolation at the data layer?
-- Does the change define rate limiting for new public endpoints?
-
-## 20. Refactoring Checklist
-
-- Is the refactor motivated by a measured scaling bottleneck?
-- Are load tests in place to verify the improvement?
-- Is the refactor scoped to a single concern?
-- Are characterizations tests in place to preserve behavior?
-- Is the sharding migration plan documented and tested?
-- Is the rollback plan documented and tested?
-- Are capacity impacts measured before and after?
-- Is the refactor validated by the load test suite without modification?
-- Is the refactor reviewed by scalability and engineering stakeholders?
-- Is the change documented in the scaling architecture document?
-
-## 21. Deployment Checklist
-
-- Is the deployment using blue-green, canary, or ring topology?
-- Are autoscaling rules deployed and verified before traffic shift?
-- Are health checks defined (liveness and readiness) for new components?
-- Is the deployment gated by successful CI on the exact artifact?
-- Are database migrations forward-only and backwards-compatible?
-- Is the deployment observed by on-call for 15 minutes post-deploy?
-- Is the rollback procedure documented and tested within 30 days?
-- Are feature flags used to decouple deploy from release for risky changes?
-- Are dependent services notified of contract changes?
-- Are smoke tests run post-deploy before traffic shift?
-- Is the deployment audit-logged?
-- Are capacity headroom checks passed?
-- Is the sharding scheme migration tested in staging first?
-- Are autoscaling rules tuned for the new traffic pattern?
-- Is the deployment reversible within the rollback SLO (5 minutes)?
-
-## 22. Production Checklist
-
-- Is the system observable (metrics, logs, traces) with scaling dashboards?
-- Are SLOs defined and alerted on (error budget burn rate, p99 latency)?
-- Is the capacity ceiling documented and alerted at 80%?
-- Are autoscaling rules verified to trigger within expected time?
-- Are shard distribution and hotspot metrics monitored?
-- Are cache hit rate and staleness metrics monitored?
-- Is the on-call rotation defined with escalation paths?
-- Are runbooks linked from every scaling alert?
-- Is capacity planning performed monthly with 6-month forward look?
-- Are load tests run nightly at peak simulation?
-- Are chaos tests run weekly in staging?
-- Is the system fault-tolerant across availability zones?
-- Are rate limits and circuit breakers configured for all dependencies?
-- Is cost tracked monthly with variance review; variances over 10% are incidents?
-- Is the system registered in the service catalog with capacity and scaling metadata?
-
-## 23. Logging Strategy
-
-- Logs must be structured JSON with stable schema; unstructured logs are forbidden.
-- Every log entry must include trace ID, span ID, and correlation ID.
-- Every log entry in a multi-tenant system must include the tenant ID.
-- Every log entry in a sharded system must include the shard ID.
-- PII must be redacted at the logging boundary.
-- Logs in hot paths must be sampled; INFO-level logging per request is forbidden.
-- Error logs must include stack trace, sanitized input context, and the failed operation.
-- Logs must be shipped to a central platform within seconds.
-- Every service must emit a startup log with version, config hash, instance ID.
-- Log retention must match compliance; indefinite retention is forbidden.
-
-## 24. Monitoring Strategy
-
-- Monitor SLOs (user-facing reliability), not just infrastructure metrics.
-- Define SLIs as good/total ratios; alert on error budget burn rate.
-- Use histograms, not averages; alert on p99 and p99.9.
-- Monitor shard distribution and hotspot shards; alert on uneven distribution.
-- Monitor cache hit rate and staleness; alert on hit rate drop or staleness spike.
-- Monitor queue depth and consumer lag; alert on backlog growth.
-- Monitor autoscaling events; alert on scale-out failures or scale-out storms.
-- Capacity metrics must be trended with predictive alerts; never run out of capacity.
-- Dependency health must be monitored with circuit breakers tripping on failure.
-- Monthly alert noise review must remove or refine noisy alerts.
-
-## 25. Error Handling
-
-- Errors must be classified: transient (retryable), permanent (caller error), systemic (operator action).
-- Retry logic must use exponential backoff with jitter.
-- Circuit breakers must protect every external dependency.
-- Timeouts must be configured for every external call.
-- Errors at boundaries must be translated to caller-appropriate types.
-- Idempotency keys must accompany every retryable write.
-- Bulkheads must isolate critical paths from non-critical.
-- Dead-letter queues must capture failed messages with full context.
-- Error responses must include a correlation ID; never expose stack traces.
-- Resource exhaustion errors must trigger scale-out or load shedding, not silent failure.
-
-## 26. Examples
-
-### 26.1 Sharding Scheme Design
-
-```text
-Datastore: billing-invoices (PostgreSQL)
-Workload: 10,000 invoices/sec writes, 50,000 reads/sec
-Single-node ceiling: ~3,000 writes/sec, ~30,000 reads/sec
-Required shards: ceil(10,000 / 3,000) = 4 shards (write headroom: 1.2x)
-
-Sharding key: tenant_id (high cardinality, all queries include tenant_id)
-Scheme: hash(tenant_id) mod 4 → shard index
-
-Distribution verification:
-  10M tenants, hash modulo 4 → distribution within 5% (verified by simulation)
-  Hotspot detection: max shard load < 1.2x average (alert at 1.5x)
-
-Rebalancing plan (trigger: max shard load > 1.5x average for 1 hour):
-  1. Provision shard-4, shard-5 (now 6 shards)
-  2. Double-write new invoices to old and new shard mapping
-  3. Backfill: copy existing invoices from old shards to new shards by hash
-  4. Cutover reads to new mapping
-  5. Decommission excess capacity on old shards
-
-Cross-shard queries: forbidden in hot paths
-  Admin queries (rare, cross-tenant) use a separate aggregator service
-  Aggregator queries shards in parallel; merges in memory
-```
-
-### 26.2 Multi-Tenancy Model
-
-```typescript
-// Row-level multi-tenancy with RLS for high tenant density
-// Schema: all tenants share tables; tenant_id column enforces isolation
-
-export class InvoiceRepository {
-  constructor(private readonly db: PgClient) {}
-
-  async findById(tenantId: TenantId, invoiceId: InvoiceId): Promise<Invoice | null> {
-    // RLS policy enforces tenant_id = current_setting('app.tenant_id')
-    // Application also passes tenant_id explicitly as defense-in-depth
-    await this.db.query("SET LOCAL app.tenant_id = $1", [tenantId]);
-    const result = await this.db.query(
-      "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2",
-      [invoiceId, tenantId],
-    );
-    return result[0] ?? null;
-  }
-
-  async listByTenant(tenantId: TenantId, limit: number, offset: number): Promise<Invoice[]> {
-    await this.db.query("SET LOCAL app.tenant_id = $1", [tenantId]);
-    return this.db.query(
-      "SELECT * FROM invoices WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
-      [tenantId, limit, offset],
-    );
-  }
+export default function () {
+  const res = http.get(`${BASE}/api/products?limit=20`, { tags: { route: "/api/products" } });
+  check(res, { "status is 200": (r) => r.status === 200 });
 }
-
-// RLS policy (PostgreSQL):
-// CREATE POLICY tenant_isolation ON invoices
-//   FOR ALL
-//   USING (tenant_id = current_setting('app.tenant_id')::uuid);
-// ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 ```
 
-### 26.3 Autoscaling Rule with Headroom
+Run with `k6 run -e BASE_URL=https://staging.example.com load/load.js`. A rising `dropped_iterations` count means the load generator ran out of VUs, so raise `maxVUs` or distribute the generator.
+
+KEDA ScaledObject scaling a worker Deployment on Kafka consumer lag, with HPA behavior tuned for slow scale-down. Replicas never exceed the partition count unless `allowIdleConsumers` is set:
 
 ```yaml
-# Kubernetes HPA for billing-api
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
 metadata:
-  name: billing-api-autoscale
+  name: invoice-worker
 spec:
   scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: billing-api
-  minReplicas: 6                    # Min for fault tolerance (3 AZ × 2)
-  maxReplicas: 60                   # Max for cost ceiling
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70    # Scale out before saturation (30% headroom)
-    - type: Resource
-      resource:
-        name: memory
-        target:
-          type: Utilization
-          averageUtilization: 70    # Scale out before saturation
-  behavior:
-    scaleUp:
-      stabilizationWindowSeconds: 30
-      policies:
-        - type: Percent
-          value: 100                # Aggressive scale-up: double replicas
-          periodSeconds: 30
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-        - type: Percent
-          value: 10                 # Slow scale-down: avoid flapping
-          periodSeconds: 60
+    name: invoice-worker
+  pollingInterval: 15
+  cooldownPeriod: 300
+  minReplicaCount: 2
+  maxReplicaCount: 24
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 25
+              periodSeconds: 60
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.messaging.svc:9092
+        consumerGroup: invoice-workers
+        topic: invoices
+        lagThreshold: "100"
 ```
 
-## 27. Common Mistakes
+Cache-aside with single-flight and jittered TTL (in-process coalescing; add a distributed lock only if the load on the origin from many instances is still too high):
 
-### 27.1 Single Primary Database for Write-Heavy Workloads
-**What**: Relying on a single primary database for write throughput.
-**Why**: Write throughput is capped by one node; the database becomes the scaling ceiling; vertical scaling has a hard limit.
-**How to avoid**: Shard the database by a high-cardinality key; use CQRS for asymmetric workloads; never rely on a single primary for write throughput above the single-node ceiling.
+```ts
+export interface Cache {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, ttlSeconds: number): Promise<void>;
+}
 
-### 27.2 Sticky Sessions as a Scaling Strategy
-**What**: Using sticky sessions to avoid externalizing state.
-**Why**: Sticky sessions break horizontal scaling; one server's load cannot be redistributed; server failure drops sessions.
-**How to avoid**: Externalize session state (Redis) or use stateless JWTs; never depend on sticky sessions for correctness.
+export class SingleFlightCache<T> {
+  private readonly inflight = new Map<string, Promise<T>>();
 
-### 27.3 Synchronous Cross-Service Calls in Request Path
-**What**: A user request traverses multiple services synchronously.
-**Why**: Latency compounds; availability multiplies (99% × 99% = 98%); the request path becomes a chain of failures.
-**How to avoid**: Use async events for cross-context communication; use materialized views for read paths; use BFFs to aggregate for the frontend.
+  constructor(
+    private readonly cache: Cache,
+    private readonly ttlSeconds: number,
+    private readonly jitterRatio = 0.1,
+  ) {}
 
-### 27.4 Unbounded Queues
-**What**: Building queues without bounds.
-**Why**: Unbounded queues grow until OOM; backpressure is lost; latency grows unbounded under load.
-**How to avoid**: Bounded queues with explicit overflow policy (drop, block, shed load); never build unbounded queues in production paths.
+  async get(key: string, load: () => Promise<T>): Promise<T> {
+    try {
+      const hit = await this.cache.get(key);
+      if (hit !== null) return JSON.parse(hit) as T;
+    } catch {
+      // cache outage: fall through to the origin instead of failing the request
+    }
+    const pending = this.inflight.get(key);
+    if (pending) return pending;
 
-### 27.5 Manual Scaling for Production Workloads
-**What**: Relying on human operators to scale services.
-**Why**: Manual scaling is slow; underprovisioning causes outages; overprovisioning wastes cost.
-**How to avoid**: Autoscaling rules defined in code (HPA, KEDA, ASG); reactive for safety, predictive for known peaks; headroom required.
+    const p = (async () => {
+      try {
+        const value = await load();
+        const jitter = 1 + (Math.random() * 2 - 1) * this.jitterRatio;
+        const ttl = Math.max(1, Math.round(this.ttlSeconds * jitter));
+        await this.cache.set(key, JSON.stringify(value), ttl).catch(() => undefined);
+        return value;
+      } finally {
+        this.inflight.delete(key);
+      }
+    })();
+    this.inflight.set(key, p);
+    return p;
+  }
+}
+```
 
-### 27.6 Cache Without Invalidation
-**What**: Adding a cache without an invalidation strategy.
-**Why**: Cached data drifts; users see stale data; debugging is painful.
-**How to avoid**: Define invalidation upfront (TTL, write-through, event-driven); never cache without a strategy.
+## 15. Common Mistakes
 
-## 28. Professional Workflow
+- **Optimizing by intuition**: changing code without a profile. Measure, then change one thing.
+- **Averages instead of percentiles**: a good mean hides a bad p99. Use histograms.
+- **Averaging percentiles across instances**: mathematically meaningless; merge histograms.
+- **Closed-model load tests only**: the generator slows down with the system (coordinated omission) and the test reports good latency during collapse.
+- **Load testing a different system**: tiny database, no indexes, warm caches only, or the generator on the same host.
+- **Scaling out a stateful or serialized bottleneck**: more app servers against one saturated database or lock only add contention.
+- **Unbounded retries**: retry storms multiply load on a struggling dependency. Use budgets, backoff and jitter.
+- **No timeout, or the same timeout at every layer**: callers time out before callees, leaving orphaned work. Shorten deeper timeouts.
+- **Cache with no invalidation story or stampede protection**: stale data and thundering herds on expiry.
+- **Caching personalized data under a shared key**: leaks one user's data to another.
+- **Autoscaling on CPU for an I/O-bound or queue-driven service**: it reacts late or never; scale on in-flight requests or lag.
+- **Sharding too early**: it removes joins and transactions for a problem that an index or a replica would have solved.
+- **Hot shard keys** (monotonic ids, tenant with 50% of traffic): spread writes with hashing or key salting and watch per-shard load.
+- **Ignoring pool sizes**: more app instances multiply database connections; use a pooler and cap per-instance pools.
+- **Premature micro-optimization** of code that is not on the critical path, at the cost of readability.
 
-1. Clarify the scaling target: current load, projected load (12 months), peak factor, growth rate.
-2. Identify the workload shape: read-heavy, write-heavy, mixed, bursty, sustained.
-3. Identify the scaling dimension: cloning (x), decomposition (y), partitioning (z).
-4. Eliminate single points of contention; every stateful component needs a scaling strategy.
-5. Choose the database scaling strategy: read replicas, sharding, federation, CQRS.
-6. Choose the sharding scheme: hash, range, geographic, directory, consistent hashing.
-7. Choose the caching topology and invalidation strategy.
-8. Choose the multi-tenancy model based on isolation and density.
-9. Define autoscaling rules with headroom; defend with measurements.
-10. Define the load test plan; identify the capacity ceiling.
-11. Define the chaos test plan; verify graceful degradation.
-12. Document the design as an ADR; conduct scalability review.
-13. Pair with implementation through the first iteration; calibrate the design against reality.
-14. Post-launch, monitor scaling metrics; verify autoscaling; iterate.
+## 16. References
 
-## 29. Response Style
-
-- Begin every scalability answer with the load target (current, projected, peak) and the workload shape.
-- Present the scaling dimension (x, y, z) and the rationale for each choice.
-- Quantify every claim: "shard count 4 → 6 increases write capacity 1.5x".
-- Use authoritative voice: "must", "must not", "always", "never".
-- Cite the law (Little, Amdahl, universal scalability) or pattern that drives the recommendation.
-- Surface scaling limits explicitly; never design without stating the ceiling.
-- When asked "will this scale?", demand the load target first; never answer without a target.
-- Close every response with the next concrete step (shard design, load test, autoscaling rule).
-
-## 30. Output Format
-
-- Use the Scaling Architecture document for system-level design; sections are mandatory.
-- Use ADRs for every scaling decision; the ADR template is non-negotiable.
-- Use sharding scheme tables (shard key, scheme, rebalance trigger, capacity).
-- Use load test reports with scenario, profile, pass criteria, capacity ceiling.
-- Quantify every claim: throughput, latency, shard count, headroom.
-- Use code sketches in TypeScript or YAML by default; switch languages only when demanded.
-- Use bullet lists for rules; numbered lists for sequential steps; tables for comparative data.
-- Cross-reference ADRs, sharding schemes, and capacity plans by ID.
-- Distinguish between principled rules (Little's Law) and context-dependent guidance.
-- End every response with a next-step checklist, each with owner and deadline.
-
----
+- [references/performance-optimization.md](references/performance-optimization.md): the former performance-optimization-expert skill: methodology, USE/RED analysis, profiling by runtime, flame graphs, common bottlenecks, concurrency and memory tuning, benchmarking pitfalls.
+- [references/load-testing.md](references/load-testing.md): workload models, k6 scenarios and thresholds, Locust and Gatling, test data, CI use, reading results, capacity from test results.
+- [references/data-scaling.md](references/data-scaling.md): caching layers and invalidation, database pooling, replicas, partitioning, sharding, queues and backpressure, CDN, rate limiting.
+- [references/autoscaling-capacity.md](references/autoscaling-capacity.md): capacity planning math, HPA and KEDA configuration, headroom, tail latency, hedging, cost and performance trade-offs.
+- Official docs: https://grafana.com/docs/k6/latest/ , https://docs.locust.io/ , https://docs.gatling.io/ , https://keda.sh/docs/ , https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/ , https://www.pgbouncer.org/config.html

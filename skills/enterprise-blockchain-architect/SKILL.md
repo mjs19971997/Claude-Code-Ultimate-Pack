@@ -1,728 +1,336 @@
 ---
 name: enterprise-blockchain-architect
-description: >
-  Designs permissioned consortium ledgers — Hyperledger Fabric, R3 Corda, Besu, Quorum, Avalanche Subnets — with PBFT/QBFT consensus, channel privacy, PKI identity, GDPR-compliant off-chain personal data, and Kubernetes multi-cloud operations.
-  
-  Use this skill when writing smart contracts, designing DeFi/DAO/NFT systems, or operating blockchain tooling such as Hardhat, Foundry, ethers.js, or Web3.js.
+description: >-
+  Designs permissioned and consortium blockchain systems with Hyperledger Fabric (channels, MSPs, private data collections, endorsement policies, Raft and SmartBFT ordering, chaincode in Go, Fabric Gateway clients) and Hyperledger Besu (QBFT, permissioning, Paladin privacy), including the choice between a database, a permissioned ledger and a public chain, consortium governance, PKI and HSM key management, tokenization of real-world assets (ERC-3643), oracles, interoperability and GDPR-compliant data handling. Absorbs the former hyperledger-fabric-expert skill. Use when deciding whether a blockchain is warranted, designing a multi-party network, writing Fabric chaincode or gateway clients, or planning governance and privacy. Not for Solidity contract coding (use solidity-expert), public-chain DeFi (use defi-expert), or general system architecture (use solution-architect).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# Enterprise Blockchain Architect
 
----
+This skill covers architecture for multi-party, permissioned ledgers: first deciding whether a blockchain is the right tool, then designing membership, identity, consensus, privacy, smart contracts, integration and operations for a consortium. It absorbs the former hyperledger-fabric-expert skill, whose detail lives in a dedicated Fabric reference, and adds Hyperledger Besu for EVM-compatible permissioned networks.
 
-## 1. Role
+> Verified against Hyperledger Fabric v3.1.5 (latest) and v2.5.16 (LTS), fabric-contract-api-go v2.2.4, fabric-gateway v1.13.0, Hyperledger Besu 26.10.2 (QBFT, Java 25+), Paladin privacy domains (Pente, Noto, Zeto) and ERC-3643 (Final) (2026-10).
 
-The Enterprise Blockchain Architect designs permissioned consortium ledgers for regulated industries — banking, supply chain, healthcare, trade finance, CBDCs. This role selects the platform (Hyperledger Fabric for general-purpose enterprise, R3 Corda for financial services, Hyperledger Besu/Quorum for EVM-compatible permissioned, Avalanche Subnets for permissioned EVM, Hyperledger Sawtooth for asset tracking, Hyperledger Indy for identity, Hyperledger Aries for verifiable credentials), the consensus protocol (PBFT, IBFT, QBFT, Raft, PoA, Tendermint), the privacy model (channels, private data collections, ZK proofs, secure enclaves), and the identity model (PKI, Fabric CA, X.509, DID, verifiable credentials).
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The architect never defaults to "blockchain for everything." They apply a strict evaluation framework: blockchain is justified only when (a) multiple parties share a ledger, (b) no single trusted third party exists or is acceptable, (c) the workflow needs shared source of truth, and (d) regulatory or contractual requirements demand tamper-evident logs. If any condition is false, the architect specifies a traditional distributed database (Postgres with logical replication, CockroachDB, Spanner).
+## 1. Scope
 
-The architect owns the consortium model — who runs nodes, who governs upgrades, who can read which channels, how disputes resolve, how members join, how bad actors evict. They design the legal wrapper (consortium agreement, IP terms, antitrust carve-outs, exit strategy) in partnership with counsel, and the technical governance (voting weights, upgrade thresholds, certificate authorities, key rotation) in partnership with the operations team.
+- Covered: blockchain suitability, permissioned versus public chains, consortium governance and membership, X.509 PKI and MSPs, HSM key management, privacy (channels, private data, off-chain storage, zero-knowledge), Hyperledger Fabric networks and chaincode, Hyperledger Besu networks, tokenization and real-world assets, oracles, cross-ledger interoperability, data protection (GDPR), and operations.
+- Not covered: Solidity language details (solidity-expert), EVM contract vulnerabilities and audits (smart-contract-security-expert), public Ethereum tooling (ethereum-expert, hardhat-expert, foundry-expert, ethersjs-expert), DeFi, DAO and NFT design (defi-expert, dao-expert, nft-expert), and Kubernetes manifests (kubernetes-expert).
+- This is engineering guidance. Legal structure, regulatory classification of tokens and data protection conclusions need counsel and, for personal data, the data protection officer.
 
-## 2. Mission
+## 2. Core Expertise
 
-Deliver consortium blockchain systems where every participant has clear legal and technical standing, every transaction reaches finality in seconds, every private datum lives off-chain with only hashes on-chain, every node is operable across multiple clouds, and every upgrade coordinates through documented consortium governance.
+| Area | Key facts |
+|---|---|
+| Fit test | A ledger is justified by several organizations writing shared state, no neutral operator all accept, and a need for independently verifiable history and shared rules. Otherwise a database with audit logs is simpler |
+| Fabric | Execute-order-validate architecture: peers endorse and execute chaincode, an ordering service sequences transactions, peers validate and commit. Channels partition ledgers; policies decide who endorses |
+| Fabric versions | v2.5.x is the LTS release (latest v2.5.16); v3.0 added SmartBFT Byzantine fault tolerant ordering and Ed25519 (channel capability `V3_0`); v3.1.x (latest v3.1.5) added chaincode read and write batching |
+| Fabric ordering | Raft (crash fault tolerant, 3 or 5 nodes) or SmartBFT (tolerates malicious nodes, at least 3f+1 = 4 nodes). BFT consenters are identified by enrollment certificate |
+| Fabric identity | MSP per organization, NodeOUs (`client`, `peer`, `admin`, `orderer`), Fabric CA with attributes, mutual TLS, PKCS#11 HSM support |
+| Fabric privacy | Channels for whole-ledger isolation; private data collections keep values on authorized peers and hashes on the channel; implicit per-organization collections; transient data for inputs |
+| Fabric clients | Fabric Gateway client APIs (Go, Node.js/TypeScript, Java). `fabric-sdk-node` is deprecated since Fabric v2.5 |
+| Besu | EVM-compatible client; QBFT proof of authority with immediate finality (minimum 4 validators, tolerate fewer than 1/3 faulty); Java 25+ for Besu 26.x |
+| Besu permissioning | Local node and account allowlists (not enforced network-wide); validator set via header votes or a validator contract; HSM-backed node keys through a security module plugin |
+| Besu privacy | Paladin (LF Decentralized Trust): Pente (private EVM groups), Noto (notary-backed tokens), Zeto (zero-knowledge tokens) |
+| Tokenization | ERC-3643 (T-REX, Final): permissioned security tokens with identity registry, compliance modules and agent controls such as freeze, forced transfer and recovery |
+| Data protection | No personal data on-chain; store salted commitments and pointers; keep records in deletable off-chain stores in the right jurisdiction |
+| Interoperability | Anchoring hashes, HTLCs, bridges with relay or light-client verification, SATP (IETF specification in progress, implemented by Hyperledger Cacti) |
 
-## 3. Core Expertise
+## 3. Workflow
 
-- Enterprise blockchain motivation: privacy of transaction content, permissioned membership, governance by known parties, regulatory compliance, no cryptocurrency token volatility, identity-known participants.
-- Permissioned vs permissionless: permissioned delivers known participants, faster finality, regulatory friendliness, no public MEV; permissionless delivers censorship resistance, public verifiability, larger network effects, token economics.
-- Platforms: Hyperledger Fabric (general-purpose enterprise, channels, chaincode in Go/Java/Node), R3 Corda (financial services, UTXO-style states, notary model), Hyperledger Besu (EVM-compatible permissioned, IBFT/QBFT), Quorum (EVM enterprise, Tessera privacy), Hyperledger Sawtooth (asset tracking, pluggable consensus), Avalanche Subnets (permissioned EVM), Polygon CDK (app-chains), Cosmos SDK (app-chains), Polygon Edge, Hyperledger Indy (identity), Hyperledger Aries (verifiable credentials).
-- Architecture decisions: private blockchain vs shared ledger vs public chain with privacy via ZK; consortium model (who runs nodes, who governs, who can read); data model (account-based vs UTXO); consensus (PBFT, Raft, IBFT, QBFT, PoA, Tendermint).
-- Governance: consortium agreements, on-chain governance via voting, off-chain via legal agreements, upgrade coordination, dispute resolution, exit strategies, member admission, bad-actor eviction.
-- Privacy patterns: channels in Fabric for isolation, private data collections in Fabric, ZK proofs for public chains with privacy, secure multi-party computation, SGX enclaves, Pedersen commitments, Mimblewimble-style confidential transactions.
-- Identity: PKI for permissioned, Fabric CA, Corda identity, X.509 certificates, W3C DID, verifiable credentials, identity federations across consortium members.
-- Integration: off-chain data via oracles for public chains, direct integration with enterprise systems for permissioned, REST/gRPC APIs, event sourcing with blockchain as event log, enterprise service bus integration, message queue integration, outbox pattern for database synchronization.
-- Data privacy regulations: GDPR right-to-erasure conflicts with immutability — store personal data off-chain and only hashes on-chain; data residency with regional nodes; data classification (public on-chain, private off-chain); cryptographic erasure via key destruction.
-- Performance: permissioned chains reach 1000s–10000s TPS with optimized consensus; Fabric with batch ordering; BFT consensus with PBFT variants; off-chain processing with on-chain settlement; sharding; partitioning by channel or subnet.
-- Scalability: channel partitioning in Fabric, subnet partitioning in Avalanche, sidechains in Cosmos, layer 2 with rollups for EVM-compatible permissioned, off-chain computation with on-chain verification.
-- Consensus selection: Raft for crash fault tolerance (CFT); IBFT/QBFT/Tendermint for byzantine fault tolerance (BFT — recommended for consortium where some participants may be malicious); PoA for trusted validator sets; PoS for permissionless-like economics.
-- Deployment: Kubernetes for production, multi-cloud for consortium with members in different clouds, bare metal for performance, hybrid cloud plus on-prem for regulated industries.
-- Operations: node monitoring, certificate lifecycle, key rotation, backup and recovery, ledger pruning, software upgrades with consortium coordination, incident response, disaster recovery across consortium members.
-- Security: mutual TLS for all node communication, HSM for key storage, multi-sig for admin operations, audit logging for all admin actions, network isolation with private subnets, DDoS protection, regular security audits.
-- Integration with traditional systems: ERP via REST/gRPC, SaaS via APIs, legacy mainframe via queues, real-time data sync, batch reconciliation.
-- Use cases: supply chain traceability with Fabric, trade finance with Corda, healthcare records with permissioned chain, tokenized assets on permissioned EVM, central bank digital currency (CBDC) on permissioned chain, interbank settlement with Corda.
-- Regulatory compliance: KYC/AML integration, transaction reporting, audit trails for regulators, data residency, regulatory sandboxes, compliance-as-a-service.
-- Consortium formation: legal agreements, technical governance, operational governance, intellectual property, antitrust considerations, exit strategies.
-- Evaluation framework: when to use blockchain vs traditional database — multi-party, shared source of truth, no trusted third party, regulatory requirement; if any is false, use a database.
+1. Qualify the use case: who writes, who reads, who is trusted, what must be provable later. Apply the fit test (section 4). Decide among a database, a shared service, a permissioned ledger and a public chain.
+2. Define the consortium: members, roles (validators or orderers, peers, observers, regulators), legal structure, decision rights and exit rules. See [references/governance-identity-privacy.md](references/governance-identity-privacy.md).
+3. Classify data: public, consortium-wide, bilateral, single-member confidential, personal. Choose the privacy mechanism per class.
+4. Choose the platform: Fabric when channel-level partitioning and organization-level endorsement policies matter; Besu when EVM compatibility and Ethereum tooling matter. Pick consensus and node topology with failure domains and trust assumptions in mind.
+5. Design identity and keys: CA hierarchy, MSPs or allowlists, HSM placement, certificate lifecycle, user-to-ledger identity mapping.
+6. Design the on-chain model: minimal state, ownership and access rules, endorsement policies, events, upgrade path. Keep business data off-chain where possible.
+7. Design integration: API layer, event stream to an off-chain read replica, oracle inputs, bridges. See [references/interoperability-oracles.md](references/interoperability-oracles.md).
+8. Build on a local network, test with multiple organizations and failure injection, then run a pilot with real participants before production.
+9. Operate: monitoring, backup and recovery, upgrades, certificate rotation, membership changes, incident runbooks, regular governance reviews.
 
-## 4. Responsibilities
+## 4. Decision Rules
 
-- Run the blockchain evaluation framework before any platform recommendation; document the decision in an Architecture Decision Record.
-- Select the platform based on use case: Fabric for general enterprise with channel privacy, Corda for financial UTXO workflows, Besu/Quorum for EVM permissioned, Avalanche Subnets for EVM with high throughput, Indy/Aries for identity.
-- Select consensus based on trust model: BFT (QBFT/IBFT/Tendermint) for consortium where members may be adversarial; CFT (Raft) for trusted-operator internal deployments.
-- Design the consortium: membership policy, admission process, eviction process, voting weights, upgrade thresholds, dispute resolution body.
-- Design the privacy model: channel topology in Fabric, private data collections, off-chain personal data with on-chain hashes, ZK proofs for confidential transactions.
-- Design the identity model: PKI hierarchy, certificate authorities (Fabric CA, Corda doorman, Besu permissioning), key rotation policy, HSM requirements.
-- Design the integration model: REST/gRPC APIs for enterprise systems, event sourcing for downstream databases, outbox pattern for transactional consistency.
-- Design the deployment topology: Kubernetes, multi-cloud, regional nodes for data residency, disaster recovery across members.
-- Document consortium governance in a charter — legal wrapper, technical governance, operational governance, exit strategy.
-- Coordinate upgrades across members: version compatibility windows, rolling upgrade plan, rollback procedures.
-- Establish monitoring and incident response: on-call rotation across members, runbooks for common incidents, post-mortem publication.
-- Establish regulatory compliance: KYC/AML integration points, regulator read nodes, audit trail exports.
-- Audit the system annually: smart contract audit, network audit, key management audit, governance audit.
+- Use a database when one party controls the data, when a trusted operator is acceptable, or when records must be erasable or heavily queried. Use a permissioned ledger when several mutually distrusting organizations share writes and rules, and no neutral operator is feasible.
+- Use a public chain when open participation, censorship resistance or an existing asset ecosystem is the point; add a privacy layer or off-chain data for confidential parts.
+- Choose Fabric for data partitioning by channel, private data collections, per-organization endorsement and a modular architecture. Choose Besu for Solidity/EVM tooling, token standards, and the option to share contracts with public chains.
+- Fabric version: v3.1.x for BFT ordering or new performance features, v2.5.x for long-term-support stability. Raft ordering is enough when ordering organizations are mutually trusted not to be malicious.
+- Ordering and validators: put them in different organizations so no single member can halt the network or collude alone (Raft: majority of nodes; BFT and QBFT: fewer than one third faulty).
+- Privacy ladder: separate channel or network, then private data collection, then off-chain data with a hash on-chain, then cryptographic privacy (Paladin, zero-knowledge) only where the simpler options fail.
+- Never put personal data on-chain. Put a random identifier and a salted or keyed commitment on-chain; keep the record off-chain.
+- Prefer a few well-governed channels over many ad hoc ones; prefer private data collections when only some channel members need some values.
+- Endorsement policies reflect the business trust model (for example both counterparties must endorse a bilateral trade), not convenience.
+- Use HSM-backed keys for CAs, orderers or validators, and administrative signing; use multi-party approval for upgrades and token administration.
+- Keep contracts small and boring: validation, ownership and state transitions on-chain; computation, search and reporting off-chain.
 
-## 5. Thinking Process
+## 5. Coding Standards
 
-1. Run the evaluation framework: is the workflow multi-party, shared-source-of-truth, no-trusted-third-party, regulatory-driven? If any is false, recommend a database and exit.
-2. Identify the participants: who runs nodes, who governs, who reads, who writes, who audits. Map each participant to legal entities.
-3. Identify the privacy requirements: which data is shared, which is bilateral, which is private. Map each data field to a privacy tier.
-4. Identify the regulatory requirements: GDPR, data residency, audit trail, regulator access. Map each regulation to a control.
-5. Identify the performance requirements: TPS, finality latency, throughput. Map each requirement to a consensus protocol.
-6. Identify the integration points: ERP, SaaS, mainframe, data warehouse. Map each integration to an API style.
-7. Identify the consortium governance: admission, eviction, upgrade thresholds, dispute resolution. Map each governance decision to a legal clause and a technical control.
-8. Identify the deployment topology: cloud providers, regions, on-prem, hybrid. Map each member to a topology node.
+- Chaincode and contracts are deterministic: no wall-clock time (use the transaction timestamp), no randomness, no external calls, no unordered iteration affecting writes.
+- Validate every argument (format, length, range); reject unknown values; use typed errors with stable, non-sensitive messages.
+- Authorize by caller identity from the platform (`GetClientIdentity` in Fabric, `msg.sender` in EVM contracts), never from a value passed in as an argument.
+- Store minimal data in a stable JSON schema (explicit field names, version field when evolution is expected); use composite keys for secondary access in Fabric.
+- Use pagination for list operations and cap page size; avoid unbounded iteration in a transaction.
+- Do not keep running totals or counters on one key if many transactions update it; shard them or compute off-chain (MVCC conflicts in Fabric).
+- Emit events for business facts and consume them off-chain; never include private or personal data in events.
+- Version chaincode and contracts explicitly; document the upgrade procedure and compatibility with stored state.
+- Client code shares one gRPC connection per peer endpoint, sets deadlines for every phase, and makes submissions idempotent.
 
-## 6. Decision Making Rules
-
-- When blockchain and a traditional database conflict, choose a database unless all four evaluation criteria hold, because blockchain without multi-party trust is a slow database with extra operations cost.
-- When Fabric and Corda conflict, choose Fabric for general enterprise workflows with multiple asset types and choose Corda for financial UTXO workflows with bilateral privacy, because Fabric's channels scale multi-party and Corda's notary model scales point-to-point financial settlement.
-- When BFT (QBFT/IBFT) and CFT (Raft) conflict, choose BFT whenever the consortium has any member that may be adversarial or compromised, because CFT assumes all operators are honest and a single malicious leader can rewrite history.
-- When channels and private data collections conflict, choose channels for static membership groups and private data collections for dynamic point-to-point privacy, because channels are expensive to create and private data collections compose better.
-- When on-chain personal data and off-chain personal data conflict, choose off-chain personal data with on-chain hashes, because GDPR right-to-erasure conflicts with immutability and cryptographic erasure is not universally accepted by regulators.
-- When multi-cloud and single-cloud conflict, choose multi-cloud for consortium where members operate in different clouds, because single-cloud lock-in creates a trust failure (one member controls the infrastructure).
-- When Kubernetes and bare metal conflict, choose Kubernetes for operability and choose bare metal only for latency-critical workloads proven to need it, because bare metal multiplies operations cost across members.
-- When public chain with ZK privacy and permissioned chain conflict, choose permissioned chain whenever participants are known and regulated, because public chains add gas cost, MEV exposure, and a public attack surface that permissioned chains avoid.
-
-## 7. Architecture Rules
-
-- Layer the system: enterprise apps → integration API → gateway node → peer/validator nodes → consensus layer → storage layer. Each layer is independently scalable and observable.
-- Isolate private data: personal data lives off-chain in member-controlled databases; only commitments (hashes) and metadata live on-chain.
-- Partition by channel (Fabric) or subnet (Avalanche) for privacy and scaling; never put all participants in one channel unless all data is public to all members.
-- Use BFT consensus (QBFT/IBFT/Tendermint) for any consortium with >3 members where members may be adversarial; use Raft only for trusted-operator internal deployments.
-- Use mutual TLS for every node-to-node connection; never expose RPC ports to the public internet.
-- Use HSMs (or cloud KMS) for all signing keys; never store private keys on disk in plaintext.
-- Design the consortium with a written charter: membership, governance, upgrade thresholds, dispute resolution, exit strategy. The technical system enforces the charter; the charter constrains the technical system.
-- Plan for upgrade coordination: version compatibility windows, rolling upgrades, rollback. Never roll an upgrade that breaks backward compatibility with running nodes.
-
-## 8. Coding Standards
-
-- Smart contracts (chaincode in Fabric, contracts in Corda, smart contracts in Besu) follow the same standards as public smart contracts: explicit access control, events for state mutations, custom errors, gas/bytecode-conscious code.
-- Use the official SDK for the platform: Fabric SDK Node/Go/Java, Corda RPC, Besu Web3j/Ethers.js. Never hand-roll protocol clients.
-- Pin platform versions exactly: Fabric 2.5.x, Corda 5.x, Besu 24.x. Never deploy `latest`.
-- Define data models in a schema-first way: Protobuf for Fabric chaincode payloads, Avro for event schemas, JSON Schema for REST APIs.
-- Write chaincode in Go for Fabric (best tooling), Kotlin for Corda, Solidity for Besu; never mix languages within a single consortium deployment unless governance mandates.
-- Use deterministic data structures: never use Go `map` iteration order (sort first), never use floating point, never use `time.Now()` in chaincode (use the proposed block timestamp).
-- Define an event schema for every state mutation; downstream systems consume events, not state.
-- Use connection pools for off-chain databases; never open a new connection per transaction.
-- Validate every input in chaincode; reject malformed payloads with structured errors.
-- Document every contract method with parameter types, return types, error codes, and example payloads.
-
-## 9. Naming Conventions
-
-- Channels (Fabric): lowercase, hyphenated, prefixed by use case — `trade-finance-net`, `supply-chain-net`.
-- Chaincode: PascalCase — `AssetTransfer`, `TradeFinanceContract`.
-- Networks/subnets: lowercase, hyphenated, prefixed by consortium — `consortium-banking-net`.
-- Nodes: lowercase, hyphenated, role-prefixed — `peer0-org1`, `orderer0-orderer`, `validator1`.
-- Organizations/MSPs: PascalCase, suffix `MSP` — `Org1MSP`, `BankAMSP`.
-- Certificates: CN format `node.organization.consistentcy-model` — `peer0.org1.example.com`.
-- Topics (Kafka event bus): lowercase, dot-separated — `consortium.trade-finance.transfer.created`.
-- APIs: REST paths are lowercase, hyphenated, plural nouns — `/api/v1/assets`, `/api/v1/transfers`.
-- Database tables: snake_case, singular — `asset`, `transfer_event`.
-- Configuration files: lowercase, dot-prefixed by environment — `dev.config.yaml`, `prod.config.yaml`.
-- Helm charts: lowercase, hyphenated, matching the service name — `fabric-peer`, `corda-node`.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-consortium-platform/
-├── network/                          # network topology definitions
-│   ├── fabric/
-│   │   ├── configtx.yaml             # channel config
-│   │   ├── crypto-config.yaml        # MSP definitions
-│   │   └── docker-compose-net.yaml   # local dev network
-│   ├── corda/
-│   │   ├── network-params.conf
-│   │   └── node.conf
-│   └── besu/
-│       ├── genesis.json              # IBFT genesis
-│       └── permissioning.toml
-├── chaincode/contracts/              # smart contracts
-│   ├── fabric-asset-transfer/        # Go chaincode
-│   │   ├── main.go
-│   │   ├── asset.go
-│   │   └── go.mod
-│   ├── corda-trade-finance/          # Kotlin contracts
-│   │   └── src/main/kotlin/...
-│   └── besu-permissioning/           # Solidity contracts
-│       └── src/main/solidity/...
-├── apps/                             # client applications
-│   ├── rest-api/                     # gateway REST API
-│   ├── erp-adapter/                  # ERP integration
-│   └── regulator-portal/
-├── infra/                            # infrastructure
-│   ├── helm/
-│   │   ├── fabric-peer/
-│   │   ├── fabric-orderer/
-│   │   └── corda-node/
-│   ├── terraform/
-│   │   ├── aws/
-│   │   ├── azure/
-│   │   └── gcp/
-│   └── k8s/
-│       └── production/
-├── docs/
-│   ├── consortium-charter.md
-│   ├── architecture.md
-│   ├── adr/                          # Architecture Decision Records
-│   └── operations-runbook.md
-└── test/
-    ├── chaincode/
-    ├── integration/
-    └── performance/
-```
-
-## 11. Project Structure
-
-```
-consortium-platform/
+.
 ├── network/
 │   ├── fabric/
-│   │   ├── configtx.yaml
-│   │   ├── crypto-config.yaml
-│   │   └── docker-compose-net.yaml
-│   ├── corda/
-│   │   ├── network-params.conf
-│   │   └── node.conf
+│   │   ├── configtx.yaml            # channel profiles, capabilities, policies, consenters
+│   │   ├── crypto-config/           # generated per environment; never committed
+│   │   ├── collections_config.json  # private data collections
+│   │   └── compose-or-k8s/          # peer, orderer, CA, CouchDB deployment
 │   └── besu/
-│       ├── genesis.json
-│       └── permissioning.toml
+│       ├── genesis.json             # QBFT genesis (generated extraData)
+│       ├── permissions_config.toml  # node and account allowlists
+│       └── config.toml              # node options
 ├── chaincode/
-│   ├── fabric-asset-transfer/
-│   │   ├── main.go
-│   │   ├── asset.go
-│   │   ├── asset_test.go
-│   │   └── go.mod
-│   ├── corda-trade-finance/
-│   │   ├── src/main/kotlin/com/consortium/trade/
-│   │   ├── src/test/kotlin/...
-│   │   └── build.gradle.kts
-│   └── besu-permissioning/
-│       ├── src/main/solidity/
-│       ├── src/test/...
-│       └── foundry.toml
-├── apps/
-│   ├── rest-api/
-│   │   ├── src/
-│   │   │   ├── routes/
-│   │   │   ├── services/
-│   │   │   └── events/
-│   │   ├── package.json
-│   │   └── tsconfig.json
-│   ├── erp-adapter/
-│   └── regulator-portal/
-├── infra/
-│   ├── helm/
-│   │   ├── fabric-peer/
-│   │   │   ├── Chart.yaml
-│   │   │   └── values.yaml
-│   │   ├── fabric-orderer/
-│   │   └── corda-node/
-│   ├── terraform/
-│   │   ├── aws/
-│   │   ├── azure/
-│   │   └── gcp/
-│   └── k8s/
-│       └── production/
-├── docs/
-│   ├── consortium-charter.md
-│   ├── architecture.md
-│   ├── adr/
-│   │   ├── 001-blockchain-vs-database.md
-│   │   ├── 002-platform-selection.md
-│   │   └── 003-consensus-selection.md
-│   └── operations-runbook.md
-├── test/
-│   ├── chaincode/
-│   ├── integration/
-│   └── performance/
-├── scripts/
-│   ├── bootstrap-network.sh
-│   ├── deploy-chaincode.sh
-│   └── rotate-certs.sh
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── release.yml
-├── Makefile
-└── README.md
+│   └── asset/                       # go.mod, contract, tests, META-INF/statedb/couchdb/indexes/
+├── contracts/                       # EVM contracts for Besu (Solidity project)
+├── gateway/                         # API service using Fabric Gateway or ethers
+├── indexer/                         # event consumer building the off-chain read model
+├── governance/
+│   ├── consortium-agreement.md      # roles, decision rights, exit, cost sharing (reviewed by counsel)
+│   ├── runbooks/                    # key rotation, member onboarding, incident response
+│   └── data-map.md                  # what is on-chain, off-chain, where, and why
+└── docs/architecture.md
 ```
 
-## 12. Design Patterns
+## 7. Design Patterns
 
-- **Channel partitioning** (Fabric): When to use: subgroups of members transact privately. When not to use: all members see all data. Sketch: define channels in `configtx.yaml`, deploy chaincode per channel, peers join only their channels.
-- **Private data collections** (Fabric): When to use: bilateral or point-to-point privacy within a channel. When not to use: data all channel members should see. Sketch: define collection in `collections_config.json`, chaincode uses `GetPrivateData`/`PutPrivateData`.
-- **Off-chain personal data with on-chain hash**: When to use: GDPR-affected data. When not to use: public transaction data. Sketch: store personal data in member DB, store `keccak256(data)` on-chain, verify off-chain via Merkle proof.
-- **Bilateral notary** (Corda): When to use: financial UTXO workflows. When not to use: multi-party shared state. Sketch: state consumption requires notary signature; notary tracks consumed states.
-- **Outbox pattern**: When to use: synchronizing off-chain DB with on-chain events. When not to use: trivial integrations. Sketch: write event to outbox table in same DB transaction as business state, separate process reads outbox and publishes to event bus.
-- **Regulator read node**: When to use: regulated industries requiring audit access. When not to use: purely private consortium. Sketch: deploy read-only node for regulator, grant access to specific channels only.
-- **Multi-sig admin operations**: When to use: any privileged operation (upgrade, admission, eviction). When not to use: individual user operations. Sketch: require N-of-M signatures from consortium admin multi-sig before any policy change.
+- **Hash-and-pointer**: personal or bulky data stored off-chain; the ledger holds a salted commitment, a location pointer, status and non-personal facts. See the example in section 14.
+- **Channel per relationship group, collection per sensitive value**: coarse isolation with channels, fine-grained with private data collections.
+- **Key-level (state-based) endorsement**: the owner's organization must endorse changes to its assets, in addition to chaincode-level policy.
+- **Attribute-based access control**: certificate attributes (for example `role=issuer`) checked in chaincode.
+- **Event-sourced read model**: block or chaincode events feed an off-chain database with checkpoints and idempotent writes.
+- **Outbox for submissions**: business change and ledger intent are written in one database transaction; a worker submits to the ledger idempotently.
+- **Signed oracle report**: external data enters as a signed message verified against a governed key, with freshness and replay checks.
+- **Governed upgrades**: chaincode lifecycle approvals (Fabric) or multisig plus timelock on proxies (EVM).
+- **Notary or auditor role** for regulated tokens: designed in from the start (Noto in Paladin, auditor in token frameworks, agent roles in ERC-3643).
+- **Chaincode as a service** on Kubernetes for control over runtime and scaling.
+- Platform specifics: [references/hyperledger-fabric.md](references/hyperledger-fabric.md), [references/besu-and-evm-permissioned.md](references/besu-and-evm-permissioned.md).
 
-## 13. Best Practices
+## 8. Best Practices
 
-- Run the blockchain evaluation framework before platform selection; document in an ADR.
-- Use BFT consensus (QBFT/IBFT/Tendermint) for any consortium with potentially adversarial members.
-- Use mutual TLS for every node-to-node and client-to-node connection.
-- Store signing keys in HSMs; rotate annually; document rotation in runbook.
-- Store personal data off-chain; store only commitments on-chain.
-- Partition by channel or subnet for privacy and scaling.
-- Use Kubernetes with Helm charts for reproducible multi-cloud deployments.
-- Coordinate upgrades across members with documented compatibility windows.
-- Deploy at least 3 nodes per member for BFT resilience.
-- Maintain a written consortium charter covering admission, eviction, upgrade thresholds, and exit.
-- Run an annual external security audit; remediate findings before re-deployment.
-- Provide regulator read nodes or audit trail exports for regulated industries.
-- Maintain disaster recovery across at least two members' data centers.
+- Start from the business transaction and trust model, then derive the network; do not start from the technology.
+- Agree governance and the data map before writing code. Technical policy should implement the legal agreement.
+- Run a pilot with at least three organizations and a failure scenario (node down, member offboarded, key rotated) before scaling.
+- Keep the on-chain footprint small; every byte is replicated to every member and kept for the life of the network.
+- Provide each member a test environment that mirrors production topology and policies.
+- Automate onboarding: CA enrollment, node deployment, channel join or validator vote, with checklists and audit logs.
+- Keep infrastructure as code, version genesis and channel configuration, and review configuration changes like code.
+- Plan for exit and archival: how a member leaves, how records are exported, how the network is wound down.
+- Treat the ledger as one component: API gateway, identity provider, document store, monitoring and backup are part of the system.
 
-## 14. Anti Patterns
+## 9. Performance
 
-- **Blockchain for a single-party workflow**: Why wrong: no shared source of truth means blockchain is a slow database. Correct alternative: use Postgres or CockroachDB with audit triggers.
-- **Storing personal data on-chain**: Why wrong: GDPR right-to-erasure conflicts with immutability; cryptographic erasure is not universally accepted. Correct alternative: store personal data off-chain, store only `keccak256(data)` on-chain.
-- **Raft consensus for a multi-bank consortium**: Why wrong: Raft is CFT only; a single malicious leader can rewrite history. Correct alternative: use QBFT/IBFT (BFT) for any consortium with potentially adversarial members.
-- **Single-cloud consortium deployment**: Why wrong: one member controls the infrastructure, breaking the trust model. Correct alternative: each member deploys in their own cloud; interconnect via private peering or VPN.
-- **Smart contracts without access control**: Why wrong: any member can invoke any function. Correct alternative: explicit role-based access control (RBAC) in every contract function, enforced via certificate attributes.
-- **Skipping the consortium charter**: Why wrong: disputes have no resolution path; upgrades stall; members leave without coordination. Correct alternative: draft the charter before deployment; have counsel review; sign before joining.
-- **Hardcoding certificate fingerprints in code**: Why wrong: rotation requires code changes. Correct alternative: store certificates in configuration; rotate without redeployment.
+- Fabric throughput is limited by endorsement (chaincode execution and signatures), ordering batch settings, validation and the state database. Tune batch size and timeout, keep endorsement policies as small as the trust model allows, and add endorsing peers per organization.
+- Avoid hot keys: concurrent updates to one key cause MVCC read conflicts and retries. Use UTXO-like models, key sharding or off-chain aggregation.
+- Fabric v3.1 chaincode batching (`StartWriteBatch`, `GetMultipleStates`) reduces peer-chaincode round trips for many-key transactions; it needs peer configuration and a recent `fabric-chaincode-go`.
+- CouchDB rich queries need indexes and pagination; keep range queries bounded.
+- Besu block time (`blockperiodseconds`) and request timeout set latency and stability; validators need low-latency links. Raise the block gas limit rather than raising the per-block time when many small transactions arrive.
+- Use an off-chain read replica for queries and dashboards instead of reading the chain for every request.
+- Measure with realistic endorsement policies and multiple organizations; single-organization benchmarks overstate throughput.
+- Use the scalability-expert skill for load-test method and capacity planning.
 
-## 15. Performance Rules
+## 10. Security
 
-- Use BFT consensus with 4–7 validators; larger validator sets slow finality.
-- Use batch ordering (Fabric) or batch block proposal (Besu) to amortize consensus overhead.
-- Keep chaincode execution under 100ms per transaction; offload heavy computation off-chain.
-- Avoid `for` loops over unbounded arrays in chaincode; cap iterations.
-- Use private data collections to avoid broadcasting large payloads to all peers.
-- Cache read-heavy state in memory on the client side; refresh on every block.
-- Use SSD storage for ledger state; HDDs bottleneck at 100 TPS.
-- Size peer nodes for 2x peak TPS; monitor CPU and memory headroom.
+- Protect the root of trust: offline root CAs in HSMs, intermediate CAs per organization, short-lived leaf certificates where supported, and tested CA key rollover.
+- Keep orderer, validator and admin private keys in HSMs or KMS; applications sign through a signing service or an HSM-backed signer. No private keys in repositories, images, logs or CI output.
+- Mutual TLS between all network components; private connectivity between members; no public peer, orderer, validator, database or admin endpoints.
+- Least privilege: separate admin, deployer and application identities; multi-party approval for upgrades, validator changes and token administration.
+- Chaincode and contract authorization on every state-changing function, with owner checks, role attributes and tenant boundaries on both reads and writes.
+- Data protection by design: no personal data in state, events, transaction arguments, certificates or logs; transient data for private inputs.
+- Monitor for certificate expiry, unexpected membership or policy changes, endorsement failures and unusual signing volume.
+- Audit smart contracts independently, test upgrades on a copy of production state, and rehearse emergency procedures (pause, key rotation, member removal).
+- Do not rely on Besu local permissioning for network-wide enforcement; combine validator set control, network controls and contract-level authorization.
 
-## 16. Security Rules
+## 11. Testing
 
-- Use mutual TLS for every node-to-node and client-to-node connection; never expose RPC ports to the public internet.
-- Store all signing keys in HSMs or cloud KMS; never on disk in plaintext.
-- Use multi-sig for every privileged operation (upgrade, admission, eviction, key rotation).
-- Audit-log every admin action; ship logs to an immutable store.
-- Isolate blockchain nodes in private subnets; expose only through API gateways.
-- Apply DDoS protection at the network edge (Cloudflare, AWS Shield).
-- Run annual external security audits; remediate findings before re-deployment.
-- Rotate signing keys annually; document rotation in the runbook.
-- Validate every chaincode input; reject malformed payloads with structured errors.
-- Never deploy unaudited chaincode handling value transfer.
+- Unit-test chaincode against a mocked stub and client identity (counterfeiter mocks as in the Fabric samples), including authorization failures and invalid arguments.
+- Integration-test on a local multi-organization network (`fabric-samples/test-network`, or a local Besu QBFT network with four validators), including endorsement policy failures and private data access.
+- Determinism test: run the same transaction on several endorsers and verify identical results.
+- Upgrade test: install a new chaincode version, run the lifecycle approvals, and verify existing state is readable.
+- Failure injection: stop an orderer or validator, partition a network segment, expire a certificate, replay a transaction, submit conflicting updates.
+- Performance test with the real endorsement policy, realistic keys and data volume; measure MVCC conflict rate.
+- Data protection test: confirm that logs, events and state contain no personal data fields.
+- Contract tests (EVM): unit, fuzz and invariant tests, fork tests where relevant, and an external audit before production (foundry-expert, smart-contract-security-expert).
 
-## 17. Testing Strategy
+## 12. Review Checklist
 
-- Unit-test every chaincode function: positive, negative, access control, edge cases.
-- Integration-test the full transaction flow: client → gateway → peer → orderer → commit → event.
-- Performance-test at 2x expected peak TPS for 1 hour; verify finality latency under load.
-- Chaos-test: kill a peer mid-transaction; verify the network continues and recovers.
-- Upgrade-test: deploy v1, run transactions, upgrade to v2, verify state preserved and backward compatibility.
-- Cross-member test: simulate a transaction between two members in different clouds; verify privacy and finality.
-- Regulatory test: simulate a regulator audit; verify the regulator can read required data without accessing private collections.
-- Disaster recovery test: kill an entire member's datacenter; verify the network continues; verify the member rejoins.
-- Use Fabric Network Playground or Besu Quickstart for local development; mirror production in staging.
-- Automate tests in CI; require green build before any chaincode deployment.
+- [ ] The decision record explains why a ledger is needed and why not a database or public chain.
+- [ ] Consortium agreement covers membership, decision rights, liability, data protection roles, exit and costs.
+- [ ] Orderers or validators are spread across organizations and meet the fault-tolerance threshold.
+- [ ] Endorsement policies match the trust model; key-level policies exist where ownership matters.
+- [ ] No personal data on-chain; commitments are salted; erasure path exists off-chain.
+- [ ] CA hierarchy, HSM usage, certificate expiry monitoring and revocation procedures are documented and tested.
+- [ ] Chaincode or contracts are deterministic, validated, authorized and tested, with an upgrade procedure.
+- [ ] Clients use deadlines, idempotent submissions and checkpointed event consumption.
+- [ ] Oracle inputs are signed, fresh, replay-protected and governed.
+- [ ] Backup, disaster recovery, upgrade and incident runbooks exist and have been rehearsed.
+- [ ] Network exposure is private; mutual TLS is on; admin interfaces are restricted.
 
-## 18. Documentation Standards
+## 13. Production Notes
 
-- Maintain an Architecture Decision Record (ADR) for every major decision: platform, consensus, privacy model, identity model.
-- Maintain a consortium charter signed by all members before joining.
-- Maintain an operations runbook covering: deployment, upgrade, key rotation, incident response, disaster recovery.
-- Document every chaincode function with parameter types, return types, error codes, and example payloads.
-- Document every API endpoint with OpenAPI 3.1 specs.
-- Document every event schema with Avro or Protobuf; publish to a schema registry.
-- Document the certificate hierarchy and rotation schedule.
-- Maintain a network topology diagram showing every node, channel, and connection.
+- Fabric upgrades: orderers first, then peers, one at a time; enable new channel capabilities only after every node supports them (they cannot be rolled back). Read the release notes and upgrade guide for the exact versions.
+- Fabric sizing: at least two peers per organization per channel, 3 or 5 Raft orderers or at least 4 BFT orderers across organizations, CouchDB with indexes and persistent volumes, ledger snapshots for fast peer rebuilds.
+- Chaincode as a service with mutual TLS suits Kubernetes; align the chaincode runtime Go version with `go.mod` (current fabric-contract-api-go requires a recent Go toolchain).
+- Observability: Prometheus metrics from peers, orderers and Besu nodes; alert on height divergence, commit latency, validator participation, certificate expiry, pending transactions and replica lag.
+- Besu: never drop below four healthy validators; keep fewer than one third offline; take regular database backups; treat genesis changes as a coordinated network upgrade via transitions.
+- Membership changes are governance events: record approvals, apply the technical change (channel update, validator vote), and verify.
+- Key events (rotation, compromise, HSM migration) need rehearsed procedures and consortium-wide communication.
+- Keep a data map and a record of processing for regulators; review it when the data model changes.
+- Plan multi-year support: contract upgrades, cryptographic algorithm changes, retention of archived blocks and CA records.
 
-## 19. Code Review Checklist
+## 14. Examples
 
-- [ ] Evaluation framework run and documented in an ADR.
-- [ ] Platform version pinned; no `latest` tags.
-- [ ] BFT consensus used for multi-party consortiums.
-- [ ] Mutual TLS on every connection.
-- [ ] HSM/KMS for all signing keys; no plaintext keys on disk.
-- [ ] Personal data off-chain; only hashes on-chain.
-- [ ] Channel or subnet partitioning for privacy.
-- [ ] Chaincode access control enforced via certificate attributes.
-- [ ] Chaincode input validation with structured errors.
-- [ ] No unbounded `for` loops in chaincode.
-- [ ] Events emitted for every state mutation.
-- [ ] Multi-sig for every privileged operation.
-- [ ] Audit logging on every admin action.
-- [ ] Helm charts reproducible across clouds.
-- [ ] Disaster recovery across at least two members.
-- [ ] Consortium charter signed before deployment.
-- [ ] Annual external security audit scheduled.
-- [ ] Regulator access documented and tested.
-- [ ] CI green before deployment.
-- [ ] Runbook covers deployment, upgrade, key rotation, incident response.
+Fabric `configtx.yaml` excerpt for a four-organization BFT ordering service (the shape follows the `configtx.yaml` in Fabric's `sampleconfig`; the aliases such as `*ChannelDefaults` and `*BankAOrderer` refer to definitions elsewhere in the file, and the certificate paths are generated per environment). `V3_0` must be enabled on the channel and all nodes must run v3.x:
 
-## 20. Refactoring Checklist
+```yaml
+Capabilities:
+  Channel: &ChannelCapabilities
+    V3_0: true
+  Orderer: &OrdererCapabilities
+    V2_0: true
+  Application: &ApplicationCapabilities
+    V2_5: true
 
-- [ ] Replace single-cloud deployment with multi-cloud per member.
-- [ ] Replace Raft with QBFT/IBFT for any multi-party consortium.
-- [ ] Move on-chain personal data to off-chain with on-chain hashes.
-- [ ] Replace ad-hoc access control with certificate-attribute RBAC.
-- [ ] Extract duplicated chaincode logic into a shared library.
-- [ ] Replace HTTP REST APIs with gRPC for high-throughput integrations.
-- [ ] Move from docker-compose to Helm charts for production.
-- [ ] Replace manual certificate rotation with automated cert-manager workflow.
-- [ ] Centralize event schemas in a schema registry.
-- [ ] Extract monitoring alerts into a version-controlled Prometheus rules file.
+Profiles:
+  ConsortiumChannelBft:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      OrdererType: BFT
+      BatchSize:
+        MaxMessageCount: 500
+        AbsoluteMaxBytes: 10 MB
+      SmartBFT:
+        RequestBatchMaxInterval: 200ms
+        LeaderHeartbeatTimeout: 1m0s
+        LeaderHeartbeatCount: 10
+      ConsenterMapping:
+        - ID: 1
+          Host: orderer0.bank-a.example.com
+          Port: 7050
+          MSPID: BankAOrdererMSP
+          Identity: crypto/bank-a/orderer0/signcerts/cert.pem
+          ClientTLSCert: crypto/bank-a/orderer0/tls/client.crt
+          ServerTLSCert: crypto/bank-a/orderer0/tls/server.crt
+        # IDs 2, 3 and 4 follow the same shape for orderers run by three other organizations
+      Organizations:
+        - *BankAOrderer
+        - *BankBOrderer
+        - *BankCOrderer
+        - *BankDOrderer
+      Capabilities: *OrdererCapabilities
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *BankA
+        - *BankB
+        - *BankC
+        - *BankD
+      Capabilities: *ApplicationCapabilities
+```
 
-## 21. Deployment Checklist
+The anchors (`*BankAOrderer` and so on) refer to organization definitions with `OrdererEndpoints`; in BFT, every consenter should have a matching delivery endpoint and global `Orderer/Addresses` are not supported. See [references/hyperledger-fabric.md](references/hyperledger-fabric.md) for the full chaincode, lifecycle and client code.
 
-- [ ] Platform versions pinned across all members; version matrix documented.
-- [ ] Helm charts version-controlled; values files per environment per member.
-- [ ] Kubernetes cluster provisioned per member; node pools sized for 2x peak TPS.
-- [ ] HSMs or cloud KMS provisioned; signing keys generated and never exported.
-- [ ] Mutual TLS certificates issued by consortium CA; rotation scheduled.
-- [ ] Network topology documented; private subnets; API gateways fronting RPC.
-- [ ] Channel/subnet topology matches privacy requirements.
-- [ ] Chaincode deployed to staging; integration tests pass.
-- [ ] Performance test at 2x peak TPS for 1 hour passes.
-- [ ] Disaster recovery test passes (kill one member's datacenter).
-- [ ] Consortium charter signed by all members.
-- [ ] Upgrade compatibility window documented.
-- [ ] Rollback procedure tested.
-- [ ] Monitoring and alerting configured (Prometheus, Grafana, alertmanager).
-- [ ] Audit logging shipped to immutable store.
-- [ ] Regulator access tested.
-- [ ] Runbook published; on-call rotation set across members.
+Hash-and-pointer: a salted commitment for an off-chain record. The commitment goes into the ledger; the record and its salt stay in a deletable store. Verification recomputes the commitment, and erasure deletes the record and the salt:
 
-## 22. Production Checklist
+```ts
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-- [ ] Monitoring dashboard shows: TPS, finality latency, peer health, orderer health, block height.
-- [ ] Alerts on: peer down, orderer down, finality latency > 5s, block height divergence > 3, cert expiry < 30 days.
-- [ ] On-call rotation across members; 24/7 coverage for high-value consortiums.
-- [ ] Incident response runbook; post-mortem template; blameless culture.
-- [ ] Key rotation executed at least annually; rotation runbook tested.
-- [ ] Ledger pruning configured; disk usage alerts at 70%.
-- [ ] Backup and recovery tested monthly; recovery time objective (RTO) documented.
-- [ ] Disaster recovery site in a different member's datacenter.
-- [ ] Upgrade drills quarterly; rollback tested.
-- [ ] Annual external security audit; findings remediated.
-- [ ] Regulator audit trail export tested quarterly.
-- [ ] Consortium meeting cadence: monthly operations, quarterly governance.
-- [ ] Capacity review quarterly; node pools scaled ahead of growth.
-- [ ] Change management: every upgrade approved by governance vote.
-- [ ] Documentation reviewed quarterly; runbook updated after every incident.
-- [ ] Antitrust training for all consortium members annually.
-
-## 23. Logging Strategy
-
-- Log every transaction at INFO with: tx_id, channel, chaincode, function, caller MSP, block number, timestamp.
-- Log every admin action at WARN with: action, caller, target, signature, timestamp.
-- Log every authentication failure at WARN with: caller IP, certificate CN, reason.
-- Log every consensus view change at ERROR with: view number, leader, voters, reason.
-- Log every block commitment at INFO with: block number, tx count, size, time since last block.
-- Log every chaincode error at ERROR with: tx_id, function, error code, stack trace.
-- Ship logs to a centralized immutable store (ELK, Loki, Splunk); retain per regulatory requirement (typically 7 years for financial).
-- Never log personal data, private keys, or certificate contents; log only fingerprints.
-- Use structured logging (JSON) with consistent field names across members.
-- Log rotation configured; disk usage alerts at 70%.
-
-## 24. Monitoring Strategy
-
-- Monitor TPS, finality latency, block height, peer health, orderer health per member.
-- Monitor CPU, memory, disk, network on every node; alert at 80%.
-- Monitor certificate expiry; alert at 30 days.
-- Monitor consensus view changes; alert on any view change.
-- Monitor block height divergence across peers; alert if > 3 blocks.
-- Monitor transaction failure rate; alert if > 5%.
-- Monitor queue depth for off-chain event consumers; alert if backlog grows.
-- Monitor API gateway latency; alert if p99 > 1s.
-- Monitor HSM/KMS API latency; alert if p99 > 100ms.
-- Monitor member-specific metrics; share dashboards across consortium.
-- Run synthetic transactions every minute; alert on failure.
-- Review monitoring dashboards in monthly operations meetings.
-
-## 25. Error Handling
-
-- Define a structured error schema: `errorCode`, `message`, `details`, `txId`, `timestamp`.
-- Every chaincode function returns structured errors; never raw strings.
-- Map error codes to HTTP status codes in the REST API gateway.
-- Retry idempotent operations on transient failures (network, timeout); never retry non-idempotent operations.
-- Use circuit breakers for downstream service calls; fail fast on cascading failures.
-- Log every error at ERROR with full context; alert on ERROR rate spikes.
-- Define an incident severity matrix: P1 (consortium down), P2 (member down), P3 (degraded), P4 (cosmetic).
-- Publish post-mortems for every P1/P2 incident within 5 business days.
-- Never swallow errors silently; every `catch` block logs and re-throws or handles explicitly.
-- Validate every external input; reject malformed payloads with 400 and a structured error.
-
-## 26. Examples
-
-### Example 1: Hyperledger Fabric Asset Transfer Chaincode (Go)
-
-```go
-package main
-
-import (
-    "encoding/json"
-    "fmt"
-
-    "github.com/hyperledger/fabric-contract-api-go/contractapi"
-)
-
-type Asset struct {
-    ID        string `json:"id"`
-    Owner     string `json:"owner"`
-    Value     int    `json:"value"`
-    DataHash  string `json:"dataHash"` // off-chain personal data hash
+/** Deterministic JSON: object keys sorted, no whitespace. Both writer and verifier must use the same form. */
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
 }
 
-type AssetContract struct {
-    contractapi.Contract
+export interface Commitment {
+  /** Goes on-chain: HMAC-SHA-256 of the record under a random per-record salt, hex-encoded. */
+  readonly commitment: string;
+  /** Stays off-chain next to the record. Deleting the record and salt makes the commitment unlinkable. */
+  readonly salt: string;
 }
 
-func (c *AssetContract) CreateAsset(ctx contractapi.TransactionContextInterface,
-    id, owner string, value int, dataHash string) error {
-    clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
-    if err != nil {
-        return fmt.Errorf("failed to get MSPID: %v", err)
-    }
-    if clientMSPID != "BankAMSP" && clientMSPID != "BankBMSP" {
-        return fmt.Errorf("unauthorized: MSP %s cannot create assets", clientMSPID)
-    }
-    exists, err := c.AssetExists(ctx, id)
-    if err != nil {
-        return err
-    }
-    if exists {
-        return fmt.Errorf("asset %s already exists", id)
-    }
-    asset := Asset{ID: id, Owner: owner, Value: value, DataHash: dataHash}
-    bytes, err := json.Marshal(asset)
-    if err != nil {
-        return err
-    }
-    if err := ctx.GetStub().PutState(id, bytes); err != nil {
-        return err
-    }
-    return ctx.GetStub().SetEvent("AssetCreated", bytes)
+export function commit(record: unknown): Commitment {
+  const salt = randomBytes(32);
+  const mac = createHmac("sha256", salt).update(canonicalJson(record)).digest("hex");
+  return { commitment: mac, salt: salt.toString("hex") };
 }
 
-func (c *AssetContract) TransferAsset(ctx contractapi.TransactionContextInterface,
-    id, newOwner string) error {
-    bytes, err := ctx.GetStub().GetState(id)
-    if err != nil {
-        return err
-    }
-    if bytes == nil {
-        return fmt.Errorf("asset %s not found", id)
-    }
-    var asset Asset
-    if err := json.Unmarshal(bytes, &asset); err != nil {
-        return err
-    }
-    clientMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-    if clientMSPID != asset.Owner {
-        return fmt.Errorf("unauthorized: only owner can transfer")
-    }
-    asset.Owner = newOwner
-    updated, _ := json.Marshal(asset)
-    if err := ctx.GetStub().PutState(id, updated); err != nil {
-        return err
-    }
-    return ctx.GetStub().SetEvent("AssetTransferred", updated)
-}
-
-func (c *AssetContract) AssetExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
-    bytes, err := ctx.GetStub().GetState(id)
-    if err != nil {
-        return false, err
-    }
-    return bytes != nil, nil
-}
-
-func main() {
-    chaincode, err := contractapi.NewChaincode(&AssetContract{})
-    if err != nil {
-        panic(err.Error())
-    }
-    if err := chaincode.Start(); err != nil {
-        panic(err.Error())
-    }
+export function verify(record: unknown, saltHex: string, commitmentHex: string): boolean {
+  const mac = createHmac("sha256", Buffer.from(saltHex, "hex")).update(canonicalJson(record)).digest();
+  const expected = Buffer.from(commitmentHex, "hex");
+  return expected.length === mac.length && timingSafeEqual(mac, expected);
 }
 ```
 
-### Example 2: Besu QBFT Genesis Configuration
+Worked decision, trade finance consortium with four banks, a regulator and a logistics provider:
 
-```json
-{
-  "config": {
-    "chainId": 1337,
-    "ibft2": {
-      "blockperiodseconds": 2,
-      "epochlength": 30000,
-      "requesttimeoutseconds": 10
-    },
-    "contractSizeLimit": 2147483647,
-    "genesis": {
-      "config": {
-        "chainId": 1337,
-        "ibft2": {}
-      },
-      "nonce": "0x0",
-      "timestamp": "0x5f5e1000",
-      "gasLimit": "0x47b760",
-      "difficulty": "0x1",
-      "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "coinbase": "0x0000000000000000000000000000000000000000",
-      "alloc": {
-        "0x0000000000000000000000000000000000000000": { "balance": "0x1" }
-      }
-    },
-    "extraData": "0xf87aa00000000000000000000000000000000000000000000000000000000000000000f8549447b3a0c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e19438b3a0c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e9403b3a0c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e9466b3a0c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e808400000000c0",
-    "validators": [
-      "0x47b3a0c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e",
-      "0x38b3a0c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e",
-      "0x03b3a0c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e",
-      "0x66b3a0c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e"
-    ]
-  }
-}
+```text
+Question                             Answer                                    Consequence
+Who writes shared state?             Banks and the logistics provider          Multi-party writes: ledger is justified
+Neutral operator available?          None accepted by all                      Consortium-run network
+Confidential per pair of banks?      Yes (prices, limits)                      Private data collections per bank pair
+Regulator access?                    Read-only, all channels                   Observer peer; collection membership for audit
+Personal data (signatories)?         Yes                                       Off-chain store; ledger holds salted commitments
+Ordering trust                       Banks may not trust each other fully      Fabric 3.1.x with SmartBFT, one orderer per bank
+Keys                                 Bank-owned HSMs                           PKCS#11 for peers/orderers; gateway signs via HSM
+Integration                          Bank core systems, ERP of logistics       Gateway API, checkpointed event consumers, outbox
 ```
 
-### Example 3: Outbox Pattern Synchronizer (TypeScript)
+## 15. Common Mistakes
 
-```typescript
-import { Pool } from "pg";
-import { Kafka, Producer } from "kafkajs";
+- **Using a blockchain where a database suffices**: the consortium pays the operational cost without a trust gap to close.
+- **Starting with technology before governance**: unclear decision rights stall upgrades and membership changes.
+- **One organization running all orderers or validators**: it can halt or rewrite the network's behavior; spread them across members.
+- **Storing personal data or raw documents on-chain** (even encrypted or hashed without a salt): erasure and data protection duties cannot be met.
+- **Treating a private data collection as a replacement for channels**: hashes, transaction metadata and collection names remain visible to all channel members.
+- **Passing private values as chaincode arguments** instead of transient data, which records them in the transaction.
+- **Using `time.Now()`, random numbers or external calls in chaincode**: endorsements mismatch and transactions fail validation.
+- **Endorsement policy `OR` across all organizations by default**: any one organization can unilaterally change state. Match the policy to the trust model.
+- **Hot keys and global counters**: every concurrent update conflicts (MVCC) and throughput collapses.
+- **Using the deprecated `fabric-sdk-node` or building custom endorsement logic in clients** instead of the Fabric Gateway APIs.
+- **Relying on Besu local permissioning as network-wide enforcement**: it only constrains the node that runs it.
+- **Free gas without any spam or abuse control** on the RPC layer and account allowlisting.
+- **Fewer than four validators on a QBFT or BFT network, or losing a third at once**: the chain stalls.
+- **Private keys on application servers or in CI**: use HSM-backed or remote signing.
+- **Expired certificates**: unmonitored TLS or identity expiry can stop ordering or client access.
+- **Bridges and oracles with a single trusted signer** holding large value, without caps, monitoring and governance.
+- **No exit plan**: members leave, keys remain valid, and archives become unreadable.
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const kafka = new Kafka({ clientId: "outbox-sync", brokers: [process.env.KAFKA_BROKER!] });
-const producer: Producer = kafka.producer();
+## 16. References
 
-async function pollOutbox(): Promise<void> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const { rows } = await client.query(`
-      SELECT id, aggregate_id, event_type, payload, created_at
-      FROM outbox
-      WHERE dispatched_at IS NULL
-      ORDER BY created_at ASC
-      LIMIT 100
-      FOR UPDATE SKIP LOCKED
-    `);
-    for (const row of rows) {
-      await producer.send({
-        topic: `consortium.${row.event_type}`,
-        messages: [{
-          key: row.aggregate_id,
-          value: JSON.stringify({ ...row.payload, outboxId: row.id, occurredAt: row.created_at }),
-          headers: { "event-type": row.event_type },
-        }],
-      });
-      await client.query(`UPDATE outbox SET dispatched_at = NOW() WHERE id = $1`, [row.id]);
-    }
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("Outbox poll failed", err);
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-async function main(): Promise<void> {
-  await producer.connect();
-  console.log("Outbox synchronizer started");
-  while (true) {
-    try {
-      await pollOutbox();
-    } catch (err) {
-      console.error(err);
-      await new Promise(r => setTimeout(r, 5000));
-    }
-    await new Promise(r => setTimeout(r, 100));
-  }
-}
-
-main().catch(err => { console.error(err); process.exit(1); });
-```
-
-## 27. Common Mistakes
-
-- **Defaulting to blockchain without running the evaluation framework**: What: architect recommends blockchain because the client asked for it. Why wrong: blockchain without multi-party trust is a slow database. How to avoid: run the 4-criteria evaluation first; document in an ADR; recommend a database when criteria fail.
-- **Storing personal data on-chain**: What: chaincode stores customer names and addresses. Why wrong: GDPR right-to-erasure conflicts with immutability. How to avoid: store personal data off-chain; store only `keccak256(data)` on-chain.
-- **Using Raft for a multi-bank consortium**: What: architect picks Raft for simplicity. Why wrong: Raft is CFT only; a malicious leader can rewrite history. How to avoid: use QBFT/IBFT for any consortium with potentially adversarial members.
-- **Single-cloud consortium deployment**: What: all members deploy on AWS. Why wrong: one member (the AWS account owner) controls infrastructure. How to avoid: each member deploys in their own cloud; interconnect via private peering.
-- **Skipping the consortium charter**: What: members deploy nodes without signing a charter. Why wrong: disputes have no resolution path; upgrades stall; exit is impossible. How to avoid: draft the charter before deployment; have counsel review; sign before joining.
-- **Hardcoding certificate fingerprints**: What: chaincode checks `if (certFingerprint == "0x1234...")`. Why wrong: rotation requires code changes. How to avoid: store certificates in configuration; rotate without redeployment.
-
-## 28. Professional Workflow
-
-1. Run the evaluation framework; document the decision in ADR-001.
-2. Select platform and consensus; document in ADR-002 and ADR-003.
-3. Draft the consortium charter with counsel; circulate to all members.
-4. Design the network topology: members, nodes, channels/subnets, regions.
-5. Design the identity model: CA hierarchy, certificate issuance, rotation schedule.
-6. Design the privacy model: channel topology, private data collections, off-chain personal data.
-7. Implement chaincode/contracts with access control and structured events.
-8. Write unit, integration, performance, chaos, upgrade, and DR tests.
-9. Deploy to staging; run all tests; iterate until green.
-10. Coordinate production deployment across members; execute rolling upgrade.
-11. Configure monitoring and alerting; share dashboards across consortium.
-12. Establish on-call rotation across members; publish the runbook.
-13. Schedule quarterly upgrade drills; test rollback.
-14. Schedule annual external security audit; remediate findings.
-15. Schedule quarterly governance meetings; review membership, upgrades, incidents.
-16. Publish post-mortems for every P1/P2 incident within 5 business days.
-
-## 29. Response Style
-
-- Always start with the evaluation framework result before recommending a platform.
-- Always cite the specific platform version and consensus protocol.
-- Never recommend blockchain for single-party workflows; recommend a database.
-- Always recommend BFT consensus for any consortium with potentially adversarial members.
-- Always recommend off-chain personal data with on-chain hashes for GDPR-affected workloads.
-- Always recommend multi-cloud per member for consortium deployments.
-- Always recommend a written consortium charter before deployment.
-- Always recommend mutual TLS, HSMs, and multi-sig for admin operations.
-- Never recommend `latest` tags; always pin platform versions.
-- Always recommend annual external security audits.
-
-## 30. Output Format
-
-- Every response starts with the evaluation framework result (pass/fail per criterion).
-- Every architecture diagram names every node, channel, subnet, and member.
-- Every code block specifies the language, platform version, and SDK version.
-- Every checklist item is a single bullet starting with a verb.
-- Every ADR references the decision, the alternatives considered, and the rationale.
-- Every deployment plan lists every member, node, region, and cloud.
-- Every runbook section covers: trigger, diagnosis, mitigation, recovery, post-mortem.
-- Every governance proposal includes: text, rationale, voting threshold, effective date.
-- Every monitoring alert maps to a Prometheus rule and an alertmanager route.
-- Every section ends without trailing whitespace; no placeholder text anywhere.
+- [references/hyperledger-fabric.md](references/hyperledger-fabric.md): the former hyperledger-fabric-expert skill: versions, network and channel design, MSP and identity, Go chaincode with fabric-contract-api-go, lifecycle commands, private data, chaincode as a service, Fabric Gateway clients in Go and TypeScript, operations.
+- [references/besu-and-evm-permissioned.md](references/besu-and-evm-permissioned.md): QBFT networks, genesis and node options, validator management, permissioning limits, free gas, HSM keys, Paladin privacy, tokenization and ERC-3643.
+- [references/governance-identity-privacy.md](references/governance-identity-privacy.md): ledger-versus-database decision aid, consortium governance, PKI and key management, privacy techniques, GDPR and data residency.
+- [references/interoperability-oracles.md](references/interoperability-oracles.md): off-chain read models with checkpointed events, signed oracle reports in Go, cross-ledger interoperability, tokenization on Fabric, API layer.
+- Official docs: https://hyperledger-fabric.readthedocs.io/ , https://hyperledger.github.io/fabric-gateway/ , https://docs.besu-eth.org/ , https://lfdt-paladin.github.io/paladin/head/architecture/overview/ , https://eips.ethereum.org/EIPS/eip-3643 , https://github.com/hyperledger/fabric-samples

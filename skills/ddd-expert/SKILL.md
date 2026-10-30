@@ -1,677 +1,407 @@
 ---
 name: ddd-expert
-description: >
-  Model complex domains with bounded contexts, aggregates, and ubiquitous language so the software reflects the business and survives years of change.
-  
-  Use this skill when building server-side services, APIs, authentication, authorization, microservices, or domain-driven backend systems.
+description: >-
+  Models complex business domains with Domain-Driven Design: strategic design (subdomains, bounded contexts, context maps, ubiquitous language, Event Storming) and tactical patterns (entities, value objects, aggregates and invariants, domain events, repositories, domain services, factories, specifications, application services), with guidance on when CQRS and event sourcing pay off and how to build an anti-corruption layer. Examples are in TypeScript. Use when drawing context boundaries, designing or reviewing aggregates, naming domain concepts, running an Event Storming workshop, or untangling an anemic or god-object model. Not for layering and dependency rules (use clean-architecture-expert) or service decomposition, deployment and inter-service infrastructure (use microservices-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# DDD Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers Domain-Driven Design as a modeling discipline: finding where the business complexity lives, drawing explicit boundaries around models, and expressing the rules of the core domain in code that uses the business's own language. It spans strategic design (subdomains, bounded contexts, context mapping) and tactical design (aggregates, value objects, domain events, repositories), and states honestly when a simpler design is the better one.
 
----
+> Verified against Eric Evans, Domain-Driven Design (2003) and Domain-Driven Design Reference (2015); Vaughn Vernon, Implementing Domain-Driven Design (2013) and Effective Aggregate Design; Alberto Brandolini, Introducing EventStorming; TypeScript 7.0 with `strict` (examples type-checked, target ES2022) (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The DDD Expert designs software that mirrors the business domain. The role collaborates with domain experts to distill a ubiquitous language, draws bounded contexts around cohesive subdomains, and chooses tactical patterns (entity, value object, aggregate, domain event, repository, factory, domain service, application service) to express invariants. The DDD Expert rejects anemic models, god aggregates, and shared databases across contexts. The role treats the domain model as the heart of the software and the only asset that survives framework churn.
+## 1. Scope
 
-## 2. Mission
+- Covered: subdomain classification, bounded contexts, context mapping patterns, ubiquitous language and glossaries, Event Storming, entities, value objects, aggregates and invariants, aggregate sizing, domain events, repositories, domain services, factories, specifications, application services, anti-corruption layers, and the decision whether to use CQRS or event sourcing.
+- Not covered: layering and dependency direction between modules (clean-architecture-expert), splitting a system into deployable services, messaging infrastructure, sagas as infrastructure (microservices-expert), table design and ORM mapping details (postgresql-expert, prisma-expert).
+- DDD pays off where the domain is complex and changing. For CRUD-shaped subdomains, a transaction script or an active-record style is the right tool, and the model should say so explicitly.
 
-Deliver a domain model that is pure, testable without infrastructure, expressive in the ubiquitous language of the business, and resilient to years of change. Every aggregate enforces its invariants; every domain event captures a business fact; every bounded context owns its data; every cross-context integration is explicit and versioned. The DDD Expert never lets infrastructure leak into the domain and never lets the domain depend on a framework.
+## 2. Core Expertise
 
-## 3. Core Expertise
+| Area | Key facts |
+|---|---|
+| Subdomains | Core (competitive advantage, build and invest), supporting (needed but not differentiating, build simply), generic (commodity such as identity, billing, email, buy or adopt) |
+| Bounded context | Boundary inside which one model and one ubiquitous language hold; the same word may mean different things in two contexts and that is fine |
+| Context map | Partnership, shared kernel, customer/supplier, conformist, anti-corruption layer, open host service, published language, separate ways; big ball of mud marks a legacy area |
+| Entity | Identity and lifecycle; equality by id, state changes through intention-revealing methods |
+| Value object | Immutable, equality by value, self-validating, side-effect-free operations (`Money`, `DateRange`, `Email`) |
+| Aggregate | Cluster of entities and value objects with one root; the unit of transactional consistency and of loading and saving |
+| Domain event | Immutable fact in past tense (`OrderPlaced`) with id and timestamp; used inside a context and, after translation, across contexts |
+| Repository | Collection-like port for one aggregate root; loads and saves whole aggregates; implementation lives in infrastructure |
+| Domain service | Stateless operation that does not belong to one entity or value object (a transfer between two accounts, a pricing policy) |
+| Application service | Use-case orchestration: load, call the domain, save, publish; holds no business rules |
+| Event Storming | Workshop on a wall of sticky notes: domain events first, then commands, actors, policies, aggregates, external systems, hot spots; formats are big picture, process level and design level |
+| CQRS / event sourcing | Separate write and read models; store events as the source of truth. Independent options, each with real cost |
 
-- DDD philosophy: software must reflect the domain; the domain model is the heart of the software; collaboration between domain experts and engineers is mandatory.
-- Strategic design: bounded contexts as explicit boundaries; context mapping relationships (partnership, shared kernel, customer-supplier, conformist, anti-corruption layer, open host service, published language, separate ways).
-- Subdomain classification: core domain (strategic differentiator), supporting domain (necessary but not differentiating), generic domain (commodity such as auth or billing — buy or outsource).
-- Ubiquitous language: a shared language between developers and domain experts; used in class, method, and property names; no translation between domain and code.
-- Tactical building blocks: entity (identity and continuity over time; equality by id not attributes), value object (immutable; equality by attributes; no identity; e.g. `Money`, `Address`, `DateRange`), aggregate (consistency boundary; root entity; invariants enforced within; references to other aggregates by id), domain event (past-tense fact; e.g. `OrderPlaced`), repository (collection-like interface per aggregate root), factory (encapsulates complex creation), domain service (stateless operation that does not fit on an entity or value object), application service (orchestrates use case; transaction script; no business logic).
-- Aggregate design: small aggregates; reference by id; fetch whole aggregate; prefer eventual consistency between aggregates via domain events; one aggregate per transaction.
-- CQRS: separate read and write models; projection from write model to read models; eventual consistency; benefits for read-heavy systems.
-- Event sourcing: store events not state; replay to rebuild state; benefits (audit, time travel, temporal queries) and costs (complexity, versioning, projections).
-- Bounded context integration: anti-corruption layer to translate between contexts; published language as the contract; domain events for async integration; OpenAPI/REST for sync integration.
-- Hexagonal architecture (ports and adapters): domain at center; ports are interfaces; adapters are implementations; infrastructure on the outside.
-- Testing: unit tests of the domain model that are pure, fast, and free of I/O; aggregate invariant tests; domain event tests.
+## 3. Workflow
 
-## 4. Responsibilities
+1. Gather vocabulary from domain experts in their words (documents, support tickets, interviews). Start a glossary per context.
+2. Run a big-picture Event Storming: orange domain events on a timeline, resolve duplicates and conflicting names, mark hot spots. Where one word carries two meanings or two teams disagree, a context boundary is likely.
+3. Classify subdomains as core, supporting or generic. Spend modeling effort on the core; buy or keep generic parts simple.
+4. Draw bounded contexts and a context map with the relationship type for each pair (who is upstream, who conforms, where a translation layer is needed).
+5. For each core context, run a process-level or design-level session: commands, policies, read models, and the invariants that must always hold. Invariants define aggregates.
+6. Implement aggregates with behavior, not setters; raise events from the root; define repository ports; write the application service for each use case.
+7. Test the domain model with plain unit tests (no database, no framework), then adapter tests for repositories and anti-corruption layers.
+8. Revisit the model when language drifts or a rule is awkward to express; refactor toward the better concept and update the glossary.
 
-- Facilitate event-storming and domain-modeling sessions with domain experts; capture the ubiquitous language in a glossary.
-- Define bounded contexts and the context map; document every relationship.
-- Classify subdomains as core, supporting, or generic; recommend buy versus build for generic subdomains.
-- Design aggregates, entities, value objects, and domain events; enforce invariants in the aggregate root.
-- Define repository contracts per aggregate root; never per entity.
-- Design application services as thin orchestrators; keep business logic in the domain.
-- Design domain events for cross-aggregate and cross-context integration; define event schemas and versioning.
-- Choose between transaction script, domain model, and event sourcing per context; justify the choice.
-- Review pull requests for anemic models, god aggregates, and infrastructure leakage.
-- Maintain the domain model documentation and the glossary alongside the code.
-- Educate the team on DDD patterns; reject anti-patterns in code review.
-- Re-evaluate the model when the business changes; refactor toward deeper insight.
+## 4. Decision Rules
 
-## 5. Thinking Process
+- Use the full tactical toolkit only in core subdomains. Supporting subdomains usually need a simple model; generic subdomains should be bought or reused.
+- Choose value object over entity unless the concept needs identity over time. Most concepts that look like entities (addresses, prices, periods) are value objects.
+- Draw an aggregate boundary around a true invariant that must be consistent in one transaction ("order total never exceeds the credit limit"). If no invariant spans two objects, they are separate aggregates.
+- Keep aggregates small: often a root plus a few value objects. Reference other aggregates by id, never by object reference.
+- One transaction normally changes one aggregate. Cross-aggregate rules are eventually consistent through domain events. This is a strong default, not a law: modify two aggregates in one transaction only for a deliberate reason (for example a single-database migration step), and document it.
+- Put logic in the aggregate first; use a domain service only when the operation spans several aggregates or needs a policy object; use an application service only for orchestration.
+- Do not share a database schema between contexts. Integrate through events, APIs or a published language, and translate at the boundary.
+- Use an anti-corruption layer when the upstream model is legacy, external, or unstable; conform (take their model as is) only when it is good enough and cheap.
+- Event sourcing is warranted when the history itself is business data (audit trail, temporal queries, undo, accounting-style ledgers). CQRS is warranted when read and write shapes or load differ strongly. Use neither as a default.
+- Names beat patterns: if the code uses a word the domain experts do not, fix the code or fix the glossary.
 
-1. Listen to domain experts; capture verbs and nouns in their vocabulary.
-2. Identify bounded contexts by looking for linguistic boundaries: when the same word means different things, draw a context.
-3. Classify subdomains: which is the core differentiator, which is supporting, which is generic.
-4. Model each context with entities, value objects, and aggregates; identify invariants the aggregate must enforce.
-5. Choose aggregate boundaries small enough to be consistent and large enough to be cohesive.
-6. Identify domain events that capture business facts; name them in past tense.
-7. Define repository contracts per aggregate root; hide persistence.
-8. Design application services to orchestrate use cases without business logic.
-9. Map integration between contexts: anti-corruption layer, published language, or domain events.
-10. Write the domain model in pure code with no framework dependencies; test invariants in isolation.
+## 5. Coding Standards
 
-## 6. Decision Making Rules
+- Name types and methods in the ubiquitous language of their context: `order.place()`, not `order.setStatus("PLACED")`.
+- Value objects are immutable (`readonly` fields, no setters) and validate in the factory or constructor; invalid values cannot exist.
+- Entities and aggregates expose behavior methods that check invariants and then change state. Public fields and setters are limited to the identity and read access.
+- Make illegal states unrepresentable: discriminated unions or state objects rather than a status string plus nullable fields.
+- Domain code imports no framework, ORM, HTTP or messaging types. Time and ids come in through parameters or small interfaces (`Clock`, `IdGenerator`) so tests are deterministic.
+- Use branded id types (`OrderId`, `CustomerId`), and throw `DomainError` subclasses that the application layer maps to responses.
+- Money uses integer minor units (`bigint` or integer) or a decimal library, never floating point.
+- Events are plain immutable data with a past-tense name and the data a consumer needs; version them when they leave the context.
+- Domain events are collected by the aggregate and published by the application layer after the aggregate is saved (or via an outbox), not fired from inside the aggregate to external systems.
 
-- When entity and value object conflict for a concept, choose value object because immutability and equality by attributes reduce bugs.
-- When large aggregate and small aggregate conflict, choose small aggregate because transactional boundaries stay tight and contention stays low.
-- When direct reference and reference by id conflict between aggregates, choose reference by id because transactional scope stays within one aggregate.
-- When application service and domain service conflict for logic placement, choose domain service when the logic is stateless and spans multiple aggregates.
-- When event sourcing and state-based persistence conflict, choose state-based unless audit and temporal queries are required because event sourcing adds complexity.
-- When shared database and separate databases conflict across contexts, choose separate databases because a shared database couples contexts through schema.
-- When synchronous and asynchronous integration conflict across contexts, choose asynchronous domain events because they decouple contexts and absorb load.
-- When anemic model and rich model conflict, choose rich model because behavior belongs with the data it governs.
+## 6. Project Structure
 
-## 7. Architecture Rules
-
-- Every bounded context must own its data; shared databases across contexts are forbidden.
-- Every aggregate must enforce its invariants in the aggregate root; no invariant enforcement outside the root.
-- Every aggregate reference must be by id; direct object references between aggregates are forbidden.
-- Every transaction must modify exactly one aggregate; cross-aggregate consistency is eventual via domain events.
-- Every domain event must be named in past tense and represent a business fact that occurred.
-- Every domain object must be free of framework dependencies; no decorators, no ORM annotations, no HTTP types in the domain.
-- Every repository must be defined per aggregate root and behave like an in-memory collection.
-- Every cross-context integration must be explicit through an anti-corruption layer or a published language.
-- Every application service must be a thin orchestrator; business logic lives in the domain.
-- Every domain concept must appear in the ubiquitous language glossary; unnamed concepts are forbidden.
-
-## 8. Coding Standards
-
-- Always model value objects as immutable; never expose setters.
-- Always model entities with identity; equality is by id, never by attributes.
-- Always enforce invariants in the aggregate root constructor and in every mutating method; never allow the aggregate into an invalid state.
-- Always raise domain events from the aggregate root; never from outside the aggregate.
-- Always name domain concepts using the ubiquitous language; never translate between domain and code.
-- Always define repositories as interfaces in the domain; implementations live in infrastructure.
-- Always keep application services free of business rules; they orchestrate, they do not decide.
-- Always make domain services stateless; never store state on a domain service.
-- Always use factories for complex aggregate creation; never leak construction logic into application services.
-- Always write the domain model in pure TypeScript with no imports from frameworks or infrastructure.
-
-## 9. Naming Conventions
-
-- Entities must be named with singular nouns in the ubiquitous language: `Order`, `Customer`, `Invoice`.
-- Value objects must be named with singular nouns describing the concept: `Money`, `Address`, `DateRange`.
-- Aggregates must be named after the aggregate root entity.
-- Domain events must be named in past tense: `OrderPlaced`, `PaymentCaptured`, `InvoiceIssued`.
-- Repositories must be named `<AggregateRoot>Repository` (for example `OrderRepository`).
-- Domain services must be named after the operation: `TransferService`, `PricingService`.
-- Application services must be named after the use case: `PlaceOrderUseCase`, `RefundPaymentUseCase`.
-- Factories must be named `<Aggregate>Factory` (for example `OrderFactory`).
-- Methods on entities must be verbs in the ubiquitous language: `place()`, `cancel()`, `markAsPaid()`.
-- Methods on value objects must be verbs that return a new instance: `add(other)`, `withCurrency(currency)`.
-- Properties must be nouns in the ubiquitous language; never abbreviations.
-- Test files must mirror source with `.spec.ts` suffix; test names must use business language.
-
-## 10. Folder Structure
+One module (or package) per bounded context; layer folders inside it. Dependency direction rules are covered by clean-architecture-expert.
 
 ```
-src/ordering/                              # Bounded context: ordering
-├── domain/                                # Pure domain model
-│   ├── model/                             # Entities, value objects, aggregates
-│   │   ├── order.ts                       # Order aggregate root
-│   │   ├── order-line.ts                  # Order line entity
-│   │   ├── order-id.ts                    # Order id value object
-│   │   ├── money.ts                       # Money value object
-│   │   ├── address.ts                     # Address value object
-│   │   └── order-status.ts                # Order status enum
-│   ├── event/                             # Domain events
-│   │   ├── order-placed.ts
-│   │   ├── order-cancelled.ts
-│   │   └── order-shipped.ts
-│   ├── service/                           # Domain services
-│   │   └── pricing-service.ts
-│   ├── repository/                        # Repository interfaces (ports)
-│   │   └── order.repository.ts
-│   └── factory/                           # Factories
-│       └── order.factory.ts
-├── application/                           # Application layer
-│   ├── usecase/                           # Use cases
-│   │   ├── place-order.usecase.ts
-│   │   ├── cancel-order.usecase.ts
-│   │   └── ship-order.usecase.ts
-│   ├── port/                              # Ports the application needs
-│   │   ├── event-bus.port.ts
-│   │   └── unit-of-work.port.ts
-│   └── dto/                               # Request/response DTOs
-│       ├── place-order.dto.ts
-│       └── order-view.dto.ts
-├── infrastructure/                        # Adapters
-│   ├── persistence/
-│   │   ├── typeorm-order.repository.ts
-│   │   └── order.orm-entity.ts
-│   ├── messaging/
-│   │   └── rabbitmq-event-bus.ts
-│   └── config/
-│       └── unit-of-work.ts
-├── presentation/                          # External interfaces
-│   ├── http/
-│   │   ├── order.controller.ts
-│   │   └── order.presenter.ts
-│   └── subscriber/
-│       └── payment-captured.subscriber.ts
-└── ordering.module.ts                     # Composition root for the context
+src/
+├── ordering/                      # bounded context
+│   ├── domain/
+│   │   ├── order.ts               # aggregate root
+│   │   ├── order-line.ts          # entity or value object inside the aggregate
+│   │   ├── money.ts               # value object
+│   │   ├── order-events.ts        # OrderPlaced, OrderCancelled
+│   │   ├── order-repository.ts    # port (interface)
+│   │   └── pricing-policy.ts      # domain service
+│   ├── application/
+│   │   ├── place-order.ts         # command + handler (application service)
+│   │   └── order-summary-query.ts # read side
+│   ├── infrastructure/
+│   │   ├── pg-order-repository.ts
+│   │   └── outbox-publisher.ts
+│   └── index.ts                   # public API of the context: commands, queries, published events
+├── shipping/                      # another context with its own model
+│   └── acl/billing-translator.ts  # anti-corruption layer for a foreign model
+└── docs/
+    ├── context-map.md
+    └── glossary-ordering.md
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-order-service/
-├── src/
-│   ├── ordering/                          # See Folder Structure above
-│   ├── billing/                           # Bounded context: billing
-│   │   ├── domain/
-│   │   ├── application/
-│   │   ├── infrastructure/
-│   │   └── presentation/
-│   ├── shipping/                          # Bounded context: shipping
-│   │   ├── domain/
-│   │   ├── application/
-│   │   ├── infrastructure/
-│   │   └── presentation/
-│   ├── shared/                            # Shared kernel (tiny, deliberate)
-│   │   ├── event/
-│   │   │   └── integration-event.ts
-│   │   └── value-object/
-│   │       └── customer-id.ts
-│   └── main.ts                            # Application bootstrap
-├── test/
-│   ├── ordering/
-│   │   ├── unit/
-│   │   │   ├── order.spec.ts
-│   │   │   ├── money.spec.ts
-│   │   │   └── pricing-service.spec.ts
-│   │   ├── integration/
-│   │   │   ├── place-order.spec.ts
-│   │   │   └── ship-order.spec.ts
-│   │   └── e2e/
-│   │       └── order-lifecycle.spec.ts
-│   ├── billing/
-│   └── shipping/
-├── docs/
-│   ├── context-map.md                     # Context map diagram
-│   ├── ubiquitous-language.md             # Glossary
-│   └── event-storming.md                  # Event storming record
-├── migrations/
-├── k8s/
-├── Dockerfile
-├── package.json
-└── tsconfig.json
-```
+- **Aggregate root with intention-revealing methods**: all changes go through the root, which enforces invariants and records events.
+- **Factory**: a static method or class that builds a valid aggregate when construction is complex or needs policy (`Order.create(...)`, `Shipment.fromOrder(...)`).
+- **Specification**: a named, composable predicate for selection or validation (`OverdueInvoice`, `EligibleForDiscount`), usable in memory and, when needed, translated to a query.
+- **Domain service**: stateless policy or operation across aggregates (`TransferService`, `PricingPolicy`).
+- **Repository per aggregate root** with `findById`, `save` (optimistic concurrency via a version number), and query methods named in domain terms.
+- **Domain event + outbox**: store events in the same transaction as the aggregate, a relay publishes them, consumers are idempotent.
+- **Anti-corruption layer**: a translator and adapter that turns a foreign model into your domain types; nothing foreign leaks past it.
+- **Open host service / published language**: expose a stable, documented, versioned contract to many consumers instead of negotiating per consumer.
+- **Process manager / saga**: coordinates a long-running, multi-aggregate or multi-context process by reacting to events and issuing commands.
+- **Read model (CQRS)**: a projection built from events or from the write store for a specific screen or report.
+- Full catalogs: [references/strategic-design.md](references/strategic-design.md), [references/tactical-patterns.md](references/tactical-patterns.md), [references/cqrs-event-sourcing.md](references/cqrs-event-sourcing.md).
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Aggregate Pattern
+- Keep the glossary in the repository next to the code and review it with domain experts; treat a naming disagreement as a modeling bug.
+- Model behavior first (what can happen, what must never happen), data second. Start from commands and events, not tables.
+- Size aggregates by contention and invariants: if two users often edit different parts at once, the aggregate is too large.
+- Prefer eventual consistency between aggregates and make the delay explicit in the UX and in the language ("order is being confirmed").
+- Draw the context map early, keep it current, and mark team ownership next to each context.
 
-When to use: when a set of entities must enforce invariants together within a transaction. When not to use: for read-only models or projections. Sketch: an `Order` aggregate root contains `OrderLine` entities; the root enforces that an order has at least one line and a total that matches the sum of lines.
+## 9. Performance
 
-### Domain Event Pattern
+- Loading one aggregate by id should be one or two queries. If it needs many, the aggregate is too big or the access path is wrong.
+- Do not load aggregates to answer queries that span many of them; use a read model, a projection, or a direct query returning DTOs.
+- Large child collections in an aggregate (thousands of lines, comments, transactions) signal a wrong boundary. Make the children their own aggregates keyed by the parent id.
+- Optimistic concurrency (version column, compare-and-set) scales better than long locks; retry on conflict at the application service.
+- Event-sourced aggregates with long streams need snapshots; projections need rebuild tooling and a way to catch up.
 
-When to use: when a business fact must be communicated to other aggregates or contexts. When not to use: for internal state changes that nobody else cares about. Sketch: `Order` raises `OrderPlaced` with the order id and customer id; the shipping context subscribes and creates a shipment.
+## 10. Security
 
-### Repository Pattern
+- Authorization is not a domain rule unless the business defines it that way. Check permissions in the application service (who may call this use case), and keep domain rules such as "only the account holder can close it" in the model when they are business policy.
+- Keep personal and secret data out of domain events that leave the context. Publish the minimum, reference by id, and consider encrypting or omitting sensitive fields.
+- Validate and normalize input at the boundary into value objects (email, IBAN, identifiers); never trust a raw string inside the domain.
+- Anti-corruption layers are also trust boundaries: validate foreign payloads, cap sizes, and do not pass them through untranslated.
+- Tenant identity belongs in aggregate identity and in every repository read and write, not only in queries.
+- Event stores are append-only histories: plan for erasure obligations (store personal data outside the stream, or encrypt per subject and delete the key).
 
-When to use: to hide persistence behind a collection-like interface per aggregate root. When not to use: for value objects or non-root entities. Sketch: `OrderRepository` interface with `findById`, `save`, `nextId`; implemented by `TypeOrmOrderRepository`.
+## 11. Testing
 
-### Factory Pattern
+- Unit-test aggregates through behavior: given prior events or state, when a command method is called, then expect the new state, events or a domain error. No mocks are needed.
+- Test each invariant with a case that violates it and a boundary case that just satisfies it.
+- Test application services with in-memory repositories and a fake clock; assert on saved aggregates and published events.
+- Contract tests for the anti-corruption layer with recorded foreign payloads, including malformed ones.
+- Integration tests for the repository against the real database check mapping, optimistic concurrency and the outbox transaction.
 
-When to use: when aggregate construction involves invariants, defaults, or complex inputs. When not to use: for trivial construction. Sketch: `OrderFactory.create(customerId, lines)` returns a valid `Order` in the `Placed` state.
+## 12. Review Checklist
 
-### Domain Service Pattern
+- [ ] Names in code match the glossary; no `Manager`, `Helper`, `Data` classes hiding concepts.
+- [ ] Each aggregate protects a stated invariant; the root is the only entry point.
+- [ ] Aggregates reference each other by id; collections inside are bounded.
+- [ ] Value objects are immutable and validate themselves; ids are typed.
+- [ ] No setters or public mutable state on aggregates; methods express business operations.
+- [ ] One use case changes one aggregate, or the exception is documented.
+- [ ] Domain code has no framework, database or HTTP imports.
+- [ ] Events are past-tense facts, immutable, published after commit or via an outbox, and consumers are idempotent.
+- [ ] Foreign models are translated at an anti-corruption layer.
+- [ ] Context map and glossary exist and match the code layout.
+- [ ] CQRS or event sourcing is used only with a written reason.
 
-When to use: when an operation is stateless and does not belong to a single entity or value object. When not to use: when the operation fits naturally on an entity. Sketch: `PricingService.calculate(order, discountPolicy)` returns a `Money` total; the order calls it during `place()`.
+## 13. Production Notes
 
-### Anti-Corruption Layer Pattern
+- Event schema evolution: add optional fields, never change meaning; use explicit versions and upcasters for events that are stored or shared.
+- Outbox relays deliver at least once. Consumers deduplicate on event id; handlers tolerate reordering where the broker gives no order guarantee.
+- Migrating a legacy system: wrap it with an anti-corruption layer, route one capability at a time to the new context (strangler approach), and retire the old model gradually.
 
-When to use: when integrating with a context or legacy system whose model differs from yours. When not to use: when both sides share the same model and language. Sketch: a `BillingTranslator` converts inbound `InvoiceDTO` from the billing context into the local `PaymentDue` value object.
+## 14. Examples
 
-## 13. Best Practices
+Aggregate with invariants, a value object and a domain event. Money is stored in integer minor units, the aggregate checks its own rules, and events are collected for the application layer to publish:
 
-- Always start with event storming and the ubiquitous language before writing code.
-- Always keep aggregates small; the smaller the aggregate, the lower the contention.
-- Always reference other aggregates by id; never by direct object reference.
-- Always enforce invariants in the aggregate root; never rely on application logic to keep the model consistent.
-- Always raise domain events from the aggregate root; never from outside.
-- Always keep the domain layer free of framework dependencies; no decorators, no ORM annotations.
-- Always define one repository per aggregate root; never per entity.
-- Always keep application services thin; orchestration only, no business rules.
-- Always prefer eventual consistency between aggregates via domain events.
-- Always document the context map and the ubiquitous language alongside the code.
-- Always write pure unit tests for the domain model that run without a database.
-- Always re-evaluate the model when the business changes; refactor toward deeper insight.
+```ts
+import { randomUUID } from "node:crypto";
 
-## 14. Anti Patterns
+export class DomainError extends Error {}
 
-### Anemic Domain Model
-
-Why wrong: entities are bags of getters and setters; business logic lives in application services; invariants are not enforced. Correct alternative: put behavior on the entity; enforce invariants in the aggregate root; keep application services thin.
-
-### God Aggregate
-
-Why wrong: one aggregate owns everything; transactions lock too much; performance collapses. Correct alternative: split into smaller aggregates; reference by id; use domain events for cross-aggregate consistency.
-
-### Aggregate References Another Aggregate by Direct Object
-
-Why wrong: lazy loading crosses transactional boundaries; the aggregate graph becomes unbounded. Correct alternative: reference by id; load the other aggregate through its own repository when needed.
-
-### Repository per Entity
-
-Why wrong: repositories for non-root entities leak persistence and break the aggregate boundary. Correct alternative: one repository per aggregate root; non-root entities are loaded and saved through the root.
-
-### Shared Database Across Bounded Contexts
-
-Why wrong: contexts couple through schema; changes in one context break another. Correct alternative: each context owns its database; integrate through a published language or domain events.
-
-### Ubiquitous Language Drift
-
-Why wrong: developers and domain experts use different words; the model stops reflecting the business. Correct alternative: maintain a glossary; rename code when the language evolves; reject pull requests that introduce untranslated terms.
-
-## 15. Performance Rules
-
-- Keep aggregates small to minimize lock contention and transaction duration.
-- Reference other aggregates by id to avoid loading unbounded object graphs.
-- Use CQRS to optimize reads separately from writes; project into read models tuned for queries.
-- Index every foreign key used to load an aggregate by id.
-- Batch domain event publication in the same transaction as the aggregate save using the outbox pattern.
-- Avoid eager loading of collections inside aggregates; load only what the use case needs.
-- Cache read models, not aggregates; aggregates are transactional and cache coherency is expensive.
-- Bound the number of events replayed per request in event-sourced contexts; use snapshots.
-
-## 16. Security Rules
-
-- Never trust client-supplied identifiers; always verify ownership through the aggregate.
-- Never expose aggregate internals through the API; map to DTOs at the presentation boundary.
-- Never allow a mutation that bypasses the aggregate root; all mutations go through root methods.
-- Never log sensitive value objects (e.g. `Money` in audit contexts that require redaction).
-- Never accept a domain event from an untrusted source without validation.
-- Never expose the domain layer directly to the internet; always wrap in a presentation adapter.
-- Never skip authorization before loading an aggregate; the use case must check before fetching.
-- Never allow the application service to mutate the aggregate without going through its methods.
-
-## 17. Testing Strategy
-
-- Unit test every aggregate invariant in isolation; no database, no HTTP, no framework.
-- Unit test every value object for equality, immutability, and behavior.
-- Unit test every domain event for shape and invariants.
-- Property test value objects with generated inputs (e.g. money addition is commutative).
-- Integration test the repository against a real database using Testcontainers.
-- Integration test the application service with mocked ports and a real domain.
-- End-to-end test the use case from the controller to the database and back.
-- Test that domain events are published in the same transaction as the aggregate save.
-- Test that an invariant violation throws a domain exception with a stable code.
-- Test that concurrent mutations to the same aggregate fail with a concurrency exception.
-- Test that cross-context integration through the anti-corruption layer translates correctly.
-- Test that the read model projection handles event replays correctly.
-
-## 18. Documentation Standards
-
-- Document the bounded contexts and the context map in `docs/context-map.md`.
-- Document the ubiquitous language glossary in `docs/ubiquitous-language.md`.
-- Document each aggregate's invariants in a docblock on the aggregate root.
-- Document each domain event's schema and version in `docs/events/`.
-- Document each use case's contract: request, response, errors, authorization.
-- Document the integration points with other contexts in `docs/integration/`.
-- Document the decision to use event sourcing or state-based persistence per context.
-- Document the event storming record in `docs/event-storming.md`.
-
-## 19. Code Review Checklist
-
-- [ ] The domain layer has no framework imports or decorators.
-- [ ] Value objects are immutable; no setters exposed.
-- [ ] Entities expose behavior, not setters; invariants enforced in root.
-- [ ] Aggregates are small; references to other aggregates are by id.
-- [ ] One repository per aggregate root; none for non-root entities.
-- [ ] Domain events are named in past tense and raised from the root.
-- [ ] Application services are thin; no business rules inside.
-- [ ] Domain services are stateless.
-- [ ] Factories encapsulate complex construction.
-- [ ] Cross-context integration uses an anti-corruption layer or published language.
-- [ ] No shared database across bounded contexts.
-- [ ] Ubiquitous language is used in class, method, and property names.
-- [ ] Unit tests for the domain are pure and run without infrastructure.
-- [ ] Invariant violations throw domain exceptions with stable codes.
-- [ ] Domain events are published in the same transaction as the save.
-- [ ] DTOs are used at the presentation boundary; aggregates never cross.
-- [ ] Concurrency control is in place for aggregate mutations.
-
-## 20. Refactoring Checklist
-
-- [ ] Move business logic from application services into entities and value objects.
-- [ ] Replace setters with intent-revealing methods.
-- [ ] Split god aggregates into smaller aggregates referencing each other by id.
-- [ ] Replace direct object references between aggregates with id references.
-- [ ] Extract a repository per aggregate root; remove per-entity repositories.
-- [ ] Move invariant enforcement from application services into the aggregate root.
-- [ ] Introduce value objects for primitive obsession (e.g. replace `number` with `Money`).
-- [ ] Rename code to match the ubiquitous language.
-- [ ] Extract a domain service for stateless operations spanning aggregates.
-- [ ] Introduce domain events for cross-aggregate consistency.
-- [ ] Replace synchronous cross-context calls with domain events where possible.
-- [ ] Move ORM annotations out of the domain into infrastructure entities.
-
-## 21. Deployment Checklist
-
-- [ ] Database migrations are backward compatible; no breaking schema changes.
-- [ ] Domain event consumers are deployed before producers start emitting new versions.
-- [ ] Outbox table is empty after deployment; all pending events published.
-- [ ] Read model projections are up to date after deployment.
-- [ ] Idempotency keys are in place for event consumers.
-- [ ] Feature flags guard new aggregate behaviors.
-- [ ] Snapshot tables for event-sourced aggregates are migrated.
-- [ ] Rollback plan includes reverting the schema migration safely.
-- [ ] Health check verifies repository and event bus connectivity.
-- [ ] Canary deployment watches aggregate mutation success rate.
-- [ ] No domain layer changes broke the pure-unit test suite.
-- [ ] Context map and glossary updated if contexts changed.
-- [ ] Outbox poller is healthy before traffic shifts.
-- [ ] Event schema registry updated with new event versions.
-- [ ] Database connection pool sized for the deployment.
-
-## 22. Production Checklist
-
-- [ ] Aggregate mutation success rate dashboard alerting below threshold.
-- [ ] Domain event publication lag dashboard alerting above 5 seconds.
-- [ ] Outbox table size dashboard alerting above zero growth.
-- [ ] Read model projection lag dashboard alerting above threshold.
-- [ ] Concurrency conflict rate dashboard alerting on spikes.
-- [ ] Invariant violation rate dashboard alerting on any occurrence.
-- [ ] Event consumer error rate dashboard alerting above 1%.
-- [ ] Context map and glossary reviewed quarterly.
-- [ ] Ubiquitous language drift review performed quarterly.
-- [ ] Event schema registry access controlled and audited.
-- [ ] Outbox poller is monitored for stuck messages.
-- [ ] Snapshot refresh runs on schedule for event-sourced aggregates.
-- [ ] On-call knows the aggregate invariant runbook.
-- [ ] On-call knows the event replay procedure.
-- [ ] Postmortems feed back into domain tests.
-
-## 23. Logging Strategy
-
-- Log every aggregate mutation at info level with aggregate id, action, and correlation id.
-- Log every domain event publication at info level with event type, aggregate id, and version.
-- Log every invariant violation at error level with the violated invariant code.
-- Log every concurrency conflict at warn level with the aggregate id and conflicting version.
-- Log every cross-context integration at info level with source, target, and event id.
-- Never log sensitive value objects without redaction.
-- Never log the entire aggregate state; log the mutation delta.
-- Always include a correlation id propagated from the request header.
-- Always structure logs as JSON with a stable schema and versioned envelope.
-- Always write domain events to a separate audit sink with append-only semantics.
-
-## 24. Monitoring Strategy
-
-- Track aggregate mutation success rate per aggregate type.
-- Track domain event publication lag per event type.
-- Track outbox table size and growth rate.
-- Track read model projection lag per projection.
-- Track concurrency conflict rate per aggregate type.
-- Track invariant violation rate per aggregate type; alert on any occurrence.
-- Track event consumer error rate per consumer.
-- Track event consumer lag per consumer.
-- Track cross-context integration latency per integration.
-- Track event store size and snapshot refresh cadence for event-sourced aggregates.
-
-## 25. Error Handling
-
-- Throw domain exceptions with stable codes for invariant violations; never generic `Error`.
-- Throw concurrency exceptions on version conflict; the client may retry with the latest state.
-- Return HTTP 400 for malformed use case requests; HTTP 409 for concurrency conflicts; HTTP 422 for invariant violations.
-- Never expose the domain exception stack trace in the response.
-- Always wrap infrastructure exceptions in domain exceptions at the repository boundary.
-- Always handle event consumer errors with retry and a dead-letter queue.
-- Always make the outbox poller idempotent and resumable.
-- Always fail closed on authorization before loading the aggregate.
-- Always validate input DTOs at the presentation boundary before reaching the use case.
-- Always include a correlation id in every error response.
-
-## 26. Examples
-
-### Example 1: Aggregate Root with Invariants and Domain Events
-
-```typescript
-export class Order {
-  private readonly lines: OrderLine[] = [];
-  private status: OrderStatus = OrderStatus.Placed;
-  private readonly placedAt: Date;
-
-  private constructor(
-    public readonly id: OrderId,
-    public readonly customerId: CustomerId,
-    public readonly shippingAddress: Address,
-    private events: DomainEvent[] = [],
-  ) {
-    this.placedAt = new Date();
-  }
-
-  static place(id: OrderId, customerId: CustomerId, address: Address, lines: OrderLineInput[]): Order {
-    if (lines.length === 0) {
-      throw new InvariantViolationError('order_must_have_lines');
-    }
-    const order = new Order(id, customerId, address);
-    for (const line of lines) {
-      order.addLine(line);
-    }
-    order.events.push(new OrderPlaced(id, customerId, order.placedAt));
-    return order;
-  }
-
-  private addLine(input: OrderLineInput): void {
-    if (input.quantity <= 0) {
-      throw new InvariantViolationError('line_quantity_must_be_positive');
-    }
-    this.lines.push(new OrderLine(crypto.randomUUID(), input.productId, input.quantity, input.unitPrice));
-  }
-
-  cancel(reason: string): void {
-    if (this.status !== OrderStatus.Placed && this.status !== OrderStatus.Confirmed) {
-      throw new InvariantViolationError('order_cannot_be_cancelled');
-    }
-    this.status = OrderStatus.Cancelled;
-    this.events.push(new OrderCancelled(this.id, reason, new Date()));
-  }
-
-  markAsShipped(trackingNumber: string): void {
-    if (this.status !== OrderStatus.Confirmed) {
-      throw new InvariantViolationError('order_must_be_confirmed_to_ship');
-    }
-    this.status = OrderStatus.Shipped;
-    this.events.push(new OrderShipped(this.id, trackingNumber, new Date()));
-  }
-
-  total(pricing: PricingService): Money {
-    return pricing.calculate(this.lines);
-  }
-
-  pullEvents(): DomainEvent[] {
-    const copy = [...this.events];
-    this.events = [];
-    return copy;
-  }
-}
-```
-
-### Example 2: Value Object — Money
-
-```typescript
 export class Money {
   private constructor(
-    public readonly amount: bigint,
-    public readonly currency: string,
-  ) {
-    if (amount < 0n) {
-      throw new InvariantViolationError('money_amount_must_be_non_negative');
-    }
-    if (currency.length !== 3) {
-      throw new InvariantViolationError('money_currency_must_be_iso_4217');
-    }
-  }
+    readonly minor: bigint,
+    readonly currency: string,
+  ) {}
 
-  static of(amount: number, currency: string): Money {
-    return new Money(BigInt(Math.round(amount * 100)), currency.toUpperCase());
+  static of(minor: bigint, currency: string): Money {
+    if (!/^[A-Z]{3}$/.test(currency)) throw new DomainError(`Invalid currency: ${currency}`);
+    if (minor < 0n) throw new DomainError("Money cannot be negative");
+    return new Money(minor, currency);
   }
 
   add(other: Money): Money {
     this.assertSameCurrency(other);
-    return new Money(this.amount + other.amount, this.currency);
+    return new Money(this.minor + other.minor, this.currency);
   }
 
-  subtract(other: Money): Money {
-    this.assertSameCurrency(other);
-    return new Money(this.amount - other.amount, this.currency);
-  }
-
-  multiply(factor: number): Money {
-    return new Money(BigInt(Math.round(Number(this.amount) * factor)), this.currency);
-  }
-
-  equals(other: Money): boolean {
-    return this.amount === other.amount && this.currency === other.currency;
+  times(quantity: number): Money {
+    if (!Number.isSafeInteger(quantity) || quantity < 0) throw new DomainError("Quantity must be a non-negative integer");
+    return new Money(this.minor * BigInt(quantity), this.currency);
   }
 
   private assertSameCurrency(other: Money): void {
-    if (this.currency !== other.currency) {
-      throw new InvariantViolationError('money_currency_mismatch');
-    }
+    if (other.currency !== this.currency) throw new DomainError("Currency mismatch");
   }
 }
-```
 
-### Example 3: Application Service with Unit of Work and Event Publishing
-
-```typescript
-export interface UnitOfWorkPort {
-  begin(): Promise<void>;
-  commit(): Promise<void>;
-  rollback(): Promise<void>;
-  orderRepository(): OrderRepository;
-  outbox(): OutboxRepository;
+export interface OrderPlaced {
+  readonly type: "OrderPlaced";
+  readonly eventId: string;
+  readonly occurredAt: Date;
+  readonly orderId: string;
+  readonly customerId: string;
+  readonly totalMinor: string; // bigint serialized as string for JSON
+  readonly currency: string;
 }
 
-export interface EventBusPort {
-  publish(event: IntegrationEvent): Promise<void>;
+interface Line {
+  readonly sku: string;
+  readonly unitPrice: Money;
+  readonly quantity: number;
 }
 
-export class PlaceOrderUseCase {
-  constructor(
-    private readonly uow: UnitOfWorkPort,
-    private readonly eventBus: EventBusPort,
-    private readonly idGenerator: () => OrderId,
+type State = "draft" | "placed" | "cancelled";
+
+export class Order {
+  static readonly MAX_LINES = 50;
+  private readonly lines: Line[] = [];
+  private state: State = "draft";
+  private readonly events: OrderPlaced[] = [];
+
+  private constructor(
+    readonly id: string,
+    readonly customerId: string,
+    readonly currency: string,
+    private version: number,
   ) {}
 
-  async execute(request: PlaceOrderRequest): Promise<PlaceOrderResponse> {
-    await this.uow.begin();
-    try {
-      const orderId = this.idGenerator();
-      const address = new Address(request.street, request.city, request.postalCode, request.country);
-      const order = Order.place(orderId, request.customerId, address, request.lines);
+  static start(customerId: string, currency: string): Order {
+    return new Order(randomUUID(), customerId, currency, 0);
+  }
 
-      await this.uow.orderRepository().save(order);
-
-      for (const event of order.pullEvents()) {
-        await this.uow.outbox().append(toIntegrationEvent(event));
-      }
-
-      await this.uow.commit();
-      return { orderId: order.id.value };
-    } catch (err) {
-      await this.uow.rollback();
-      throw err;
+  addLine(sku: string, unitPrice: Money, quantity: number): void {
+    if (this.state !== "draft") throw new DomainError("Only a draft order can be changed");
+    if (unitPrice.currency !== this.currency) throw new DomainError("Line currency differs from order currency");
+    if (quantity < 1) throw new DomainError("Quantity must be at least 1");
+    const existing = this.lines.findIndex((l) => l.sku === sku);
+    if (existing >= 0) {
+      const line = this.lines[existing]!;
+      this.lines[existing] = { ...line, quantity: line.quantity + quantity };
+    } else {
+      if (this.lines.length >= Order.MAX_LINES) throw new DomainError("Too many lines");
+      this.lines.push({ sku, unitPrice, quantity });
     }
+  }
+
+  total(): Money {
+    return this.lines.reduce((sum, l) => sum.add(l.unitPrice.times(l.quantity)), Money.of(0n, this.currency));
+  }
+
+  place(now: Date): void {
+    if (this.state !== "draft") throw new DomainError("Order was already placed or cancelled");
+    if (this.lines.length === 0) throw new DomainError("An order needs at least one line");
+    this.state = "placed";
+    const total = this.total();
+    this.events.push({
+      type: "OrderPlaced",
+      eventId: randomUUID(),
+      occurredAt: now,
+      orderId: this.id,
+      customerId: this.customerId,
+      totalMinor: total.minor.toString(),
+      currency: total.currency,
+    });
+  }
+
+  /** Called by the repository after a successful save. */
+  pullEvents(): OrderPlaced[] {
+    return this.events.splice(0, this.events.length);
+  }
+
+  get currentVersion(): number {
+    return this.version;
   }
 }
 ```
 
-## 27. Common Mistakes
+Repository port with optimistic concurrency and an application service that orchestrates one use case. A command handler loads, calls the domain, saves; the repository stores events in the same transaction (outbox):
 
-### What: Anemic model with logic in the application service. Why: invariants are not enforced; the model becomes inconsistent under change. How to avoid: move behavior onto entities and value objects; keep application services thin.
+```ts
+export interface OrderRepository {
+  /** Returns null when the order does not exist. */
+  findById(id: string): Promise<LoadedOrder | null>;
+  /** Throws ConcurrencyError when expectedVersion is stale. Saves pending events atomically (outbox). */
+  save(order: LoadedOrder, expectedVersion: number): Promise<void>;
+}
 
-### What: God aggregate referencing many entities directly. Why: transactions lock too much; performance collapses; invariants blur. How to avoid: split into smaller aggregates; reference by id; use domain events for cross-aggregate consistency.
+export class ConcurrencyError extends Error {}
+export class NotFoundError extends Error {}
 
-### What: Direct object reference between aggregates. Why: lazy loading crosses transactional boundaries; graphs become unbounded. How to avoid: reference by id; load through the other aggregate's repository.
+// Minimal shape used by the handler; the real type is the Order aggregate.
+export interface LoadedOrder {
+  readonly id: string;
+  readonly currentVersion: number;
+  place(now: Date): void;
+}
 
-### What: Shared database across bounded contexts. Why: contexts couple through schema; changes break each other. How to avoid: each context owns its database; integrate through a published language or domain events.
+export interface Clock {
+  now(): Date;
+}
 
-### What: Skipping the ubiquitous language. Why: developers and domain experts drift apart; the model stops reflecting the business. How to avoid: maintain a glossary; rename code when the language evolves.
+export interface PlaceOrderCommand {
+  readonly orderId: string;
+  readonly commandId: string; // idempotency key
+}
 
-### What: One repository per entity. Why: persistence leaks; aggregate boundaries break. How to avoid: one repository per aggregate root; non-root entities load and save through the root.
+export class PlaceOrderHandler {
+  constructor(
+    private readonly orders: OrderRepository,
+    private readonly clock: Clock,
+  ) {}
 
-## 28. Professional Workflow
+  async execute(cmd: PlaceOrderCommand): Promise<void> {
+    const order = await this.orders.findById(cmd.orderId);
+    if (!order) throw new NotFoundError(`Order ${cmd.orderId} not found`);
+    const version = order.currentVersion;
+    order.place(this.clock.now());
+    // On ConcurrencyError the caller (or a retry decorator) reloads and re-runs the command.
+    await this.orders.save(order, version);
+  }
+}
+```
 
-1. Convene domain experts and engineers for an event storming session; record commands, events, and aggregates.
-2. Capture the ubiquitous language in a glossary; review with domain experts.
-3. Identify bounded contexts; draw the context map; document every relationship.
-4. Classify subdomains as core, supporting, or generic; recommend buy for generic.
-5. Model each context with entities, value objects, and aggregates; identify invariants.
-6. Define repository contracts per aggregate root; define domain events.
-7. Implement the domain layer in pure TypeScript with no framework dependencies.
-8. Write unit tests for every invariant; run them without infrastructure.
-9. Implement the application services and the infrastructure adapters.
-10. Write integration and end-to-end tests with Testcontainers.
-11. Submit a pull request with the model, the tests, and the glossary updates attached.
-12. Review with a second engineer; address every comment; merge when the model reflects the domain.
+Anti-corruption layer that translates a legacy payment provider response into the ordering context's own type. Unknown values fail loudly instead of leaking through:
 
-## 29. Response Style
+```ts
+interface LegacyPaymentDto {
+  txn_status: string; // "00" | "05" | "51" | ...
+  amt: string;        // decimal string in major units, e.g. "12.50"
+  ccy: string;
+  ref: string;
+}
 
-- Speak with authority on DDD; never hedge on the aggregate boundary rule.
-- Cite the source pattern (Evans, Vernon, context mapping) that justifies a decision.
-- Reject vague requirements; demand the ubiquitous language and the invariant list.
-- Never recommend a tactical pattern without explaining the strategic design that contains it.
-- Always present the failure mode of any recommendation alongside the success mode.
-- Use precise vocabulary: bounded context, aggregate, entity, value object, domain event, repository, factory, domain service, application service.
-- Never let infrastructure leak into the domain; the domain is pure.
-- Refuse to ship an anemic model; behavior belongs with the data it governs.
+export type PaymentOutcome =
+  | { kind: "authorized"; reference: string; amountMinor: bigint; currency: string }
+  | { kind: "declined"; reference: string; reason: "insufficient-funds" | "refused" };
 
-## 30. Output Format
+export class PaymentTranslationError extends Error {}
 
-- Begin every DDD design with the bounded context map and the subdomain classification.
-- Provide the ubiquitous language glossary as a table.
-- Provide the aggregate diagram with the root, the internal entities, and the invariants.
-- Provide the domain event catalog with schema and version.
-- Provide the repository contract as a TypeScript interface.
-- Provide the application service contract with request, response, errors, and authorization.
-- Provide the integration plan with anti-corruption layers and published languages.
-- Provide the test matrix: invariant tests, value object tests, integration tests, end-to-end tests.
-- Provide the deployment plan including outbox and projection steps.
-- Provide the production monitoring plan with dashboards and alerts.
+export function toPaymentOutcome(dto: LegacyPaymentDto): PaymentOutcome {
+  if (!/^[A-Z]{3}$/.test(dto.ccy)) throw new PaymentTranslationError("Unknown currency");
+  if (dto.ref.length === 0 || dto.ref.length > 64) throw new PaymentTranslationError("Bad reference");
+  switch (dto.txn_status) {
+    case "00":
+      return { kind: "authorized", reference: dto.ref, amountMinor: parseMinor(dto.amt), currency: dto.ccy };
+    case "51":
+      return { kind: "declined", reference: dto.ref, reason: "insufficient-funds" };
+    case "05":
+      return { kind: "declined", reference: dto.ref, reason: "refused" };
+    default:
+      throw new PaymentTranslationError(`Unmapped status ${dto.txn_status}`);
+  }
+}
+
+function parseMinor(major: string): bigint {
+  const m = /^(\d{1,12})(?:\.(\d{1,2}))?$/.exec(major);
+  if (!m) throw new PaymentTranslationError("Bad amount");
+  return BigInt(m[1]! + (m[2] ?? "").padEnd(2, "0"));
+}
+```
+
+## 15. Common Mistakes
+
+- **Anemic model**: entities as data bags with getters and setters and all rules in services. Move behavior into aggregates; services orchestrate.
+- **God aggregate**: `Customer` containing orders, addresses, payments and tickets. Split by invariant and reference by id.
+- **Aggregate chosen from the database schema or the object graph** rather than from invariants.
+- **Object references across aggregates** that pull in half the database on load and blur transaction boundaries.
+- **One shared model for the whole company**: a single `Customer` that serves sales, billing and support. Give each context its own model and translate.
+- **Repository per table or per entity**, or a repository that returns partial aggregates. Repositories are per aggregate root and return whole aggregates.
+- **Domain events used as RPC or as change-data-capture of columns**: events state business facts, not row updates.
+- **Event sourcing everywhere** because it is fashionable, with no need for history: costs in versioning, projections and operations without matching benefit.
+- **Domain layer importing ORM decorators or HTTP types**, which makes unit tests need a database.
+- **Setters named for the business** (`setStatus("PLACED")`) that skip the checks. Expose `place()` and keep the transition rules inside.
+- **DDD ceremony in a CRUD subdomain**: factories, specifications and events for a settings screen. Reserve the toolkit for the core.
+
+## 16. References
+
+- [references/strategic-design.md](references/strategic-design.md): subdomain classification, finding bounded contexts, all context-map relationships with when to use each, ubiquitous language and glossary practice, Event Storming formats and notation, evolving a legacy system.
+- [references/tactical-patterns.md](references/tactical-patterns.md): entities, value objects, aggregate design rules and sizing, factories, repositories, domain services, specifications, domain events, application services, concurrency, TypeScript code.
+- [references/cqrs-event-sourcing.md](references/cqrs-event-sourcing.md): when CQRS and event sourcing are justified, event-sourced aggregate in TypeScript, projections, snapshots, upcasting, outbox and idempotency, process managers, erasure.
+- Official docs: https://www.domainlanguage.com/ddd/reference/ , https://www.eventstorming.com/ , https://www.dddcommunity.org/library/vernon_2011/ , https://martinfowler.com/bliki/BoundedContext.html
