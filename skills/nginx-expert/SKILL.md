@@ -1,911 +1,319 @@
 ---
 name: nginx-expert
-description: >
-  Design high-throughput, secure Nginx reverse proxies and load balancers with correct location matching, TLS hardening, caching, and observability.
-  
-  Use this skill when containerizing, deploying, automating CI/CD, operating clusters, or managing cloud and infrastructure-as-code.
+description: >-
+  Configures and hardens nginx as a web server, TLS terminator, reverse proxy, load balancer and cache: server and location matching, proxy_pass and upstream blocks, TLS 1.2/1.3, HTTP/2 and HTTP/3 (QUIC), security headers, limit_req and limit_conn rate limiting, proxy_cache, real_ip behind CDNs and static file serving. Use when writing or reviewing nginx.conf, conf.d or sites-enabled files, server_name, location, alias, try_files, upstream, ssl_*, add_header or proxy_* directives, 502 and 504 errors, or nginx inside Docker. Not for Kubernetes ingress-nginx resources and manifests (use kubernetes-expert), general Linux hardening (use linux-expert), or application-level auth and CORS design (use api-security-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# Nginx Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers writing correct, secure and fast nginx configuration: how requests are matched to servers and locations, how to proxy and balance to upstreams, how to terminate TLS with HTTP/2 and HTTP/3, and how to add rate limits, caching and security headers without opening new holes. It targets open source nginx. Features that exist only in NGINX Plus are called out.
 
----
+> Verified against nginx 1.31.x mainline (1.31.8) and 1.30.x stable (1.30.6) as of 2026-10, including the `http2` and `http3` directives and the nginx.org module documentation (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The Nginx Expert designs and operates Nginx as a reverse proxy, load balancer, TLS terminator, content cache, and API gateway. The role owns the event-driven architecture, location matching semantics, upstream health checks, TLS hardening, caching strategy, and security headers. The Nginx Expert rejects `if` blocks for control flow, refuses to use `root` where `alias` is correct, and forbids exposing backend services directly to the internet. The role bridges network and application: terminating TLS at the edge, injecting correlation IDs, rate-limiting abusive clients, and shielding backends from slowloris and amplification attacks.
+## 1. Scope
 
-## 2. Mission
+- Covered: `nginx.conf` structure and inheritance, server and location selection, `root` versus `alias`, `try_files`, reverse proxy and upstream behavior, WebSocket and streaming proxying, TLS, HTTP/2, HTTP/3, security headers, rate and connection limits, `proxy_cache`, `real_ip`, gzip, logging formats, container and package layout.
+- Not covered: Kubernetes ingress-nginx annotations (kubernetes-expert), kernel and OS hardening (linux-expert), designing authentication, CORS policy and API authorization (api-security-expert, authentication-expert), CDN configuration, NGINX Plus only features (active health checks, `sticky`, `queue`, `proxy_cache_purge`, dynamic reconfiguration API).
 
-Deliver Nginx configurations that handle 50,000+ requests per second per worker, terminate TLS 1.3 with A+ SSL Labs rating, cache static and dynamic content with stampede protection, and fail over backends gracefully without dropping requests. Every server block must have a matching default server, every `location` must be ordered by specificity, every upstream must have health checks and circuit breaking, and every response must include security headers and a correlation ID. The Nginx Expert never disables `ssl_session_tickets` for convenience, never uses `listen 80` without a redirect to `443`, and never ships a config that fails `nginx -t`.
+## 2. Core Expertise
 
-## 3. Core Expertise
+| Topic | Key facts |
+|---|---|
+| Versions | Mainline (odd minor, currently 1.31.x) receives features and fixes first; stable (even minor, currently 1.30.x) receives only critical fixes. Both get security patches; run a patched release of either line |
+| Request flow | Pick `server` by listen address and `server_name`; pick `location` by `=`, then longest `^~` prefix, then first matching regex, then longest plain prefix |
+| Inheritance | Directives inherit downward only when the child context sets none of the same kind. `add_header`, `proxy_set_header` and `error_page` are replaced entirely, not merged, by a lower-level declaration |
+| HTTP/2 | `http2 on;` (1.25.1+) at `http` or `server` level. The `http2` parameter of `listen` is deprecated and logs a warning |
+| HTTP/3 | `listen 443 quic reuseport;` plus `listen 443 ssl;`, `http3 on;` (default on once a `quic` listener exists), and an `Alt-Svc` header. Needs `--with-http_v3_module`; the module is documented as experimental |
+| TLS defaults | `ssl_protocols` defaults to `TLSv1.2 TLSv1.3`; `ssl_ciphers` defaults to `HIGH:!aNULL:!MD5`; `ssl_stapling` defaults to off |
+| Upstream defaults | Since 1.29.7 proxying uses HTTP/1.1 and upstream keepalive is on (32 idle connections per worker). Older versions need `proxy_http_version 1.1;` and `proxy_set_header Connection "";` |
+| Rate limiting | `limit_req_zone` + `limit_req` (leaky bucket, `burst`, `nodelay`); `limit_conn_zone` + `limit_conn`; rejected requests return 503 unless `limit_req_status` or `limit_conn_status` is set (use 429) |
+| Client IP | `ngx_http_realip_module` (`set_real_ip_from`, `real_ip_header`, `real_ip_recursive`) replaces `$remote_addr` only for trusted sources |
+| Cache | `proxy_cache_path` + `proxy_cache`, `proxy_cache_key`, `proxy_cache_valid`, `proxy_cache_use_stale`, `proxy_cache_lock`, `proxy_cache_background_update`; `$upstream_cache_status` shows HIT, MISS, STALE and so on |
 
-- Nginx architecture: event-driven, single master process plus N worker processes (one per CPU core by default), async non-blocking I/O using `epoll` (Linux) or `kqueue` (BSD); no thread-per-connection; one worker handles thousands of connections.
-- Configuration syntax: simple directives (`worker_processes auto;`) versus block directives (`http { ... }`, `server { ... }`, `location { ... }`); contexts: `main`, `events`, `http`, `server`, `location`, `upstream`, `stream`, `mail`; directive inheritance (a child context inherits parent directives unless overridden); `include` directive for modularity.
-- `nginx.conf` structure: `main` context (global directives), `events` context (worker connections, `use epoll`, `multi_accept`), `http` context (server defaults, caching, logging, gzip, SSL defaults), `server` blocks (virtual hosts), `location` blocks (URL matching).
-- Request processing phases: `rewrite` phase (`rewrite`, `if`, `set`, `return`), `access` phase (`allow`, `deny`, `auth_basic`), `content` phase (`proxy_pass`, `root`, `try_files`), `log` phase (`access_log`); understanding the order is critical for debugging unexpected behavior.
-- Server blocks: `server_name` matching order is exact, then wildcard `*.example.com`, then leading wildcard `www.*`, then regex `~^www\d+\.example`, then default server (`default_server`); the first matching server block wins.
-- Location matching: exact `= /path` (highest priority, stops search), prefix `^~ /path` (stops regex search), regex `~ /path` (case-sensitive) and `~* /path` (case-insensitive), plain prefix `/path` (lowest priority); named locations `@name` are used internally with `try_files` or `error_page`; the priority order is `=` > `^~` > `~`/`~*` > plain prefix.
-- Reverse proxy: `proxy_pass http://upstream;`, URL rewriting with `rewrite`, `proxy_set_header Host $host`, `X-Real-IP $remote_addr`, `X-Forwarded-For $proxy_add_x_forwarded_for`, `X-Forwarded-Proto $scheme`; `proxy_redirect` to rewrite `Location` headers; `proxy_next_upstream error timeout http_502 http_503 http_504` for failover; `proxy_connect_timeout`, `proxy_send_timeout`, `proxy_read_timeout` for timeout control.
-- Load balancing: `upstream` block; algorithms: round-robin (default), `least_conn`, `ip_hash` (sticky by client IP), `hash $request_uri` (cache sharding), `random`; `queue` with `timeout` for request queueing; `max_fails` and `fail_timeout` for circuit breaking; `slow_start` for gradual ramp-up; `backup` for standby servers; `resolve` for dynamic DNS resolution; `sticky cookie` for session affinity.
-- TLS termination: `ssl_certificate` and `ssl_certificate_key`; `ssl_protocols TLSv1.2 TLSv1.3` (never `TLSv1` or `TLSv1.1`); `ssl_ciphers` from the Mozilla SSL Configuration Generator; `ssl_prefer_server_ciphers off` (with TLS 1.3, client preference is fine); `ssl_session_cache shared:SSL:50m`; `ssl_session_timeout 1d`; `ssl_session_tickets off` for perfect forward secrecy; OCSP stapling with `ssl_stapling on` and `ssl_stapling_verify on`; HSTS header (`Strict-Transport-Security`); HTTP/2 with `listen 443 ssl; http2 on;` (Nginx 1.25.1+) or `listen 443 ssl http2;` (older); HTTP/3 (QUIC) with `listen 443 quic reuseport;` and `http3 on;`; `ssl_dhparam` for custom DH params (only needed for TLS 1.2 with non-ECDSA).
-- Caching: `proxy_cache_path` with `levels=1:2`, `keys_zone=name:10m`, `max_size=10g`, `inactive=60m`, `use_temp_path=off`; `proxy_cache name`; `proxy_cache_key $scheme$request_method$host$request_uri`; `proxy_cache_valid 200 302 10m`, `proxy_cache_valid 404 1m`; `proxy_cache_bypass $http_cache_control`, `proxy_no_cache $http_authorization`; `proxy_cache_revalidate on`; `proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504`; `proxy_cache_background_update on`; `proxy_cache_lock on` for stampede prevention; cache purging with `proxy_cache_purge` (requires commercial or third-party module).
-- Static file serving: `root` versus `alias` (critical difference: `root` appends the location to the root path, `alias` replaces the location with the alias path); `try_files $uri $uri/ =404`; `expires 1y` and `add_header Cache-Control "public, immutable"`; `gzip on`, `gzip_types text/plain text/css application/json`, `gzip_comp_level 6`, `gzip_vary on`; brotli with the third-party `ngx_brotli` module; `sendfile on`, `tcp_nopush on`, `tcp_nodelay on`; `aio on` and `directio 8m` for large files.
-- Security: `limit_req zone=name burst=20 nodelay` for rate limiting; `limit_conn` for concurrent connection limits; `allow`/`deny` for IP filtering; `auth_basic` and `auth_basic_user_file` with htpasswd for basic auth; `set_real_ip_from` and `real_ip_header X-Forwarded-For` for trusted proxies; security headers via `add_header`: `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection` (deprecated, use CSP), `Referrer-Policy`, `Content-Security-Policy`, `Permissions-Policy`.
-- WebSocket proxying: `proxy_http_version 1.1`, `proxy_set_header Upgrade $http_upgrade`, `proxy_set_header Connection "upgrade"`; use a `map` for the Connection header to handle both WebSocket and HTTP correctly.
-- Streaming: `stream` context for TCP/UDP proxying (load balancing databases, mail servers); `ssl_preread` for SNI-based routing without terminating TLS; `mail` context for mail proxying (IMAP, POP3, SMTP).
-- Performance tuning: `worker_processes auto`, `worker_connections 10240`, `worker_rlimit_nofile 65535`, `multi_accept on`, `use epoll`, `accept_mutex off` (on modern kernels with `reuseport`); `pid`, `error_log` levels; `access_log` buffering (`buffer=16k`, `flush=5m`); `open_file_cache` for static files; `fastcgi_cache` for PHP-FPM.
-- Dynamic modules: `load_module` directive; modules shipped but not loaded by default include `brotli`, `image-filter`, `geoip`, `njs` (JavaScript module), `lua-nginx-module` (OpenResty).
-- Logging: `log_format` customization; `access_log` to file or syslog; `error_log` levels (debug, info, notice, warn, error, crit, alert, emerg); conditional logging with `if` (use sparingly).
-- Debugging: `nginx -T` to dump the full compiled config; `nginx -t` to test config syntax and validity; `error_log debug` for verbose output; `$request_id` for request correlation.
-- High availability: `keepalived` with VRRP for VIP failover; multiple Nginx instances behind a load balancer; Blue-Green deployments with Nginx.
-- Monitoring: `stub_status` for basic stats (active connections, accepts, handled, requests); `plus_status` from Nginx Plus (commercial); Prometheus exporter via `nginx-prometheus-exporter`; access log parsing with `goaccess` and `ngxtop`.
-- Configuration as code: templating with `envsubst`, `confd`, `consul-template` for dynamic config from Consul/Vault.
+## 3. Workflow
 
-## 4. Responsibilities
+1. Decide the role of each `server`: redirect-only HTTP, TLS site, internal API proxy, static host.
+2. Define upstreams and the trust boundary: what the real client IP is, which proxies may set forwarded headers.
+3. Write locations from most specific to least, using exact or `^~` prefixes where possible and regex only when needed.
+4. Add TLS, then HTTP/2 and HTTP/3, then security headers, then limits and caching.
+5. Check syntax and the effective config: `nginx -t`, then `nginx -T` to see every included file.
+6. Reload without dropping connections: `nginx -s reload` (or `systemctl reload nginx`); a failed test keeps the old config running.
+7. Verify with `curl -vk --resolve example.com:443:127.0.0.1 https://example.com/`, `curl --http3` where available, and `openssl s_client -connect host:443 -servername host`.
+8. Review error log levels and the upstream response codes for the new routes before rolling out broadly.
 
-- Author and maintain Nginx configurations for every public-facing service (reverse proxy, TLS termination, load balancing, caching).
-- Design upstream pools with health checks, circuit breaking, and failover; never expose a single backend without redundancy.
-- Configure TLS termination with TLS 1.2 and 1.3 only; achieve A+ on SSL Labs; enable OCSP stapling and HSTS.
-- Configure caching with stampede protection (`proxy_cache_lock`), stale-while-revalidate (`proxy_cache_use_stale`), and background updates.
-- Configure rate limiting (`limit_req`) and connection limiting (`limit_conn`) to protect backends from abuse.
-- Configure security headers (`Content-Security-Policy`, `Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`).
-- Configure WebSocket proxying for real-time services; verify upgrade handshake works.
-- Configure logging with a structured `log_format` including `$request_id`, `$upstream_response_time`, `$upstream_addr`; ship to a central aggregator.
-- Configure monitoring: `stub_status` or `nginx-prometheus-exporter`; alert on 5xx rate, latency, upstream failures.
-- Document the configuration hierarchy, the upstream pools, the caching strategy, and the incident runbooks.
-- Test configurations with `nginx -t` before reload; never reload a broken config.
-- Operate graceful reloads (`nginx -s reload`); verify zero-dropped requests during reload.
+## 4. Decision Rules
 
-## 5. Thinking Process
+- Terminate TLS at nginx and use HTTP/1.1 keepalive to upstreams; re-encrypt with `proxy_pass https://...` plus `proxy_ssl_verify on` when the network between nginx and the app is untrusted.
+- `return 301 https://$host$request_uri;` for HTTP-to-HTTPS redirects; do not use `rewrite` or `if` for that.
+- Prefer `root` over `alias`. Use `alias` only when the URL path and filesystem path differ, and keep the trailing slash identical on the location and the alias.
+- Avoid `if` inside `location` except for `return` and `rewrite ... last`; use `map` for conditional values.
+- Choose the balancing method by workload: round-robin by default, `least_conn` for uneven request durations, `ip_hash` or `hash $cookie_x consistent` only when affinity is required, `random two least_conn` for large pools.
+- Retry only idempotent requests: by default `proxy_next_upstream` does not pass POST, PATCH or LOCK requests to the next server once a request has been sent upstream; adding `non_idempotent` allows it and can duplicate side effects.
+- Cache only responses that are the same for all users; key and bypass on `Authorization` and cookies deliberately (see the caching reference).
+- Use `limit_req` for request rate and `limit_conn` for concurrent connections; apply tight limits to login, password reset and search endpoints, looser ones site-wide.
+- Enable OCSP stapling only for certificates whose CA still runs an OCSP responder. Let's Encrypt shut its OCSP service down in 2025 and its certificates no longer carry an OCSP URL, so `ssl_stapling on` only logs a warning for them.
+- Run the mainline build when you need a feature such as HTTP/3 fixes sooner; run stable where change control is strict.
 
-1. Identify the service: public-facing or internal; HTTP, WebSocket, gRPC, or TCP; expected RPS; TLS requirements.
-2. Design the upstream pool: number of backends, health check endpoint, failover policy, load balancing algorithm.
-3. Choose the TLS strategy: terminate at Nginx (most common) or passthrough (for SNI routing or end-to-end encryption).
-4. Design the location hierarchy: static files first (exact match), then API paths (regex), then the catch-all.
-5. Choose caching strategy: cache static assets indefinitely (with hash-based filenames), cache API responses selectively (with `proxy_cache_bypass` for authenticated requests).
-6. Choose rate limiting: per-IP for anonymous, per-user (via `map` on JWT) for authenticated; burst allowance for legitimate spikes.
-7. Author the config with `include` for modularity; validate with `nginx -t`.
-8. Test in staging: load test, failover test (kill a backend), TLS test (SSL Labs), security header test (securityheaders.com).
-9. Deploy with `nginx -s reload`; monitor 5xx rate and latency for one full business cycle.
-10. Document the config and the runbook; add alerting for the new service.
+## 5. Coding Standards
 
-## 6. Decision Making Rules
+- One concern per file under `conf.d/` or `sites-enabled/`: `00-defaults.conf`, `example.com.conf`, `snippets/ssl.conf`, `snippets/security-headers.conf`.
+- Declare `default_server` explicitly for ports 80 and 443 and make it reject unknown hosts (`return 444;` and `ssl_reject_handshake on;`).
+- Always quote header values containing spaces or semicolons, and put `always` on `add_header` so error responses carry the headers too.
+- Set `server_name` precisely; avoid `server_name _;` on real sites. Use `$host` (normalized) rather than `$http_host` when building redirects.
+- Prefer `return` over `rewrite`; anchor and escape regex locations (`location ~ \.php$`), never leave an unanchored `~ php`.
+- Always end `proxy_pass` decisions deliberately: with a URI part (`proxy_pass http://app/;`) nginx replaces the matched prefix, without it the original URI is sent unchanged. With variables in `proxy_pass`, no prefix replacement happens and a `resolver` is required for hostnames.
+- Keep timeouts explicit on proxied locations: `proxy_connect_timeout`, `proxy_send_timeout`, `proxy_read_timeout`.
+- Comment non-obvious values (burst sizes, cache TTLs) and the reason; `include` shared snippets instead of copy-pasting.
 
-- When `root` and `alias` both serve static files, choose `root` for the common case (location path matches filesystem path) and `alias` only when the location path differs from the filesystem path; misusing them causes path traversal bugs.
-- When `proxy_pass` with a trailing slash and without both rewrite the URL, choose with-trailing-slash (`proxy_pass http://backend/;`) when the backend should not see the location prefix, and without when it should.
-- When `ip_hash` and `sticky cookie` both provide session affinity, choose `sticky cookie` because `ip_hash` breaks when clients are behind NAT (corporate proxies, mobile carriers).
-- When `limit_req` with `burst nodelay` and `burst delay` both rate-limit, choose `nodelay` for APIs (reject above burst immediately) and `delay` for human-facing pages (queue above burst).
-- When `ssl_session_tickets` on and off both manage session resumption, choose `off` for perfect forward secrecy (compromised ticket key decrypts past sessions) and `on` only when session cache is insufficient.
-- When `proxy_cache_use_stale` and `proxy_cache_background_update` both handle stale cache, choose both together for the best UX (serve stale immediately, update in background).
-- When `nginx -s reload` and `systemctl restart nginx` both apply a new config, choose `reload` because it is graceful (no dropped requests); `restart` drops in-flight requests.
-- When terminating TLS at Nginx and at the backend both secure traffic, choose terminate at Nginx because it centralizes certificate management, reduces backend CPU, and enables HTTP/2 and HTTP/3 at the edge.
-
-## 7. Architecture Rules
-
-- Every public-facing service must terminate TLS at Nginx; backends must communicate over a private network.
-- Every public-facing service must have a default server block that returns 444 or 421 for unmatched `Host` headers; never serve the first server block as default by accident.
-- Every `server` block must redirect HTTP to HTTPS; no `listen 80` without a redirect to `443`.
-- Every `upstream` block must have at least two backends, `max_fails`, `fail_timeout`, and a health check (passive via `max_fails` or active via `health_check` in Nginx Plus).
-- Every `location` block must be ordered by specificity (exact, prefix `^~`, regex, plain prefix); never rely on file order for non-regex locations.
-- Every response must include security headers: `Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy`, `Permissions-Policy`.
-- Every cache must have `proxy_cache_lock on` (stampede prevention) and `proxy_cache_use_stale error timeout updating http_5xx` (resilience).
-- Every config must validate with `nginx -t` before reload; never reload a config that fails validation.
-
-## 8. Coding Standards
-
-- Use `include` to split config into modular files: `include /etc/nginx/sites-enabled/*.conf;`, `include /etc/nginx/snippets/*.conf;`.
-- Use snippets for reusable blocks: `include /etc/nginx/snippets/tls.conf;`, `include /etc/nginx/snippets/security-headers.conf;`.
-- Use a `map` for complex conditional logic; never use `if` for control flow (`if` is evil in Nginx — only safe for `return` and `rewrite`).
-- Define `log_format` with structured fields: `$time_iso8601`, `$remote_addr`, `$request_method`, `$request_uri`, `$status`, `$body_bytes_sent`, `$request_time`, `$upstream_response_time`, `$upstream_addr`, `$request_id`, `$http_user_agent`.
-- Define `proxy_cache_path` at the `http` level with `use_temp_path=off` for performance.
-- Define `limit_req_zone` at the `http` level; reference in `server` or `location`.
-- Define `upstream` blocks at the `http` level with explicit `server` entries, `max_fails`, `fail_timeout`.
-- Set `server_tokens off` to hide the Nginx version.
-- Set `client_max_body_size` explicitly per service (default 1m is often too small for uploads).
-- Validate every change with `nginx -t` before reload; treat warnings as errors.
-
-## 9. Naming Conventions
-
-- Config files in `/etc/nginx/sites-available/`: `<fqdn>.conf` (`api.example.com.conf`); symlink to `sites-enabled/`.
-- Snippets in `/etc/nginx/snippets/`: `<purpose>.conf` (`tls.conf`, `security-headers.conf`, `proxy.conf`).
-- Upstream names: `<service>-backend` (`api-backend`, `web-backend`); never `backend1`.
-- Cache zones: `<service>-cache` (`api-cache`); `keys_zone` name matches.
-- Rate limit zones: `<purpose>-limit` (`api-limit`, `login-limit`).
-- Map variables: `<purpose>_map` (`is_websocket_map`, `cache_bypass_map`).
-- Log formats: `main` (default), `json` (structured), `api` (API-specific).
-- Server names: FQDN (`api.example.com`); `default_server` for the default.
-- Location names: named locations use `@<purpose>` (`@fallback`, `@maintenance`).
-- SSL certificate paths: `/etc/letsencrypt/live/<fqdn>/{fullchain.pem,privkey.pem}` for Let's Encrypt; `/etc/nginx/ssl/<fqdn>/{cert,key}` for custom.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
 /etc/nginx/
-├── nginx.conf                       # Main config (main, events, http contexts)
-├── conf.d/                          # Custom http-level config
-│   ├── log_formats.conf
-│   ├── gzip.conf
-│   ├── ssl_defaults.conf
-│   └── proxy_defaults.conf
-├── snippets/                        # Reusable config blocks
-│   ├── tls.conf                     # TLS settings (protocols, ciphers, session)
-│   ├── security-headers.conf        # Standard security headers
-│   ├── proxy.conf                   # Standard proxy headers and timeouts
-│   ├── websocket.conf               # WebSocket upgrade headers
-│   └── letsencrypt.conf             # Let's Encrypt ACME challenge location
-├── sites-available/                 # Virtual hosts (one file per FQDN)
-│   ├── api.example.com.conf
-│   ├── web.example.com.conf
-│   └── default.conf                 # Default server (returns 444)
-├── sites-enabled/                   # Symlinks to sites-available
-│   ├── api.example.com.conf -> ../sites-available/api.example.com.conf
-│   ├── web.example.com.conf -> ../sites-available/web.example.com.conf
-│   └── default.conf -> ../sites-available/default.conf
-├── auth/                            # htpasswd files for basic auth
-│   └── admin.htpasswd
-├── ssl/                             # SSL certificates (or use /etc/letsencrypt/live/)
-│   └── example.com/
-│       ├── fullchain.pem
-│       └── privkey.pem
-└── cache/                           # Cache directory (proxy_cache_path)
-    └── api-cache/
-
-/var/log/nginx/
-├── access.log                       # Default access log
-├── error.log                        # Default error log
-├── api.example.com.access.log       # Per-site access log
-└── api.example.com.error.log        # Per-site error log
+├── nginx.conf                    # main: worker settings, http {} with includes only
+├── mime.types
+├── conf.d/
+│   ├── 00-defaults.conf          # default_server catch-alls, log_format, limit zones, maps
+│   ├── example.com.conf          # one file per site
+│   └── upstreams.conf            # upstream blocks shared by sites
+├── snippets/
+│   ├── ssl.conf                  # protocols, session cache, ciphers if customized
+│   ├── security-headers.conf     # add_header lines, included per server or location
+│   ├── proxy-common.conf         # proxy_set_header Host/X-Forwarded-*, timeouts
+│   └── real-ip-cdn.conf          # set_real_ip_from ranges for a known CDN
+└── certs/                        # or /etc/letsencrypt/live/<name>/ managed by the ACME client
 ```
 
-## 11. Project Structure
+nginx.org packages and the official Docker image use `conf.d/`; Debian and Ubuntu packages use `sites-available/` and `sites-enabled/`.
 
-```
-nginx-platform/
-├── config/
-│   ├── nginx.conf                   # Main config
-│   ├── conf.d/
-│   │   ├── log_formats.conf
-│   │   ├── gzip.conf
-│   │   ├── ssl_defaults.conf
-│   │   └── proxy_defaults.conf
-│   ├── snippets/
-│   │   ├── tls.conf
-│   │   ├── security-headers.conf
-│   │   ├── proxy.conf
-│   │   ├── websocket.conf
-│   │   └── letsencrypt.conf
-│   ├── sites-available/
-│   │   ├── api.example.com.conf
-│   │   ├── web.example.com.conf
-│   │   ├── grafana.example.com.conf
-│   │   └── default.conf
-│   └── auth/
-│       └── admin.htpasswd
-├── templates/                       # Templated configs (envsubst, consul-template)
-│   ├── api.example.com.conf.tmpl
-│   └── nginx.conf.tmpl
-├── ansible/
-│   ├── inventory/
-│   ├── group_vars/
-│   │   ├── all.yml
-│   │   └── edge.yml
-│   ├── roles/
-│   │   ├── nginx-install/
-│   │   ├── nginx-config/
-│   │   ├── nginx-tls/
-│   │   └── nginx-exporter/
-│   └── playbooks/
-│       ├── site.yml
-│       └── deploy-config.yml
-├── ci/
-│   ├── scripts/
-│   │   ├── nginx-test.sh            # nginx -t
-│   │   └── nginx-lint.sh            # gixy (static analysis)
-│   └── templates/
-│       └── deploy.gitlab-ci.yml
-├── monitoring/
-│   ├── dashboards/
-│   │   └── nginx-overview.json
-│   └── alerts/
-│       └── nginx-alerts.yml
-└── docs/
-    ├── config-style-guide.md
-    ├── tls-hardening.md
-    └── incident-runbooks/
-        ├── high-5xx.md
-        ├── tls-renewal-failure.md
-        └── backend-down.md
-```
+## 7. Design Patterns
 
-## 12. Design Patterns
+- **Catch-all default servers** that drop traffic with unknown `Host` headers, preventing host header abuse and scanner noise.
+- **Snippet composition**: `include snippets/security-headers.conf;` in each server and again in any location that defines its own `add_header`.
+- **Upstream with passive failover**: `server ... max_fails=3 fail_timeout=10s;` plus `proxy_next_upstream error timeout http_502 http_503 http_504;` and `keepalive`. Active health checks require NGINX Plus or an external checker.
+- **Static assets with cache headers**: fingerprinted files get `expires 1y` and `Cache-Control: public, immutable`; HTML gets `no-cache`.
+- **WebSocket upgrade via `map`**: `map $http_upgrade $connection_upgrade { default upgrade; '' close; }`.
+- **Micro-cache** for hot anonymous GET endpoints (1 to 10 seconds with `proxy_cache_lock` and `use_stale updating`).
+- **Edge limits per route** via named zones declared once in `http {}` and applied in specific locations.
+- Detail: [references/reverse-proxy-load-balancing.md](references/reverse-proxy-load-balancing.md), [references/tls-http2-http3.md](references/tls-http2-http3.md), [references/caching-rate-limiting.md](references/caching-rate-limiting.md).
 
-### Reverse Proxy with TLS Termination Pattern
-When to use: every public-facing HTTP service; mandatory for TLS at the edge.
-When not to use: passthrough TLS (for SNI routing or end-to-end encryption); use `stream` with `ssl_preread` instead.
-Sketch:
+## 8. Best Practices
+
+- Test every change with `nginx -t` in CI against the real included files, using a container with the same nginx version as production.
+- Set `server_tokens off;` to drop the version from headers and error pages.
+- Use `$request_id` in a `log_format` and pass it upstream (`proxy_set_header X-Request-ID $request_id;`) so a request can be traced across layers.
+- Set `client_max_body_size` per location (default 1m) rather than globally to a large value; set it high only on upload routes.
+- Return JSON or static error pages with `error_page` and `internal` locations; never expose upstream error bodies or stack traces.
+- Use `map` and `geo` for data-driven decisions (allowlists, bot flags) instead of chained `if` blocks.
+- Reload, do not restart, for config changes; restart only when upgrading the binary or changing modules.
+
+## 9. Performance
+
+- `worker_processes auto;` and a `worker_connections` large enough for peak (`events { worker_connections 4096; }`); raise `worker_rlimit_nofile` to at least twice that when proxying, since each proxied request uses two sockets.
+- Keep upstream keepalive enabled so nginx reuses connections to the app (default on since 1.29.7; set `keepalive N;` explicitly on older versions).
+- `sendfile on; tcp_nopush on; tcp_nodelay on;` for static content; `open_file_cache` for hot static sets.
+- `gzip on; gzip_vary on; gzip_comp_level 5; gzip_types text/plain text/css application/json application/javascript image/svg+xml;` (HTML is always compressed once `gzip` is on). Do not gzip already-compressed formats. Brotli needs a separate module.
+- `ssl_session_cache shared:SSL:10m;` so returning clients resume sessions without a full handshake.
+- Leave `proxy_buffering on` for normal responses so slow clients do not hold app workers; turn it off only for streaming (SSE, long polling) locations, or let the app send `X-Accel-Buffering: no`.
+- Cache what you can: static assets with long TTLs, and anonymous API or HTML responses with short TTLs and `proxy_cache_lock`.
+- Use `reuseport` on the UDP `quic` listener (once per address and port) and keep a TCP listener for HTTP/1.1 and HTTP/2.
+
+## 10. Security
+
+- **Path traversal through `alias`**: with `location /static { alias /srv/app/assets/; }` (no trailing slash on the location) a request for `/static../secret.txt` matches the prefix, the remainder `../secret.txt` is appended to the alias, and nginx opens `/srv/app/assets/../secret.txt`. Fix: make the slashes match on both sides, `location /static/ { alias /srv/app/assets/; }`, or use `root`. Also never combine `alias` with user-controlled variables, and keep nginx patched; some security releases touch `alias` handling.
+- **TLS**: leave `ssl_protocols` at the default `TLSv1.2 TLSv1.3` or restrict to `TLSv1.3` if all clients allow it; never enable TLS 1.0, 1.1 or SSL; no self-managed DH parameters needed with ECDHE.
+- **Security headers** (set with `always`): `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, and a Content-Security-Policy without `unsafe-inline` or `unsafe-eval`. A static policy such as `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'` works only if the page has no inline scripts or styles; for pages that need inline code use per-response nonces generated by the application. `X-XSS-Protection` is obsolete; omit it.
+- **No internal endpoints on public listeners**: do not proxy `/admin`, `/debug`, `/metrics`, `/actuator`, `/swagger` or test and seed routes to the internet. Expose `stub_status` only on a loopback or private listener with `allow`/`deny`. Deny hidden files and VCS metadata: `location ~ /\.(?!well-known/) { deny all; }`.
+- **Client IP trust**: configure `set_real_ip_from` with only the CIDRs of your own proxies or CDN; trusting `0.0.0.0/0` lets any client spoof `X-Forwarded-For` and bypass `limit_req` and `allow`/`deny`.
+- **Header hygiene**: set `Host`, `X-Forwarded-For` (overwrite with `$remote_addr` when nginx is the edge) and `X-Forwarded-Proto` yourself; never forward client-supplied values you did not validate. Clear unneeded request headers with `proxy_set_header Name "";`.
+- **Resource caps**: `client_max_body_size`, `client_body_timeout`, `client_header_timeout`, `keepalive_timeout`, `large_client_header_buffers`, `limit_req`, `limit_conn`.
+- **HTTP/3 and 0-RTT**: keep `ssl_early_data off` unless the application handles replayed requests; consider `quic_retry on` for address validation.
+- Keep nginx and its OpenSSL library patched; follow the nginx security advisories, and rebuild container images regularly.
+- Run workers unprivileged (`user nginx;` is the default in packages); in containers use an unprivileged image variant listening on a high port.
+
+## 11. Testing
+
+- `nginx -t` (syntax and file access) and `nginx -T` (dump effective config) in CI.
+- Config smoke tests with `curl` against a containerized nginx: status codes, redirects, headers (`curl -sI`), HTTP/2 (`curl --http2 -I`), HTTP/3 where curl supports it (`curl --http3`).
+- Path traversal test for every `alias`: `curl --path-as-is 'https://host/static../etc/passwd'` must not return file content.
+- TLS verification: `openssl s_client -connect host:443 -servername host -tls1_2` succeeds, `-tls1_1` fails; scan with a TLS testing tool in staging.
+- Load and limit tests: confirm `limit_req` returns 429 after the burst and that legitimate bursts pass; confirm the real client IP appears in logs behind the CDN.
+- Cache tests: send the same request twice and check `X-Cache-Status` (from `add_header X-Cache-Status $upstream_cache_status;`) for MISS then HIT, and check that authenticated requests are never HIT for another user.
+
+## 12. Review Checklist
+
+- [ ] `nginx -t` passes; `nginx -T` reviewed for unintended includes.
+- [ ] Default servers reject unknown hosts on 80 and 443.
+- [ ] HTTP redirects to HTTPS with `return 301`; HSTS set only after HTTPS works everywhere.
+- [ ] `http2 on;` used instead of `listen ... http2`; HTTP/3 has an `Alt-Svc` header and UDP 443 open.
+- [ ] Every `alias` has matching slashes (or is replaced with `root`); dotfiles denied.
+- [ ] `add_header` repeated in locations that define their own; CSP has no `unsafe-inline`.
+- [ ] `set_real_ip_from` lists only trusted proxies; forwarded headers set explicitly.
+- [ ] No admin, debug, metrics or test endpoints reachable from the public side.
+- [ ] Rate limits on authentication and expensive routes; body size and timeouts bounded.
+- [ ] Caches key on everything that varies the response and never store personalized content.
+- [ ] `server_tokens off;`, log format includes `$request_id`, upstream timeouts are explicit.
+
+## 13. Production Notes
+
+- Package repositories: nginx.org publishes mainline and stable builds; distro packages lag. The official Docker image tags follow the same lines (for example `nginx:1.30` for stable). Check `nginx -V` to confirm modules such as `http_v3_module` are compiled in.
+- In Docker, run nginx unprivileged where possible (the `nginxinc/nginx-unprivileged` image listens on 8080), mount configuration read-only, send logs to stdout and stderr, and use `nginx -t` as a build step. For Compose stacks see docker-expert.
+- Zero-downtime changes: `nginx -t && nginx -s reload`. Old workers finish in-flight requests; with long-lived WebSocket connections set `worker_shutdown_timeout`.
+- Certificate renewal: reload nginx after the ACME client renews (`--deploy-hook "systemctl reload nginx"` or equivalent). Since certificates from Let's Encrypt no longer carry OCSP URLs, remove `ssl_stapling` lines copied from older templates (certbot's older `options-ssl-nginx.conf` included them).
+- Behind a CDN or load balancer, restrict direct access to the origin by firewall to the CDN ranges so the `real_ip` configuration cannot be bypassed.
+- Hot-reload does not apply `listen` socket option changes in every case, and new `reuseport` listeners may need a restart; test in staging.
+- Upgrading across mainline releases: read the CHANGES file for directive defaults and removals (for example proxy HTTP version and keepalive defaults changed in 1.29.7).
+
+## 14. Examples
+
+TLS site with HTTP/2 and HTTP/3, reverse proxy to an app, security headers and a rate-limited login route:
+
 ```nginx
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name api.example.com;
+# conf.d/00-defaults.conf (http context)
+map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+limit_req_zone $binary_remote_addr zone=login:10m rate=5r/m;
+limit_req_status 429;
 
-    include snippets/tls.conf;
-    ssl_certificate /etc/letsencrypt/live/api.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
-
-    include snippets/security-headers.conf;
-
-    location / {
-        include snippets/proxy.conf;
-        proxy_pass http://api-backend;
-    }
-}
-server {
-    listen 80;
-    server_name api.example.com;
-    return 301 https://$host$request_uri;
-}
-```
-
-### Load Balancing with Health Checks Pattern
-When to use: any service with multiple backends; mandatory for high availability.
-When not to use: single-backend dev environments.
-Sketch:
-```nginx
-upstream api-backend {
-    least_conn;
-    server 10.0.1.10:8080 max_fails=3 fail_timeout=30s;
-    server 10.0.1.11:8080 max_fails=3 fail_timeout=30s;
-    server 10.0.1.12:8080 max_fails=3 fail_timeout=30s backup;
-    keepalive 32;
-}
-```
-
-### Caching with Stampede Protection Pattern
-When to use: cacheable API responses or static assets; mandatory for high-traffic endpoints.
-When not to use: authenticated or personalized responses (use `proxy_cache_bypass`).
-Sketch:
-```nginx
-proxy_cache_path /var/cache/nginx/api-cache
-    levels=1:2
-    keys_zone=api-cache:100m
-    max_size=10g
-    inactive=60m
-    use_temp_path=off;
-
-location /api/public/ {
-    proxy_cache api-cache;
-    proxy_cache_key "$scheme$request_method$host$request_uri";
-    proxy_cache_valid 200 302 10m;
-    proxy_cache_valid 404 1m;
-    proxy_cache_lock on;
-    proxy_cache_lock_timeout 10s;
-    proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
-    proxy_cache_background_update on;
-    proxy_cache_revalidate on;
-    add_header X-Cache-Status $upstream_cache_status;
-    include snippets/proxy.conf;
-    proxy_pass http://api-backend;
-}
-```
-
-### WebSocket Proxy Pattern
-When to use: any WebSocket service (chat, real-time updates, signaling).
-When not to use: plain HTTP; the upgrade headers are harmless but unnecessary.
-Sketch:
-```nginx
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ''      close;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name ws.example.com;
-    include snippets/tls.conf;
-    ssl_certificate /etc/letsencrypt/live/ws.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ws.example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://ws-backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-        proxy_set_header Host $host;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-    }
-}
-```
-
-### Rate Limiting Pattern
-When to use: any public-facing API; mandatory for login and password reset endpoints.
-When not to use: internal APIs behind authentication.
-Sketch:
-```nginx
-limit_req_zone $binary_remote_addr zone=api-limit:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=login-limit:10m rate=1r/s;
-
-location /api/ {
-    limit_req zone=api-limit burst=20 nodelay;
-    proxy_pass http://api-backend;
-}
-location /api/login {
-    limit_req zone=login-limit burst=5 nodelay;
-    proxy_pass http://api-backend;
-}
-```
-
-### Default Server Pattern
-When to use: every Nginx instance; mandatory to prevent serving the wrong site for unmatched Host headers.
-When not to use: never skip.
-Sketch:
-```nginx
-server {
+server {                                   # reject unknown hosts
     listen 80 default_server;
-    listen 443 ssl default_server;
-    server_name _;
-    ssl_certificate /etc/nginx/ssl/default/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/default/privkey.pem;
+    listen [::]:80 default_server;
     return 444;
 }
-```
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    ssl_reject_handshake on;               # no certificate for unknown SNI names
+}
 
-## 13. Best Practices
-
-- Always run `nginx -t` before `nginx -s reload`; never reload a broken config.
-- Always set `server_tokens off` to hide the Nginx version.
-- Always have a default server block that returns 444 for unmatched `Host` headers.
-- Always redirect HTTP to HTTPS with `return 301 https://$host$request_uri;`.
-- Always include `X-Forwarded-For`, `X-Real-IP`, `X-Forwarded-Proto`, and `Host` headers in `proxy_set_header`.
-- Always set `proxy_http_version 1.1` and `proxy_set_header Connection ""` for keepalive to upstreams.
-- Always enable `ssl_session_cache`, `ssl_session_tickets off`, OCSP stapling, and HSTS for TLS.
-- Always use `proxy_cache_lock on` and `proxy_cache_use_stale` for caching resilience.
-- Always define `limit_req_zone` for public APIs; tune `burst` to legitimate spike patterns.
-- Always log `$request_id`, `$upstream_response_time`, and `$upstream_addr` for observability.
-- Always use `include` for modularity; never put everything in `nginx.conf`.
-- Always run `nginx -s reload` (graceful) instead of `systemctl restart nginx` (drops connections).
-
-## 14. Anti Patterns
-
-### Anti-pattern: Using `if` for control flow
-Why wrong: `if` in Nginx is evaluated per-request in the rewrite phase and has surprising interactions with other directives; it is the source of countless bugs ("If Is Evil" in the Nginx wiki).
-Correct alternative: use `map` for conditional variable assignment, `try_files` for file existence checks, and `return`/`rewrite` for simple conditionals; reserve `if` for `return` and `rewrite` only.
-
-### Anti-pattern: Using `root` where `alias` is required
-Why wrong: `root` appends the location path to the root, so `location /static { root /var/www; }` serves from `/var/www/static/`, which is correct; but `location /static { root /var/www/app; }` serves from `/var/www/app/static/`, which may not be intended; `alias` replaces the location path.
-Correct alternative: use `root` when the location matches the filesystem path; use `alias` when they differ: `location /static { alias /var/www/app/assets/; }`.
-
-### Anti-pattern: `listen 80` without a redirect to HTTPS
-Why wrong: serving content over HTTP defeats TLS; users may bookmark the HTTP URL; mixed-content warnings occur.
-Correct alternative: every `listen 80` server block must `return 301 https://$host$request_uri;`; the only exception is the ACME challenge location for Let's Encrypt.
-
-### Anti-pattern: `proxy_pass http://backend;` without `proxy_set_header`
-Why wrong: the backend sees Nginx's IP as the client IP; the backend sees `localhost` or empty as the Host; the backend cannot construct correct redirect URLs.
-Correct alternative: always set `Host $host`, `X-Real-IP $remote_addr`, `X-Forwarded-For $proxy_add_x_forwarded_for`, `X-Forwarded-Proto $scheme`.
-
-### Anti-pattern: Exposing a single backend without an upstream pool
-Why wrong: `proxy_pass http://10.0.1.10:8080;` has no failover; if the backend is down, all requests fail; there is no circuit breaking.
-Correct alternative: define an `upstream` block with at least two backends and `max_fails`/`fail_timeout`; reference the upstream in `proxy_pass`.
-
-### Anti-pattern: Disabling `ssl_session_tickets` "for performance"
-Why wrong: session tickets enable fast session resumption; disabling them without `ssl_session_cache` hurts TLS handshake performance; but enabling them with a static key compromises forward secrecy.
-Correct alternative: enable `ssl_session_cache shared:SSL:50m` and `ssl_session_timeout 1d`; disable `ssl_session_tickets` for forward secrecy, or rotate ticket keys if tickets are required.
-
-## 15. Performance Rules
-
-- Set `worker_processes auto` to match CPU cores; pin to specific cores with `worker_cpu_affinity` for cache locality.
-- Set `worker_connections 10240` and `worker_rlimit_nofile 65535` for high-connection workloads.
-- Set `multi_accept on` and `use epoll` (Linux) to accept all pending connections in one call.
-- Enable `sendfile on`, `tcp_nopush on`, and `tcp_nodelay on` for efficient static file serving.
-- Enable `keepalive` in upstream blocks to reuse backend connections; set `proxy_http_version 1.1` and `proxy_set_header Connection ""`.
-- Enable `gzip on` with `gzip_types` for text-based responses; set `gzip_min_length 1024` to skip tiny responses.
-- Enable `open_file_cache` for static file serving to reduce disk I/O.
-- Set `access_log` with `buffer=16k` and `flush=5m` to reduce log I/O; or disable `access_log` for very high-traffic static endpoints.
-- Use `proxy_cache` to offload cacheable requests from backends; set `proxy_cache_lock on` to prevent stampedes.
-- Tune `proxy_connect_timeout`, `proxy_send_timeout`, `proxy_read_timeout` to the backend's expected latency; never use defaults for slow backends.
-
-## 16. Security Rules
-
-- Always set `server_tokens off` to hide the Nginx version.
-- Always have a default server block returning 444 for unmatched `Host` headers.
-- Always redirect HTTP to HTTPS; never serve content over HTTP.
-- Always set `ssl_protocols TLSv1.2 TLSv1.3`; never enable `TLSv1` or `TLSv1.1`.
-- Always set `ssl_session_tickets off` for forward secrecy, or rotate ticket keys.
-- Always enable OCSP stapling (`ssl_stapling on`, `ssl_stapling_verify on`).
-- Always set HSTS (`Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`).
-- Always set security headers: `X-Frame-Options DENY`, `X-Content-Type-Options nosniff`, `Referrer-Policy strict-origin-when-cross-origin`, `Content-Security-Policy`, `Permissions-Policy`.
-- Always define `limit_req_zone` for public APIs and login endpoints.
-- Always use `set_real_ip_from` for trusted proxies; never trust `X-Forwarded-For` from untrusted sources.
-- Always use `client_max_body_size` to limit upload size; never leave the default 1m if uploads are expected.
-- Always restrict `/etc/nginx/auth/` htpasswd files to root-readable only (`chmod 640`).
-
-## 17. Testing Strategy
-
-- Validate every config change with `nginx -t` before reload; treat warnings as errors.
-- Run `gixy` (static analysis) in CI to catch common misconfigurations (e.g., `root` inside `location`, missing `server_tokens off`).
-- Test TLS configuration with `testssl.sh` or SSL Labs; target A+ rating.
-- Test security headers with `securityheaders.com`; target A+ rating.
-- Load test with `wrk` or `k6` to verify RPS targets and identify bottlenecks.
-- Test failover by killing a backend; verify Nginx routes to healthy backends within `fail_timeout`.
-- Test graceful reload by running `nginx -s reload` under load; verify zero dropped requests.
-- Test WebSocket upgrades with `wscat` or a browser client; verify the upgrade handshake succeeds.
-- Test cache behavior by making the same request twice; verify the second is a cache hit (`X-Cache-Status: HIT`).
-- Test rate limiting by exceeding the burst; verify 429 responses.
-
-## 18. Documentation Standards
-
-- Document every server block with a header comment: FQDN, purpose, owner, last reviewed date.
-- Document every upstream with the backend service names, health check endpoint, and failover policy.
-- Document the TLS certificate authority (Let's Encrypt, internal CA), renewal method, and renewal schedule.
-- Document the caching strategy: what is cached, for how long, the cache key, and the purge mechanism.
-- Document the rate limiting policy: per-IP or per-user, rate, burst, and the response on limit exceeded.
-- Document the security headers and their rationale (e.g., "CSP restricts scripts to self and trusted CDN").
-- Document the incident runbook: high 5xx rate, TLS renewal failure, backend down, cache poisoning.
-- Document the reload procedure: `nginx -t && nginx -s reload`; never `systemctl restart nginx` in production.
-
-## 19. Code Review Checklist
-
-1. `nginx -t` passes on the new config; no warnings.
-2. `server_tokens off` is set at the `http` level.
-3. A default server block exists returning 444 for unmatched `Host` headers.
-4. Every `listen 80` server block redirects to HTTPS (except ACME challenge locations).
-5. `ssl_protocols TLSv1.2 TLSv1.3` is set; no `TLSv1` or `TLSv1.1`.
-6. `ssl_session_tickets off` is set (or ticket key rotation is configured).
-7. OCSP stapling is enabled (`ssl_stapling on`, `ssl_stapling_verify on`).
-8. HSTS header is set with `max-age=63072000; includeSubDomains; preload`.
-9. Security headers are included (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy`, `Permissions-Policy`).
-10. `proxy_set_header` includes `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`.
-11. `proxy_http_version 1.1` and `proxy_set_header Connection ""` are set for keepalive.
-12. Upstream has at least two backends with `max_fails` and `fail_timeout`.
-13. `limit_req_zone` is defined for public APIs and login endpoints.
-14. `proxy_cache_lock on` and `proxy_cache_use_stale` are set for cached locations.
-15. `log_format` includes `$request_id`, `$upstream_response_time`, `$upstream_addr`.
-16. No `if` blocks for control flow (only for `return` and `rewrite`).
-17. `client_max_body_size` is set explicitly per service.
-
-## 20. Refactoring Checklist
-
-1. Move inline config to `include` snippets for modularity.
-2. Replace `if` blocks with `map` for conditional variable assignment.
-3. Add a default server block returning 444 if missing.
-4. Add HTTP to HTTPS redirect if missing.
-5. Add `server_tokens off` if missing.
-6. Upgrade `ssl_protocols` to `TLSv1.2 TLSv1.3` if older versions are enabled.
-7. Add `ssl_session_tickets off` if missing.
-8. Add OCSP stapling if missing.
-9. Add HSTS and security headers if missing.
-10. Add `proxy_set_header` for `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto` if missing.
-11. Add `proxy_http_version 1.1` and `proxy_set_header Connection ""` for keepalive.
-12. Convert single-backend `proxy_pass` to an `upstream` with `max_fails` and `fail_timeout`.
-13. Add `proxy_cache_lock on` and `proxy_cache_use_stale` to cached locations.
-14. Add `$request_id`, `$upstream_response_time`, `$upstream_addr` to the `log_format`.
-
-## 21. Deployment Checklist
-
-1. `nginx -t` passes on the new config; no warnings.
-2. `gixy` static analysis passes on the new config.
-3. The config is deployed to staging first; tested under load.
-4. TLS test (SSL Labs or `testssl.sh`) passes with A or A+.
-5. Security headers test (securityheaders.com) passes with A or A+.
-6. Failover test passes: killing a backend causes Nginx to route to healthy backends within `fail_timeout`.
-7. Reload test passes: `nginx -s reload` under load drops zero requests.
-8. The config is deployed to production via `nginx -s reload` (not `systemctl restart`).
-9. 5xx rate and latency are monitored for one full business cycle after deployment.
-10. The deployment is recorded in the change management system.
-11. Rollback plan exists: previous config is retained and can be re-applied with one command.
-12. TLS certificate renewal is scheduled and tested (Let's Encrypt `certbot renew --dry-run`).
-13. The new service is added to the load balancer or DNS after Nginx healthcheck passes.
-14. Monitoring alerts are configured for 5xx rate, latency, and upstream failures.
-15. The runbook is updated with the new service's location, upstream, and caching policy.
-16. The access log is shipped to the central aggregator (Loki, Elasticsearch, Splunk).
-17. The Prometheus exporter (`nginx-prometheus-exporter`) is scraping the new service.
-
-## 22. Production Checklist
-
-1. `server_tokens off` is set; the Nginx version is hidden.
-2. A default server block returns 444 for unmatched `Host` headers.
-3. All HTTP traffic redirects to HTTPS.
-4. `ssl_protocols TLSv1.2 TLSv1.3` is set; no older versions.
-5. `ssl_session_tickets off` is set (or ticket keys are rotated).
-6. OCSP stapling is enabled and verified (`openssl s_client -connect` shows OCSP response).
-7. HSTS is set with `max-age=63072000; includeSubDomains; preload`.
-8. Security headers are set on every response.
-9. Every upstream has at least two backends with `max_fails` and `fail_timeout`.
-10. `proxy_cache_lock on` and `proxy_cache_use_stale` are set for cached locations.
-11. `limit_req_zone` is defined for public APIs and login endpoints.
-12. `$request_id` is logged for every request for correlation.
-13. `$upstream_response_time` and `$upstream_addr` are logged for observability.
-14. Access logs are shipped to a central aggregator.
-15. `nginx-prometheus-exporter` is running and scraped by Prometheus.
-16. Alerts are configured for 5xx rate, latency, upstream failures, and TLS expiry.
-
-## 23. Logging Strategy
-
-- Define a structured `log_format` with `$time_iso8601`, `$remote_addr`, `$request_method`, `$request_uri`, `$status`, `$body_bytes_sent`, `$request_time`, `$upstream_response_time`, `$upstream_addr`, `$request_id`, `$http_user_agent`, `$http_referer`.
-- Write access logs to per-site files (`/var/log/nginx/<fqdn>.access.log`) for separation.
-- Write error logs to per-site files (`/var/log/nginx/<fqdn>.error.log`) at `warn` level or above.
-- Use `access_log` with `buffer=16k` and `flush=5m` to reduce log I/O on high-traffic sites.
-- Ship logs to a central aggregator (Loki, Elasticsearch, Splunk) via `fluent-bit` or `rsyslog`.
-- Use `error_log` at `warn` level in production; `error` level for less noise; never `debug` in production (huge volume).
-- Include `$request_id` in the `X-Request-Id` response header for client-side correlation.
-- Never log sensitive data (passwords, tokens, PII) in access logs; redact at the application layer.
-- Configure `logrotate` for Nginx logs with `daily`, `rotate 30`, `compress`, `missingok`, `notifempty`, `postrotate` with `nginx -s reload`.
-- Use conditional logging (`if=$loggable`) to exclude health checks from access logs and reduce noise.
-
-## 24. Monitoring Strategy
-
-- Run `nginx-prometheus-exporter` to expose metrics in Prometheus format.
-- Expose `stub_status` on a localhost-only location for basic stats (active connections, accepts, handled, requests).
-- Alert on 5xx rate exceeding threshold (e.g., > 1% for 5 minutes).
-- Alert on p99 latency exceeding SLO (e.g., > 500ms for 5 minutes).
-- Alert on upstream failure rate (`$upstream_status` 5xx or `proxy_next_upstream` triggers).
-- Alert on upstream response time p99 exceeding threshold.
-- Alert on TLS certificate expiry (< 30 days warning, < 7 days critical).
-- Alert on Nginx worker process count mismatch (worker crash).
-- Alert on connection rate exceeding threshold (DDoS indicator).
-- Dashboard per service: RPS, 5xx rate, latency p50/p95/p99, cache hit rate, upstream response time.
-- Dashboard per Nginx instance: active connections, requests per second, worker CPU, memory, file descriptors.
-
-## 25. Error Handling
-
-- Define a custom error page for 502, 503, 504 (`error_page 502 503 504 /50x.html;`).
-- Use `proxy_intercept_errors on` to render Nginx error pages for upstream errors (use sparingly; usually the backend's error page is preferred).
-- Use `proxy_next_upstream error timeout http_502 http_503 http_504` to failover to the next backend on error.
-- Set `proxy_next_upstream_tries 2` to limit failover attempts (avoid retry storms).
-- Set `proxy_next_upstream_timeout 10s` to limit total time for failover.
-- Use `try_files $uri $uri/ =404` for static files to return a clean 404 instead of an internal error.
-- Use `limit_req_status 429` to return the correct status code for rate-limited requests (default 503 is misleading).
-- Use `limit_conn_status 429` for connection-limited requests.
-- Log 4xx and 5xx at `warn` level in the error log for visibility.
-- Test the failover behavior by killing a backend; verify Nginx routes to healthy backends within `fail_timeout`.
-
-## 26. Examples
-
-### Example 1: Production reverse proxy with TLS, caching, and rate limiting
-
-```nginx
-# /etc/nginx/sites-available/api.example.com.conf
-
-upstream api-backend {
-    least_conn;
-    server 10.0.1.10:8080 max_fails=3 fail_timeout=30s;
-    server 10.0.1.11:8080 max_fails=3 fail_timeout=30s;
-    server 10.0.1.12:8080 max_fails=3 fail_timeout=30s;
+# conf.d/example.com.conf
+upstream app {
+    server 127.0.0.1:8080;
     keepalive 32;
 }
 
-# Rate limit zones
-limit_req_zone $binary_remote_addr zone=api-limit:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=login-limit:10m rate=1r/s;
-
-# Cache path
-proxy_cache_path /var/cache/nginx/api-cache
-    levels=1:2
-    keys_zone=api-cache:100m
-    max_size=10g
-    inactive=60m
-    use_temp_path=off;
-
-# HTTP to HTTPS redirect
 server {
     listen 80;
     listen [::]:80;
-    server_name api.example.com;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/letsencrypt;
-    }
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-# HTTPS server
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name api.example.com;
-
-    include snippets/tls.conf;
-    ssl_certificate /etc/letsencrypt/live/api.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
-
-    include snippets/security-headers.conf;
-
-    access_log /var/log/nginx/api.example.com.access.log main buffer=16k flush=5m;
-    error_log /var/log/nginx/api.example.com.error.log warn;
-
-    client_max_body_size 10m;
-
-    # Health check endpoint (no rate limit, no cache)
-    location = /healthz {
-        access_log off;
-        proxy_pass http://api-backend;
-        include snippets/proxy.conf;
-    }
-
-    # Public API (cached, rate-limited)
-    location /api/public/ {
-        limit_req zone=api-limit burst=20 nodelay;
-        limit_req_status 429;
-
-        proxy_cache api-cache;
-        proxy_cache_key "$scheme$request_method$host$request_uri";
-        proxy_cache_valid 200 302 10m;
-        proxy_cache_valid 404 1m;
-        proxy_cache_lock on;
-        proxy_cache_lock_timeout 10s;
-        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
-        proxy_cache_background_update on;
-        proxy_cache_revalidate on;
-        add_header X-Cache-Status $upstream_cache_status always;
-
-        include snippets/proxy.conf;
-        proxy_pass http://api-backend;
-    }
-
-    # Login endpoint (strict rate limit, no cache)
-    location /api/login {
-        limit_req zone=login-limit burst=5 nodelay;
-        limit_req_status 429;
-
-        proxy_cache off;
-        include snippets/proxy.conf;
-        proxy_pass http://api-backend;
-    }
-
-    # Default API (rate-limited, no cache)
-    location / {
-        limit_req zone=api-limit burst=20 nodelay;
-        limit_req_status 429;
-
-        proxy_cache off;
-        include snippets/proxy.conf;
-        proxy_pass http://api-backend;
-    }
-}
-```
-
-### Example 2: Snippets for reusable config blocks
-
-```nginx
-# /etc/nginx/snippets/tls.conf
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
-ssl_prefer_server_ciphers off;
-ssl_session_cache shared:SSL:50m;
-ssl_session_timeout 1d;
-ssl_session_tickets off;
-ssl_stapling on;
-ssl_stapling_verify on;
-resolver 1.1.1.1 8.8.8.8 valid=300s;
-resolver_timeout 5s;
-```
-
-```nginx
-# /etc/nginx/snippets/security-headers.conf
-add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
-add_header X-Frame-Options "DENY" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';" always;
-add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-add_header X-Request-ID $request_id always;
-```
-
-```nginx
-# /etc/nginx/snippets/proxy.conf
-proxy_http_version 1.1;
-proxy_set_header Host $host;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_set_header X-Request-ID $request_id;
-proxy_set_header Connection "";
-proxy_connect_timeout 5s;
-proxy_send_timeout 60s;
-proxy_read_timeout 60s;
-proxy_next_upstream error timeout http_502 http_503 http_504;
-proxy_next_upstream_tries 2;
-proxy_next_upstream_timeout 10s;
-```
-
-### Example 3: WebSocket proxy with map for Connection header
-
-```nginx
-# /etc/nginx/conf.d/websocket-map.conf
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ''      close;
-}
-
-# /etc/nginx/sites-available/ws.example.com.conf
-upstream ws-backend {
-    ip_hash;
-    server 10.0.2.10:8080 max_fails=3 fail_timeout=30s;
-    server 10.0.2.11:8080 max_fails=3 fail_timeout=30s;
+    server_name example.com;
+    return 301 https://$host$request_uri;
 }
 
 server {
-    listen 443 ssl http2;
-    server_name ws.example.com;
-
-    include snippets/tls.conf;
-    ssl_certificate /etc/letsencrypt/live/ws.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ws.example.com/privkey.pem;
-    include snippets/security-headers.conf;
-
-    location / {
-        proxy_pass http://ws-backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-    }
-}
-```
-
-### Example 4: Default server and main nginx.conf
-
-```nginx
-# /etc/nginx/sites-available/default.conf
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    server_name _;
-
-    ssl_certificate /etc/nginx/ssl/default/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/default/privkey.pem;
-
-    return 444;
-}
-```
-
-```nginx
-# /etc/nginx/nginx.conf
-user nginx;
-worker_processes auto;
-worker_rlimit_nofile 65535;
-pid /run/nginx.pid;
-
-events {
-    worker_connections 10240;
-    multi_accept on;
-    use epoll;
-}
-
-http {
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
-
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    listen 443 quic reuseport;
+    listen [::]:443 quic reuseport;
+    http2 on;
+    http3 on;
+    server_name example.com;
     server_tokens off;
 
-    log_format main '$time_iso8601|$remote_addr|$request_method|$request_uri|'
-                    '$status|$body_bytes_sent|$request_time|'
-                    '$upstream_response_time|$upstream_addr|$request_id|'
-                    '$http_user_agent|$http_referer';
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+    ssl_session_cache   shared:SSL:10m;
 
-    access_log /var/log/nginx/access.log main buffer=16k flush=5m;
-    error_log /var/log/nginx/error.log warn;
+    include snippets/security-headers.conf;
+    add_header Alt-Svc 'h3=":443"; ma=86400' always;
 
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 65;
-    types_hash_max_size 2048;
+    client_max_body_size 2m;
 
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    location = /login {
+        include snippets/security-headers.conf;   # add_header in a location replaces inherited ones
+        limit_req zone=login burst=5 nodelay;
+        include snippets/proxy-common.conf;
+        proxy_pass http://app;
+    }
 
-    include /etc/nginx/conf.d/*.conf;
-    include /etc/nginx/sites-enabled/*.conf;
+    location / {
+        include snippets/proxy-common.conf;
+        proxy_pass http://app;
+    }
 }
 ```
 
-## 27. Common Mistakes
+```nginx
+# snippets/security-headers.conf
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" always;
 
-### Mistake: Using `if` for routing
-What: `if ($request_uri ~ ^/api/) { proxy_pass http://api-backend; }` in a location block.
-Why wrong: `if` in Nginx is evaluated in the rewrite phase and has surprising interactions; `proxy_pass` inside `if` may not work as expected; this is the "If Is Evil" anti-pattern.
-How to avoid: use `location` blocks for routing (`location /api/ { proxy_pass http://api-backend; }`); use `map` for conditional variable assignment; reserve `if` for `return` and `rewrite` only.
+# snippets/proxy-common.conf
+proxy_http_version 1.1;                    # explicit for versions before 1.29.7
+proxy_set_header Connection "";            # keep upstream connections reusable
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Request-ID $request_id;
+proxy_connect_timeout 5s;
+proxy_read_timeout 30s;
+```
 
-### Mistake: `root` inside `location` causing path doubling
-What: `location /static { root /var/www/app/static; }` serves from `/var/www/app/static/static/`.
-Why wrong: `root` appends the location path to the root; the intended path was `/var/www/app/static/` but Nginx looks in `/var/www/app/static/static/`.
-How to avoid: use `root /var/www/app;` (location path is appended) or `alias /var/www/app/static/;` (location path is replaced); test with `curl` after changes.
+Static files: the safe `alias` form, hidden files denied, no directory listing, fingerprinted assets cached:
 
-### Mistake: Forgetting `proxy_set_header Host $host`
-What: `proxy_pass http://backend;` without `proxy_set_header Host $host;`.
-Why wrong: the backend sees `Host: backend` (the upstream name) instead of `Host: api.example.com`; the backend cannot construct correct redirect URLs or match virtual hosts.
-How to avoid: always include `proxy_set_header Host $host;` in every `proxy_pass` location; use a `proxy.conf` snippet to standardize.
+```nginx
+location /static/ {                         # slash on the location ...
+    alias /srv/app/assets/;                 # ... and on the alias
+    expires 1y;
+    add_header Cache-Control "public, immutable" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    autoindex off;
+}
 
-### Mistake: `listen 80` without HTTPS redirect
-What: a server block on port 80 serving the application directly.
-Why wrong: content is served over HTTP; TLS is bypassed; users may bookmark the HTTP URL.
-How to avoid: every `listen 80` server block must `return 301 https://$host$request_uri;`; the only exception is the ACME challenge location.
+location ~ /\.(?!well-known/) { deny all; }
+```
 
-### Mistake: Single backend without an upstream pool
-What: `proxy_pass http://10.0.1.10:8080;` with no failover.
-Why wrong: if the backend is down, all requests fail; there is no circuit breaking; there is no health check.
-How to avoid: define an `upstream` block with at least two backends and `max_fails`/`fail_timeout`; reference the upstream in `proxy_pass`.
+Behind a CDN: restore the real client address only from trusted ranges (replace with the CDN's published ranges):
 
-## 28. Professional Workflow
+```nginx
+set_real_ip_from 203.0.113.0/24;           # example range; list your CDN or load balancer CIDRs
+set_real_ip_from 2001:db8::/32;
+real_ip_header   X-Forwarded-For;
+real_ip_recursive on;                      # skip trusted hops from the right
+```
 
-1. Identify the service: FQDN, protocol (HTTP, WebSocket, gRPC), expected RPS, TLS requirements, caching needs.
-2. Design the upstream pool: backend list, health check endpoint, failover policy, load balancing algorithm.
-3. Choose the TLS strategy: terminate at Nginx with Let's Encrypt or internal CA.
-4. Design the location hierarchy: static files, API paths, WebSocket paths, catch-all.
-5. Author the config in `sites-available/` with `include` snippets for modularity.
-6. Validate with `nginx -t`; fix every warning.
-7. Run `gixy` static analysis; fix findings.
-8. Deploy to staging; test TLS (SSL Labs), security headers, load, failover, caching, rate limiting.
-9. Deploy to production with `nginx -s reload`; monitor 5xx rate and latency for one business cycle.
-10. Document the config and runbook; add monitoring alerts; verify log shipping.
+## 15. Common Mistakes
 
-## 29. Response Style
+- **`location /static { alias /srv/assets/; }`**: allows `/static../` traversal. Match the slashes or use `root`.
+- **Forgetting `add_header` inheritance**: one `add_header` in a `location` silently drops all headers set at `server` level, including HSTS and CSP. Include the snippet again.
+- **`listen 443 ssl http2;`** on new versions: deprecated; use `http2 on;`.
+- **`ssl_stapling on;` with Let's Encrypt certificates**: no OCSP URL, so nginx logs "ssl_stapling ignored"; remove it.
+- **`proxy_pass http://app/` versus `http://app`**: the trailing slash changes the upstream URI. Test with the access log.
+- **`if ($request_uri ~ ...) { proxy_pass ... }`** and other `if` in `location` for logic: use `map` and `try_files`.
+- **Trusting `X-Forwarded-For` from anyone**: spoofs the IP and defeats limits; use `set_real_ip_from` with real proxy CIDRs.
+- **Caching authenticated responses** with a key of just `$uri`: serves one user's page to another. Include a discriminator or bypass the cache when `Authorization` or session cookies are present.
+- **`limit_req` without `burst`**: any two requests in the same short window get rejected; use `burst` and decide on `nodelay`.
+- **Large global `client_max_body_size`** to fix one upload route; scope it to that location.
+- **Exposing `stub_status`, `/metrics` or a debug route** on the public listener.
+- **Self-signed or mismatched `proxy_ssl_*` settings**: `proxy_pass https://` does not verify upstream certificates unless `proxy_ssl_verify on` and a trusted CA file are set.
+- **Using `rewrite` for redirects** and `server_name` regexes where `return` and exact names work.
+- **502/504 debugging without the error log**: check `error_log` for `connect() failed`, `upstream timed out` and `no live upstreams`, and compare `$upstream_status` and `$upstream_response_time` in the access log.
 
-- Always cite the specific Nginx directive or context being discussed.
-- Always state the request processing phase affected by a directive (rewrite, access, content, log).
-- Always provide the production-ready version of a snippet, not a simplified version.
-- Always include `include snippets/` references for modularity in multi-block examples.
-- Never recommend `if` for control flow; recommend `map` or `location` instead.
-- Never recommend `root` where `alias` is correct; explain the path resolution difference.
-- Never recommend `systemctl restart nginx` in production; recommend `nginx -s reload`.
-- Always explain the location matching priority when discussing routing.
+## 16. References
 
-## 30. Output Format
-
-- Every Nginx config snippet must be valid and pass `nginx -t`.
-- Every `server` block must include TLS, security headers, and access/error log directives in production examples.
-- Every `proxy_pass` must include `proxy_set_header` for `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`.
-- Every upstream must have at least two backends with `max_fails` and `fail_timeout`.
-- Every code block must be fenced with `nginx`.
-- Every checklist must be a numbered list, not bullet points.
-- Every anti-pattern must include "Why wrong" and "Correct alternative".
-- Every example must be self-contained and syntactically valid.
-- Never use placeholders like `<insert>`; use real values or clearly marked illustrative values.
-- Always conclude with the next action: validate with `nginx -t`, deploy with `nginx -s reload`, monitor 5xx and latency.
+- [references/reverse-proxy-load-balancing.md](references/reverse-proxy-load-balancing.md): location matching, proxy_pass URI rules, headers, upstream blocks and balancing methods, failover, WebSockets, streaming, gRPC, the `stream` context.
+- [references/tls-http2-http3.md](references/tls-http2-http3.md): certificates, protocol and cipher settings, session cache and tickets, OCSP status, HSTS, HTTP/2, HTTP/3 and QUIC, mTLS to clients and upstreams.
+- [references/caching-rate-limiting.md](references/caching-rate-limiting.md): `proxy_cache` design, keys, bypass, stale serving, `limit_req`, `limit_conn`, `real_ip`, allow/deny and bot controls.
+- Official docs: https://nginx.org/en/docs/ , https://nginx.org/en/docs/http/ngx_http_core_module.html , https://nginx.org/en/docs/http/ngx_http_v3_module.html , https://nginx.org/en/CHANGES
