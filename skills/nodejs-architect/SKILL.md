@@ -1,755 +1,301 @@
 ---
 name: nodejs-architect
-description: >
-  Production-grade Node.js 22+ LTS architecture: event loop mastery, async patterns, streams, worker threads, clustering, ESM, observability, and graceful shutdown.
-  
-  Use this skill when building server-side services, APIs, authentication, authorization, microservices, or domain-driven backend systems.
+description: >-
+  Designs and reviews server-side Node.js services on the current LTS lines: event loop and blocking work, async patterns with AbortSignal, streams with pipeline, worker_threads, cluster versus multiple processes, ESM and require(esm), the built-in test runner, --env-file, the permission model, native TypeScript type stripping, fetch and undici, diagnostics_channel and OpenTelemetry, graceful shutdown, memory leaks and heap snapshots, and security (path traversal, prototype pollution, ReDoS, child_process injection). Use when writing or reviewing Node.js backend code, choosing a Node version, debugging latency or memory, or hardening a Node process. Not for Express routing and middleware (use expressjs-expert) or NestJS modules and DI (use nestjs-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# Node.js Architect
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers the Node.js runtime as used for backend services: how the event loop schedules work, how to structure async code, streams and worker threads, how to run and shut down a process, which built-in features replace common dependencies, and which runtime-level security mistakes recur. Framework-specific guidance belongs in the framework skills.
 
----
+> Verified against Node.js 26.13 "Lithium" (LTS since 2026-10-28), 24.22 "Krypton" and 22.23 "Jod" (both Maintenance), Node.js 27 (alpha), Undici 8.x, OpenTelemetry JS `@opentelemetry/sdk-node` 0.300 and `@opentelemetry/api` 1.10 (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-You are a Principal Node.js Platform Engineer with deep expertise in Node.js 22+ LTS. You own the runtime layer of every Node service: the event loop, the stream pipeline, the worker pool, the cluster topology, the package surface, and the production lifecycle. You understand V8 internals enough to diagnose GC pauses, you understand libuv enough to predict I/O scheduling, and you understand ESM, CJS interop, and the `node:` protocol well enough to migrate any codebase.
+## 1. Scope
 
-You do not write toy servers. You design services that handle millions of requests per day, survive partial failures, scale horizontally behind a load balancer, and shut down gracefully on `SIGTERM` without dropping in-flight requests. You reject code that blocks the event loop, leaks file descriptors, swallows rejections, or imports CommonJS into ESM without intent.
+- Covered: release lines and support windows, event loop phases and blocking, promises and cancellation, streams, worker threads, cluster and multi-process deployment, ESM and CommonJS interop, type stripping, built-in test runner, environment loading, permission model, HTTP server limits, `fetch`/undici, tracing and metrics hooks, graceful shutdown, memory diagnostics, runtime security.
+- Not covered: Express routing and middleware (expressjs-expert), NestJS modules, DI and pipes (nestjs-expert), REST contract design (rest-api-expert), authentication and authorization design (authentication-expert, authorization-expert), container images (docker-expert), Kubernetes probes and rollout (kubernetes-expert).
 
-You are the final authority on Node runtime decisions: which `--max-old-space-size` to set, whether to use `cluster` or `worker_threads`, whether to spawn `child_process` or `worker_threads`, when to use `node --test` versus Jest, and when to migrate from CJS to ESM. You enforce discipline at the package boundary so dependencies never surprise the team.
+## 2. Core Expertise
 
-## 2. Mission
+| Area | Key facts |
+|---|---|
+| Release lines | Even-numbered majors become LTS. 26 "Lithium" is Active LTS from 2026-10-28 (security support to 2029-04-30). 24 "Krypton" is in Maintenance since 2026-10-20 (to 2028-04-30). 22 "Jod" is in Maintenance (to 2027-04-30). 20 is end-of-life since 2026-04-30. 25 reached end-of-life in 2026-06. Node 27 is in alpha; its Current phase is scheduled for 2027-04-22 |
+| New in 26 | Temporal API enabled by default, V8 14.6, Undici 8, `module.register()` runtime-deprecated, `--experimental-transform-types` removed |
+| Event loop | libuv phases: timers, pending callbacks, idle/prepare, poll, check (`setImmediate`), close callbacks. `process.nextTick` and promise microtasks run between callbacks, nextTick queue first |
+| Thread pool | libuv pool (default 4 threads, `UV_THREADPOOL_SIZE`) serves `fs`, `dns.lookup`, `zlib`, and async `crypto` such as `pbkdf2`, `scrypt`. Network I/O does not use it |
+| Cancellation | `AbortController`, `AbortSignal.timeout(ms)`, `AbortSignal.any([...])`; accepted by `fetch`, `timers/promises`, `events.once`, `stream/promises`, `fs/promises`, `child_process`, `http` requests |
+| Streams | `stream/promises` `pipeline()` propagates errors, destroys all streams and supports `signal`; `.pipe()` does neither. Web Streams are available globally and convert with `Readable.fromWeb` / `toWeb` |
+| Workers | `worker_threads` run JS in separate isolates in the same process; share memory only through `SharedArrayBuffer`; `resourceLimits` caps heap per worker |
+| Modules | `require(esm)` works without a flag in 20.19+ and 22.12+ for modules without top-level `await`, and is no longer experimental since 25.4; `import.meta.dirname` and `import.meta.filename` replace `__dirname` |
+| TypeScript | Type stripping is on by default (22.18+, 23.6+) and stable since 24.12 and 25.2; only erasable syntax, `tsconfig.json` is ignored, files under `node_modules` are refused |
+| Config | `--env-file=.env` and `--env-file-if-exists` (stable since 24.10 and 22.21); real environment variables win over file values; `--config-file` loads a JSON config |
+| Permission model | `--permission` is stable (since 22.13 and 23.5) with `--allow-fs-read`, `--allow-fs-write`, `--allow-child-process`, `--allow-worker`, `--allow-addons`, `--allow-wasi`; `--allow-net` (25+) is under active development; `--permission-audit` logs instead of denying |
+| Test runner | `node --test`, `node:test` (`describe`, `it`, `mock`, snapshots), `node:assert/strict`; coverage still behind `--experimental-test-coverage`; `.ts` test files are discovered when type stripping is on |
+| HTTP server | `requestTimeout` defaults to 300000 ms, `headersTimeout` to 60000 ms (or `requestTimeout` if lower), `keepAliveTimeout` to 5000 ms; `server.close()` also closes idle connections since 19 |
+| Observability | `diagnostics_channel` (stable) with `TracingChannel` (stable since 26.8); OpenTelemetry NodeSDK loaded with `--import` before application code |
 
-Deliver a Node.js platform that is fast, observable, secure, and self-healing. Every service must start in under two seconds, shut down in under five seconds, handle a 10x traffic spike without OOM, and emit enough telemetry to diagnose any production incident from logs, metrics, and traces alone. The platform must let product engineers ship features without thinking about the runtime.
+## 3. Workflow
 
-You must produce a shared service template: structured logging, distributed tracing, health checks, graceful shutdown, request validation, error normalization, and CI/CD pipeline. Product teams fork the template and ship. The platform team owns the template and the runtime upgrade path.
+1. Pin the runtime: read `engines`, `.nvmrc` or the Dockerfile base image; confirm the version is a supported LTS and note which features it has (type stripping, `require(esm)`, permission flags).
+2. Classify each hot path as I/O-bound, CPU-bound or memory-bound. Event loop delay (`perf_hooks.monitorEventLoopDelay`) separates the first from the other two.
+3. Choose the concurrency unit: async I/O in one process by default; `worker_threads` for CPU work or parsing large payloads; extra processes (orchestrator replicas, or `cluster` on a single host) for using all cores.
+4. Design cancellation first: every outbound call and long operation takes an `AbortSignal` derived from the request or a timeout.
+5. Define the process lifecycle: startup validation of configuration, readiness, signal handling, drain, forced-exit timer.
+6. Add telemetry through `--import` preloading so it wraps application imports.
+7. Test with `node:test`; run integration tests against real dependencies where cheap.
+8. Before release: heap and CPU profile under load, check shutdown under in-flight requests, run `npm audit` and lockfile review.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- Node.js 22+ LTS runtime: V8 engine version mapping, ECMAScript 2024 support, native `fetch` (undici-backed), native test runner (`node --test`), native watch mode (`node --watch`), `--env-file` for `.env` loading, ESM by default in `package.json` with `"type": "module"`.
-- Event loop phases: timers → pending callbacks → idle/prepare → poll → check → close callbacks; microtask queue: `process.nextTick` vs `Promise` (nextTick fires before microtasks); `setImmediate` vs `setTimeout(0)` ordering depends on phase; I/O-bound work vs CPU-bound work.
-- Async patterns: `async/await` over raw promises; try/catch around awaited code; `unhandledRejection` and `uncaughtException` handlers; async iteration with `for await...of`; `AsyncIterator` and `AsyncGenerator` for streaming sources; `AbortController` and `AbortSignal` for cancellation across `fetch`, `setTimeout`, and streams.
-- Streams: `Readable`, `Writable`, `Duplex`, `Transform`; `stream.pipeline` (callback and promise variants) over `.pipe()` (which does not propagate errors); `Readable.from` for async iterables; Web Streams API (`ReadableStream`, `WritableStream`, `TransformStream`) and interop with `NodeStream` via `stream.Readable.fromWeb`.
-- `Buffer`: `Buffer.alloc` (zeroed), `Buffer.allocUnsafe` (faster, uninitialized memory — only with overwrite), `Buffer.from` (from string/array), `Buffer.concat`, encoding (`utf8`, `base64`, `hex`, `base64url`).
-- Clustering: `cluster` module, primary/worker model, sticky sessions via custom routing, `--max-old-space-size` per worker; prefer `cluster` over `worker_threads` for HTTP request parallelism.
-- Worker threads: `Worker`, `MessageChannel`, `SharedArrayBuffer`, `Atomics` for lock-free sync; use for CPU-bound work (crypto, image processing, JSON parsing of huge payloads), never for I/O.
-- `child_process`: `exec` (buffered, shell, for short output), `execFile` (buffered, no shell, safer), `spawn` (streaming, for long output and pipes), `fork` (Node child with IPC channel).
-- Performance: event loop lag measurement (`perf_hooks.monitorEventLoopDelay`), GC statistics (`--trace-gc`), heap snapshots (`v8.writeHeapSnapshot`), CPU profiling (`--cpu-prof`, `--heap-prof`), clinic.js and 0x flamegraphs.
-- Memory: V8 heap default (~4GB on 64-bit), `--max-old-space-size` to raise, off-heap with `Buffer` for large binary data, `--max-semi-space-size` for young generation.
-- Native addons: N-API stable ABI, `node-addon-api` C++ wrapper, `prebuildify` for prebuilt binaries, never compile on install in CI.
-- Security: `npm audit` in CI, `node --permission` (Node 20+) with `--allow-fs-read`/`--allow-fs-write` for filesystem allowlists, Principle of Least Privilege (POLP) for runtime capabilities.
-- CommonJS vs ESM: `import` vs `require`; `__dirname`/`__filename` in ESM via `import.meta.url` and `fileURLToPath`; dynamic `import()` for conditional loading; top-level await in ESM only.
-- `package.json`: `exports` field for public API; subpath exports; conditions (`node`, `import`, `require`, `default`); `"type": "module"` to default to ESM.
-- Diagnostics: `NODE_OPTIONS` for runtime flags, `--inspect`/`--inspect-brk` for Chrome DevTools, clinic.js for flamegraphs, 0x for CPU profiling, `--trace-warnings` for deprecation tracking.
-- Deployment: PM2 (process manager) or systemd (Linux service) or Docker (container) or Kubernetes (orchestration); graceful shutdown via `SIGTERM` handler calling `server.close()` then `process.exit(0)`.
+- Version: new services start on the newest Active LTS (26); Maintenance lines (24, 22) are acceptable for existing fleets. Never run an odd-numbered or end-of-life line in production.
+- CPU work over roughly 10-50 ms per call (hashing with `pbkdf2`/`scrypt` is already off-thread; image or PDF processing, big JSON or CSV parsing, compression of large buffers, regex over untrusted input) moves to a worker pool (Piscina or a hand-written pool) with bounded queue size.
+- `cluster` versus processes: under an orchestrator run one process per container and scale replicas; use `cluster` (or a process manager) only on a single machine where you own the process model. Both give separate heaps, so shared state needs an external store.
+- Streams versus buffers: stream when payloads can exceed a few MB or arrive incrementally; buffer small bodies and set explicit size limits.
+- ESM for new code (`"type": "module"`). Keep CommonJS only where a toolchain demands it. A CommonJS file can `require()` an ESM module that has no top-level `await`.
+- TypeScript: run `.ts` directly with type stripping for apps and scripts on 22.18+ if the code uses only erasable syntax (no `enum`, runtime `namespace`, parameter properties); type-check with `tsc --noEmit`. Use a build step for published libraries, decorators, `paths` aliases, or when `enum` is needed (the transform flag is gone in 26).
+- Configuration: `--env-file` for local development and simple deployments; production secrets come from the platform (injected environment, mounted files), validated at startup.
+- HTTP client: global `fetch` for ordinary calls. Install `undici` only when a custom `Agent`/`Pool`, interceptors or a newer version than the bundled one is needed, and then import `fetch` from that same package so dispatcher and fetch versions match.
+- Permission model is defense in depth for trusted code (it is a seat belt, not a sandbox for malicious code). Use it for scripts and CLI tooling; for untrusted code use OS-level isolation.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Own the Node.js runtime version for every service; coordinate LTS upgrades across the fleet.
-- Maintain the service template: logging, tracing, metrics, health checks, graceful shutdown, error normalization, config loading.
-- Diagnose production incidents: event loop lag, memory leaks, FD leaks, unhandled rejections, slow startups.
-- Approve or reject any new native dependency; verify prebuilt binaries exist for all target platforms.
-- Enforce the ESM-only policy for new services; plan CJS-to-ESM migrations for legacy services.
-- Tune `--max-old-space-size`, `--max-semi-space-size`, `UV_THREADPOOL_SIZE` per service workload.
-- Operate the worker pool sizing for CPU-bound services; document when `worker_threads` beats `cluster`.
-- Run performance budgets in CI: startup time, request latency p99, memory ceiling.
-- Maintain the `package.json` `exports` map for shared internal libraries; forbid deep imports.
-- Lead postmortems for any Node runtime incident; produce a permanent fix, not a workaround.
+- ESM with explicit extensions in relative imports (`./db.js`, or `./db.ts` when running type-stripped code), `node:` prefix for built-ins.
+- `async`/`await` everywhere; no callbacks except at API boundaries. Use `node:fs/promises`, `node:timers/promises`, `node:stream/promises`.
+- Never leave a promise floating: `await` it, return it, or attach `.catch` with logging. The default for unhandled rejections is to throw; keep it.
+- Concurrency over collections is bounded (a small semaphore or a pool); `Promise.all` over an unbounded array opens unbounded connections. Use `Promise.allSettled` when partial failure is acceptable.
+- Pass `signal` as an option, not as a global. Create timeouts with `AbortSignal.timeout(ms)` and combine with `AbortSignal.any`.
+- Errors: throw `Error` subclasses with a stable `code` and `cause` (`new Error('msg', { cause: err })`). Do not throw strings.
+- Do not use synchronous `fs`, `crypto.pbkdf2Sync`, `child_process.execSync` or `JSON.parse` of untrusted large input on request paths. Sync APIs are fine during startup.
+- Use `Map` and `Set` for dictionaries keyed by external input, or `Object.create(null)`.
+- Use `structuredClone` for deep copies; avoid `JSON.parse(JSON.stringify(x))`.
+- Format with Prettier or Biome, lint with ESLint or Biome; enable `no-floating-promises` when using typescript-eslint.
 
-## 5. Thinking Process
-
-1. Classify the workload: I/O-bound (HTTP server, DB client, file processing) → event loop is fine; CPU-bound (parsing, crypto, compression) → move to `worker_threads` or `child_process`; mixed → split.
-2. Estimate the event loop budget: at 10k RPS, each request must yield within 100µs; any synchronous work over 5ms is a defect.
-3. Choose the concurrency model: HTTP request parallelism → `cluster` (one process per core); CPU-bound work → `worker_threads` (shared memory, lower overhead); shell commands → `child_process.spawn`.
-4. Plan the stream pipeline: identify source, transforms, and sink; choose `pipeline` over `.pipe()`; add error handlers on every stream; choose Web Streams for new code that touches `fetch`.
-5. Plan cancellation: every long-running operation must accept an `AbortSignal`; propagate from request entry point to all downstream calls.
-6. Plan graceful shutdown: listen for `SIGTERM`, stop accepting new connections, drain in-flight requests with a timeout, force-close after timeout, `process.exit(0)`.
-7. Plan observability: structured logs (JSON, pino), metrics (Prometheus), traces (OpenTelemetry); every request has a `traceId`.
-8. Plan the deployment artifact: Docker image with multi-stage build, distroless or Alpine base, non-root user, health check endpoint.
-9. Verify security: `npm audit` clean, `--permission` flags set, no `eval`, no `new Function`, no child_process with user input.
-10. Document the runtime configuration: `NODE_OPTIONS`, `UV_THREADPOOL_SIZE`, memory limits, in a runbook linked from the service README.
-
-## 6. Decision Making Rules
-
-- When I/O-bound and CPU-bound code both could be in the same process, choose to separate them because CPU-bound work blocks the event loop and starves I/O.
-- When `cluster` and `worker_threads` both parallelize a workload, choose `cluster` for HTTP request parallelism because Node's HTTP server scales linearly across processes and avoids the per-thread event loop overhead; choose `worker_threads` for CPU-bound work where shared memory avoids serialization.
-- When `pipeline` and `.pipe()` both connect streams, choose `pipeline` because `.pipe()` does not propagate errors and leaks streams on failure.
-- When `Buffer.alloc` and `Buffer.allocUnsafe` both create a buffer, choose `alloc` unless the buffer is immediately overwritten, because `allocUnsafe` returns uninitialized memory that can leak secrets.
-- When `exec` and `spawn` both run a child process, choose `spawn` for untrusted input or streaming output because `exec` invokes a shell and is vulnerable to command injection.
-- When ESM and CJS both work for a new file, choose ESM because Node 22 defaults to ESM and top-level await is unavailable in CJS.
-- When `node --test` and Jest both run tests, choose `node --test` for new services because it ships with Node, requires zero configuration, and runs faster for unit tests; choose Jest only when migrating an existing CJS test suite.
-- When `pino` and `winston` both log, choose `pino` because it logs asynchronously and has 3-10x higher throughput.
-- When `SIGTERM` arrives and in-flight requests are still running, choose to wait up to a configured timeout (default 10s) then force-close, because holding connections indefinitely blocks load balancer drain.
-- When a dependency has no prebuilt binary and must compile on install, choose to reject it from the service because native compilation in CI is fragile and slow.
-
-## 7. Architecture Rules
-
-- Every Node service must run behind a process manager (PM2, systemd, Docker, Kubernetes) that restarts on crash and routes `SIGTERM` for graceful shutdown.
-- Every service must listen for `SIGTERM` and `SIGINT`, stop accepting new connections, drain in-flight requests with a timeout, then exit cleanly.
-- Every service must expose `/healthz` (liveness) and `/readyz` (readiness) endpoints; the load balancer must route based on these.
-- Every service must emit structured JSON logs (pino) with `traceId`, `requestId`, `timestamp`, `level`, `message`, and contextual fields.
-- Every service must export Prometheus metrics at `/metrics` with request count, request duration histogram, event loop lag, and GC duration.
-- Every service must propagate OpenTelemetry trace context across HTTP and gRPC boundaries.
-- Every service must load configuration from environment variables via a validated schema (zod, envalid, or joi); `.env` files are dev-only via `--env-file`.
-- Every CPU-bound operation longer than 5ms must run in a `worker_threads` pool or a separate process.
-- Every stream pipeline must use `stream.pipeline` (callback or promise) and have an error handler; `.pipe()` is forbidden.
-- Every long-running operation must accept an `AbortSignal` and propagate cancellation downstream.
-- Every service must declare `engines.node` in `package.json` with a pinned major LTS version.
-
-## 8. Coding Standards
-
-- Always use ESM (`"type": "module"`) for new services; `import` not `require`.
-- Always use the `node:` protocol for built-in imports (`import fs from 'node:fs'`) to disambiguate from user modules.
-- Always use `async/await` over raw `.then()` chains; wrap awaited code in try/catch.
-- Always handle `unhandledRejection` and `uncaughtException` at process startup; log and exit on `uncaughtException`.
-- Always use `stream.pipeline` over `.pipe()`; use the promise variant (`pipeline/promises`) for async code.
-- Always pass an `AbortSignal` to `fetch`, `setTimeout`, and any stream that supports it.
-- Always validate environment variables at startup with a schema; fail fast if invalid.
-- Always log with a structured logger (pino); never `console.log` in production code.
-- Always use `Buffer.from` for strings, `Buffer.alloc` for new buffers; never `new Buffer()`.
-- Never use `eval`, `new Function`, or `vm.runInThisContext` with untrusted input.
-- Never call `process.exit()` from a library; only from the application entry point after graceful shutdown.
-- Never block the event loop with synchronous work over 5ms (use `worker_threads` or chunk with `setImmediate`).
-- Never ignore `unhandledRejection`; Node 15+ exits on unhandled rejection by default — preserve this behavior.
-
-## 9. Naming Conventions
-
-- Files: `kebab-case.ts` for modules (`user-service.ts`), `KebabCase.test.ts` for tests adjacent to the module.
-- Directories: `kebab-case` (`user-service/`, `auth-middleware/`).
-- Functions: `camelCase` (`getUserById`, `parseRequestBody`).
-- Classes: `PascalCase` (`UserService`, `HttpClient`).
-- Interfaces and types: `PascalCase` (`User`, `UserRepository`); no `I` prefix on interfaces.
-- Constants: `SCREAMING_SNAKE_CASE` (`MAX_CONNECTIONS`, `DEFAULT_TIMEOUT_MS`).
-- Enums: `PascalCase` for enum, `PascalCase` for members (`enum LogLevel { Info, Warn, Error }`).
-- Environment variables: `SCREAMING_SNAKE_CASE` (`DATABASE_URL`, `LOG_LEVEL`).
-- Error classes: `PascalCase` ending in `Error` (`ValidationError`, `DatabaseError`).
-- Test files: `*.test.ts` for unit, `*.spec.ts` for integration, `*.e2e.test.ts` for end-to-end.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-src/
-  config/                    # Configuration loading and validation
-    env.ts                   # zod schema + loadEnv()
-    logger.ts                # pino logger factory
-    metrics.ts               # Prometheus client setup
-    tracing.ts               # OpenTelemetry setup
-  server/                    # HTTP server lifecycle
-    app.ts                   # Express/Fastify app composition
-    server.ts                # listen + graceful shutdown
-    routes/                  # Route handlers
-    middleware/              # App-level middleware
-  domain/                    # Business logic (no I/O imports)
-    user/
-      user-service.ts
-      user-repository.ts     # Interface, not implementation
-      user-types.ts
-    auth/
-      auth-service.ts
-  infrastructure/            # I/O implementations
-    postgres/
-      pg-user-repository.ts  # Implements domain interface
-      pool.ts                # pg Pool singleton
-    redis/
-      redis-client.ts
-  workers/                   # worker_threads entry points
-    image-processor.worker.ts
-    pdf-generator.worker.ts
-  utils/
-    abort.ts                 # AbortSignal helpers
-    stream.ts                # pipeline wrappers
-    retry.ts                 # Retry with backoff
-  types/
-    express.d.ts             # Module augmentation
-  main.ts                    # Entry point
-tests/
-  unit/                      # *.test.ts
-  integration/               # *.spec.ts
-  e2e/                       # *.e2e.test.ts
+.
+├── package.json              # "type": "module", "engines": { "node": ">=24" }, scripts
+├── .nvmrc                    # pinned runtime for local development
+├── .env.example              # variable names only; real .env is gitignored
+├── tsconfig.json             # noEmit, erasableSyntaxOnly, verbatimModuleSyntax
+├── src/
+│   ├── instrumentation.ts    # OpenTelemetry bootstrap, preloaded with --import
+│   ├── main.ts               # composition root: config, wiring, listen, signals
+│   ├── config.ts             # reads and validates process.env once
+│   ├── server.ts             # HTTP server factory, timeouts, shutdown
+│   ├── lib/                  # small shared utilities (safe-path, pool, logger)
+│   ├── modules/<feature>/    # routes, service, repository per feature
+│   └── workers/              # worker entry points (CPU-bound tasks)
+└── test/                     # *.test.ts run by node --test
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-my-service/
-  src/
-    config/
-      env.ts
-      logger.ts
-      metrics.ts
-      tracing.ts
-    server/
-      app.ts
-      server.ts
-      routes/
-        health.ts
-        users.ts
-      middleware/
-        request-id.ts
-        error-handler.ts
-    domain/
-      user/
-        user-service.ts
-        user-repository.ts
-        user-types.ts
-      auth/
-        auth-service.ts
-    infrastructure/
-      postgres/
-        pg-user-repository.ts
-        pool.ts
-      redis/
-        redis-client.ts
-    workers/
-      image-processor.worker.ts
-    utils/
-      abort.ts
-      stream.ts
-      retry.ts
-    main.ts
-  tests/
-    unit/
-    integration/
-    e2e/
-  scripts/
-    db-migrate.ts
-    seed.ts
-  Dockerfile
-  docker-compose.yml
-  .env.example
-  .nvmrc                     # Node 22.x
-  package.json               # "type": "module", "engines": {"node": "22"}
-  tsconfig.json
-  vitest.config.ts           # or test runner config
-  README.md
-  RUNBOOK.md                 # Operations runbook
-```
+- **Composition root**: `main.ts` builds config, clients and servers and passes them down; modules receive dependencies, they do not import singletons that read `process.env`.
+- **Pipeline**: `pipeline(source, ...transforms, destination, { signal })` for file, network and compression flows; async generators as transform stages.
+- **Worker pool**: a fixed set of long-lived workers behind `pool.run(task, { signal })` with a bounded queue and per-task timeout.
+- **Request context**: `AsyncLocalStorage` carries request id and trace context to logs without threading parameters.
+- **Supervisor/drain**: a single shutdown function that stops accepting work, waits for in-flight work with a deadline, closes pools and clients in reverse order, then exits.
+- **Circuit breaker and retry with jitter** for flaky dependencies, with every retry bounded by the same overall `AbortSignal`.
+- **Outbox/idempotency keys** when work must survive restarts (queue consumers, webhooks); deep treatment belongs to system-design-expert.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Repository Pattern
-When to use: domain logic must be I/O-agnostic and testable without a database.
-When not to use: trivial CRUD services where the DB client is the only caller.
-Sketch:
+- Validate configuration at startup and fail fast with a readable message; keep the parsed object immutable.
+- Log structured JSON to stdout with a request id; redact secrets and tokens at the logger (Pino `redact`).
+- Set explicit server limits: `server.requestTimeout`, `headersTimeout`, `keepAliveTimeout` larger than the load balancer idle timeout, `maxHeaderSize` default is 16 KiB, body size limits in the parser.
+- Prefer Node built-ins over packages when equal: `fetch`, `node:test`, `--watch`, `--env-file`, `util.parseArgs`, `util.styleText`, `crypto.randomUUID`, `fs.glob`, `structuredClone`, `AbortSignal.timeout`.
+- Run the process as a non-root user, one process per container, with `node` as PID 1 only if signals are handled, or use an init (`docker run --init`).
+- Keep `package-lock.json` committed, install with `npm ci`, and review install scripts of new dependencies (`npm config set ignore-scripts true` for CI jobs that do not need them).
+- Use `process.getBuiltinModule()` only for code that must run in both Node and other runtimes.
+
+## 9. Performance
+
+- Measure first: `--cpu-prof`, `--heap-prof`, `node --inspect`, `perf_hooks.monitorEventLoopDelay()`, `performance.eventLoopUtilization()`. An event loop delay p99 above tens of milliseconds means something blocks.
+- Avoid blocking: large `JSON.parse`/`stringify`, synchronous regex on long strings, `fs.*Sync`, big `Array.sort`, template rendering. Chunk the work (yield with `setImmediate`) or move it to a worker.
+- Keep-alive: reuse HTTP connections (undici does by default); size pools (database, HTTP agents) to the downstream limit divided by process count.
+- Bound memory: stream, set `highWaterMark` deliberately, use `Buffer.allocUnsafe` only when the buffer is fully overwritten.
+- Set heap relative to the container: `--max-old-space-size-percentage` or an explicit `--max-old-space-size` below the container limit (leave room for buffers, stacks and native memory).
+- Tune `UV_THREADPOOL_SIZE` only when profiling shows fs, zlib or crypto calls queuing; set it in the environment before start.
+- `cluster` uses round-robin distribution on all platforms except Windows; uneven load usually comes from long-lived connections pinned to one worker.
+- Details and measurement recipes: [references/event-loop-and-performance.md](references/event-loop-and-performance.md).
+
+## 10. Security
+
+- **Path traversal**: never join user input onto a base path directly. Resolve against the root with `path.resolve`, compute `path.relative(root, candidate)`, reject results that are empty, equal `..`, start with `..` plus a separator, or are absolute; then `realpath` and check again to defeat symlinks. Reject NUL bytes. Prefer opaque ids mapped to files over user-supplied names (example in section 14).
+- **child_process**: use `execFile`/`spawn` with an argument array and `shell: false`; never interpolate input into a command string; allowlist executables and options; on Windows, running `.bat`/`.cmd` requires a shell, so avoid spawning them from user input.
+- **Prototype pollution**: do not merge untrusted objects recursively into plain objects; use `Map`, `Object.create(null)`, schema validation that strips unknown keys, and `Object.hasOwn`. `--disable-proto=delete` removes `Object.prototype.__proto__`; treat it as hardening, not a fix.
+- **ReDoS**: avoid nested quantifiers and ambiguous alternation on user input; cap input length before matching; run untrusted patterns in a worker with a deadline or use a linear-time engine such as the `re2` package.
+- **Dynamic code**: no `eval`, `new Function`, or `vm` as a sandbox (`vm` is not a security boundary).
+- **Secrets**: read from the environment or mounted files, never log them, never commit `.env`; `--env-file` values are visible to child processes through `process.env`.
+- **Permission model**: `node --permission --allow-fs-read=/app --allow-fs-write=/tmp/app` restricts a trusted process; `fs` access, child processes, workers, addons and (newer lines) network need explicit grants. It does not protect against malicious code.
+- **Supply chain**: lockfile, `npm ci`, `npm audit signatures`, pinned versions for critical packages, no `postinstall` surprises, provenance checks.
+- **HTTP**: set request, header and body limits; reject unexpected content types; behind a proxy configure trust explicitly (do not trust `X-Forwarded-*` from clients); keep Node patched, since runtime CVEs are fixed in security releases of every supported line.
+- **Outbound requests**: validate and resolve destinations before fetching user-supplied URLs (SSRF): block private, loopback and link-local ranges after DNS resolution, disable redirects or revalidate each hop, set timeouts and a response size cap.
+- Wider API concerns: api-security-expert and secure-coding-expert.
+
+## 11. Testing
+
+- `node --test` discovers `*.test.{js,mjs,cjs}` and, with type stripping, `*.test.{ts,mts,cts}` plus files under `test/`. Use `describe`/`it` or flat `test()`.
+- Use `node:assert/strict`; `t.mock.fn()`, `t.mock.method()`, `mock.module()` (early development) and `t.mock.timers` for deterministic time.
+- Coverage: `node --test --experimental-test-coverage` (experimental; the flag name may change). Reporters: `--test-reporter=spec|tap|junit|lcov` with `--test-reporter-destination`.
+- Run serial integration suites with `--test-concurrency=1` when they share a database or port; use port `0` and read the assigned port.
+- Always close servers, pools and timers in `after()` hooks; leaked handles keep the runner alive. `server.close()` plus `closeAllConnections()` for HTTP servers.
+- Test shutdown: start the server, open a slow request, send `SIGTERM` to a child process, assert the response completes and the exit code is 0.
+- Frameworks such as Vitest or Jest remain fine for large codebases; choose by ecosystem needs (mocks, snapshots, watch UI), not by default.
+
+## 12. Review Checklist
+
+- [ ] Runtime version is a supported LTS and is pinned (`engines`, `.nvmrc`, base image tag).
+- [ ] No synchronous or CPU-heavy work on request paths; heavy work is in workers with bounded queues.
+- [ ] Every outbound call and long operation receives an `AbortSignal` with a timeout.
+- [ ] No floating promises; unhandled rejections are not suppressed.
+- [ ] Streams use `pipeline()` with error handling; no unbounded buffering of request or response bodies.
+- [ ] Server timeouts, body limits and header limits are set; `keepAliveTimeout` exceeds the load balancer idle timeout.
+- [ ] `SIGTERM`/`SIGINT` handled once, drain with deadline, forced-exit timer unref'd.
+- [ ] Configuration validated at startup; no secrets in logs or the repository.
+- [ ] File paths from users are normalized and checked against a root; `child_process` uses argument arrays.
+- [ ] Untrusted objects are not merged into plain objects; regexes on untrusted input are bounded.
+- [ ] Telemetry preloaded with `--import`; request id propagates to logs.
+- [ ] Tests close all handles; CI runs on the production Node line.
+
+## 13. Production Notes
+
+- Readiness and liveness are different: liveness should not depend on downstream services; readiness flips to failing at the start of shutdown so the load balancer drains first.
+- Shutdown sequence: mark not ready, wait a short grace period for endpoint removal, `server.close()`, wait for in-flight requests, close queues and database pools, flush telemetry (`sdk.shutdown()`), exit. Set the orchestrator grace period above your internal deadline.
+- Node does not restart itself; rely on the orchestrator or process manager. After `uncaughtException` the process state is undefined: log and exit.
+- Memory leaks: watch RSS and heap used over days. Use `--heapsnapshot-signal=SIGUSR2` or `v8.writeHeapSnapshot()` (blocks the main thread and needs memory roughly equal to the heap) and diff two snapshots in Chrome DevTools; `--heapsnapshot-near-heap-limit=N` captures before an out-of-memory crash. Common retainers: unbounded caches or maps, listeners added per request, closures holding request objects, uncleared timers.
+- Diagnostic report: `--report-on-signal` and `--report-uncaught-exception` write JSON reports for hangs and crashes.
+- When behind a CDN or proxy, tune `keepAliveTimeout` and `headersTimeout` together to avoid sporadic 502s from reused sockets.
+- Upgrade path: move one LTS at a time, run the test suite on the target line in CI first, and read the deprecations list for removed APIs.
+- Details on streams, workers and cluster: [references/streams-and-workers.md](references/streams-and-workers.md); module, TypeScript, permission and test-runner specifics: [references/runtime-features.md](references/runtime-features.md).
+
+## 14. Examples
+
+Graceful shutdown with a deadline (HTTP server; add pools and telemetry flush where marked):
+
 ```ts
-interface UserRepository { findById(id: string): Promise<User | null>; }
-class PgUserRepository implements UserRepository {
-  constructor(private pool: pg.Pool) {}
-  async findById(id: string) { const r = await this.pool.query('SELECT * FROM users WHERE id=$1', [id]); return r.rows[0] ?? null; }
+import { createServer } from 'node:http';
+
+const server = createServer((req, res) => {
+  res.end('ok');
+});
+server.requestTimeout = 30_000;
+server.headersTimeout = 10_000;
+server.keepAliveTimeout = 65_000; // above a typical 60 s load balancer idle timeout
+
+let shuttingDown = false;
+
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(JSON.stringify({ msg: 'shutdown', signal }));
+
+  const forced = setTimeout(() => process.exit(1), 25_000);
+  forced.unref();
+
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => (err ? reject(err) : resolve())); // stops accepting and closes idle sockets
+  });
+  // await pool.close(); await db.end(); await sdk.shutdown();
 }
-```
 
-### Worker Pool Pattern
-When to use: CPU-bound work arrives on the event loop (image processing, JSON parsing of huge payloads).
-When not to use: I/O-bound work — use the event loop directly.
-Sketch:
-```ts
-import { Piscina } from 'piscina';
-const pool = new Piscina({ filename: new URL('./image-processor.worker.ts', import.meta.url) });
-const result = await pool.run({ buffer }, { signal: abortSignal });
-```
-
-### Graceful Shutdown Pattern
-When to use: every production HTTP service.
-When not to use: never — every service must shut down gracefully.
-Sketch:
-```ts
-process.on('SIGTERM', async () => {
-  log.info({ msg: 'SIGTERM received, shutting down' });
-  server.close();              // stop accepting new connections
-  await drainInProgress(timeout);
-  await pool.end();            // close DB pool
-  process.exit(0);
-});
-```
-
-### Pipeline Pattern (Streams)
-When to use: large file processing, ETL, request body transformation.
-When not to use: small payloads that fit in memory — direct async is simpler.
-Sketch:
-```ts
-import { pipeline } from 'node:stream/promises';
-import { createReadStream, createWriteStream } from 'node:fs';
-await pipeline(createReadStream(input), transformStream, createWriteStream(output));
-```
-
-### Circuit Breaker Pattern
-When to use: calls to downstream services that may fail or hang.
-When not to use: in-process function calls.
-Sketch:
-```ts
-import { CircuitBreaker } from 'opossum';
-const breaker = new CircuitBreaker(callExternal, { timeout: 5000, errorThresholdPercentage: 50, resetTimeout: 30000 });
-const result = await breaker.fire(args);
-```
-
-### Health Check Pattern
-When to use: every service running behind a load balancer or orchestrator.
-When not to use: CLI tools, batch jobs.
-Sketch:
-```ts
-app.get('/readyz', async (req, res) => {
-  const ok = await Promise.all([pg.ping(), redis.ping()]).then(() => true).catch(() => false);
-  res.status(ok ? 200 : 503).json({ status: ok ? 'ready' : 'unavailable' });
-});
-```
-
-## 13. Best Practices
-
-1. Pin Node version in `.nvmrc` and `engines.node`; use `fnm` or `nvm` for local version management.
-2. Default to ESM; use `"type": "module"` in `package.json` and `import` syntax.
-3. Use the `node:` protocol for all built-in module imports.
-4. Use `pino` for logging with JSON output and a `traceId` field on every log.
-5. Use OpenTelemetry for tracing; auto-instrument HTTP, DB, and messaging clients.
-6. Use `undici` or native `fetch` for HTTP clients; never `axios` for new services.
-7. Use `pg` with a single `Pool` instance per service; tune `max` to `2 * cores + 1`.
-8. Use `ioredis` for Redis with connection pooling and `enableOfflineQueue: true`.
-9. Validate every external input at the boundary with zod or valibot; never trust request bodies.
-10. Set `--max-old-space-size` explicitly to 75% of container memory limit.
-11. Use `AbortController` and `AbortSignal` for every long-running operation and propagate from request entry.
-12. Use `stream.pipeline` (promise variant) for all stream composition; never `.pipe()`.
-
-## 14. Anti Patterns
-
-### Blocking the event loop with synchronous CPU work
-Why wrong: a single 100ms sync call stalls every other request for 100ms; p99 latency explodes.
-Correct alternative: move CPU-bound work to `worker_threads` via `piscina` or chunk with `setImmediate`.
-
-### Using `.pipe()` for stream composition
-Why wrong: `.pipe()` does not propagate errors and leaks streams when source errors mid-stream.
-Correct alternative: `stream.pipeline` from `node:stream/promises` with try/catch.
-
-### Using `Buffer.allocUnsafe` without immediate overwrite
-Why wrong: returns uninitialized memory that can leak secrets from previous allocations.
-Correct alternative: `Buffer.alloc` (zeroed) unless you immediately overwrite every byte.
-
-### `console.log` in production code
-Why wrong: synchronous, blocking, unstructured, not correlated with traces.
-Correct alternative: `pino` logger with structured fields and `traceId`.
-
-### `process.exit(0)` from a library
-Why wrong: kills the host process without graceful shutdown, drops in-flight requests.
-Correct alternative: throw an error or call a registered shutdown handler; let the application entry point exit.
-
-### `eval` or `new Function` with untrusted input
-Why wrong: arbitrary code execution; the entire Node security model collapses.
-Correct alternative: parse with a schema validator; never execute user-supplied strings as code.
-
-## 15. Performance Rules
-
-1. Never block the event loop longer than 5ms; use `worker_threads` or chunk with `setImmediate`.
-2. Set `--max-old-space-size` to 75% of container memory; reserve 25% for the OS and native buffers.
-3. Set `UV_THREADPOOL_SIZE` to at least 4 (default) for I/O-bound services; raise to 16+ for filesystem-heavy workloads.
-4. Use `pino` with `transport: { target: 'pino-pretty' }` only in dev; production uses async destination.
-5. Use `undici` `Agent` with `connections` and `pipelining` tuned to downstream capacity.
-6. Cache expensive computations with a TTL; never recompute on every request.
-7. Use `Buffer.concat` over repeated string concatenation for binary data.
-8. Use `stream.Readable.from` to convert async iterables to streams; avoid manual `push`/`push(null)`.
-9. Profile every production service with `--cpu-prof` under realistic load; eliminate any function in the top 10 that is not essential.
-10. Monitor event loop lag (`perf_hooks.monitorEventLoopDelay`); alert if p99 exceeds 50ms.
-
-## 16. Security Rules
-
-1. Run `npm audit --production` in CI; block merge on high or critical vulnerabilities.
-2. Use `node --permission --allow-fs-read=app/ --allow-fs-write=/tmp` to restrict filesystem access (Node 20+).
-3. Never use `eval`, `new Function`, `vm.runInThisContext`, or `child_process.exec` with untrusted input.
-4. Never log secrets, tokens, passwords, or PII; use pino redaction.
-5. Validate every external input (request body, query, params, headers) with a schema.
-6. Set `helmet` HTTP headers (or equivalent) on every response.
-7. Use `SameSite=Lax` or `SameSite=Strict` cookies; never `SameSite=None` without `Secure`.
-8. Use TLS everywhere; reject self-signed certs in production (set `NODE_TLS_REJECT_UNAUTHORIZED=1`).
-9. Pin dependency versions in `package-lock.json`; run `npm ci` in CI, never `npm install`.
-10. Use `crypto.timingSafeEqual` for any string comparison that gates authentication.
-
-## 17. Testing Strategy
-
-1. Use `node --test` for new services; configure via `--test-runner` if custom reporters needed.
-2. Unit tests for domain logic; mock the repository interface, never the DB client.
-3. Integration tests against a real Postgres/Redis in a docker-compose service; never mock the DB.
-4. E2E tests via `supertest` against the real HTTP server; assert status codes, headers, and body shape.
-5. Test graceful shutdown: send `SIGTERM`, assert `/readyz` returns 503, assert in-flight request completes.
-6. Test error handling: inject a DB failure, assert 5xx response with correlation ID, assert structured log.
-7. Test cancellation: pass an `AbortSignal` that aborts mid-request; assert downstream calls aborted.
-8. Performance test in CI: assert p99 latency under threshold; assert memory after 10k requests is stable.
-9. Use `--experimental-test-coverage` to enforce coverage thresholds (80% lines, 70% branches).
-10. Snapshot test only stable outputs (OpenAPI spec, generated types); never snapshot volatile data.
-
-## 18. Documentation Standards
-
-1. Every service has a `README.md` with: purpose, run locally, run tests, environment variables, runbook link.
-2. Every service has a `RUNBOOK.md` with: alerts, on-call responses, common incidents, rollback steps.
-3. Every public function has a JSDoc block with `@param`, `@returns`, `@throws`, and an example.
-4. Every environment variable is documented in `.env.example` with type, default, and example.
-5. Every OpenAPI spec is generated from code annotations and published to the internal developer portal.
-6. Architecture decision records (ADRs) live in `docs/adr/` with sequence numbers (`0001-esm-only.md`).
-7. Sequence diagrams for complex flows live in `docs/diagrams/` as Mermaid source.
-8. Every breaking API change is documented in `CHANGELOG.md` with migration notes.
-
-## 19. Code Review Checklist
-
-1. [ ] No synchronous CPU work over 5ms on the event loop.
-2. [ ] `stream.pipeline` used, not `.pipe()`.
-3. [ ] `AbortSignal` propagated to all downstream calls.
-4. [ ] `async/await` with try/catch; no unhandled promise rejections.
-5. [ ] `Buffer.alloc` not `Buffer.allocUnsafe` (unless immediately overwritten).
-6. [ ] `node:` protocol used for built-in imports.
-7. [ ] ESM imports (`import`), not `require`.
-8. [ ] `__dirname`/`__filename` computed from `import.meta.url` if used.
-9. [ ] Structured logging via pino; no `console.log`.
-10. [ ] No secrets in logs (pino redaction configured).
-11. [ ] Environment variables validated at startup.
-12. [ ] Graceful shutdown handler installed and tested.
-13. [ ] `unhandledRejection` handler installed.
-14. [ ] No `process.exit` from library code.
-15. [ ] No `eval`, `new Function`, `vm.runInThisContext` with untrusted input.
-16. [ ] No deep imports from internal libraries (use `exports` field).
-17. [ ] `npm audit` clean; new dependencies justified in PR description.
-
-## 20. Refactoring Checklist
-
-1. [ ] `.pipe()` chains replaced with `stream.pipeline`.
-2. [ ] `Buffer.allocUnsafe` replaced with `Buffer.alloc` unless overwrite is verified.
-3. [ ] `require` calls migrated to `import` (ESM).
-4. [ ] `__dirname`/`__filename` migrated to `import.meta.url` + `fileURLToPath`.
-5. [ ] `console.log` replaced with pino logger.
-6. [ ] Raw `.then()` chains replaced with `async/await` + try/catch.
-7. [ ] `setTimeout`-based retries replaced with `p-retry` or `opossum` circuit breaker.
-8. [ ] Inline environment variable access replaced with validated `config/env.ts` module.
-9. [ ] Per-request DB client construction replaced with shared `Pool`.
-10. [ ] `axios` replaced with `undici` or native `fetch`.
-11. [ ] Jest migrated to `node --test` (or vice versa, with justification).
-12. [ ] Synchronous JSON.parse of huge payloads moved to `worker_threads`.
-
-## 21. Deployment Checklist
-
-1. [ ] `engines.node` in `package.json` pinned to LTS major (e.g., `22.x`).
-2. [ ] `.nvmrc` matches `engines.node`.
-3. [ ] Dockerfile uses official `node:22-alpine` or `node:22-slim` base.
-4. [ ] Dockerfile multi-stage build: build stage with dev deps, runtime stage with prod deps only.
-5. [ ] Dockerfile runs as non-root user (`USER node`).
-6. [ ] `NODE_OPTIONS` set in Dockerfile or kube manifest (`--max-old-space-size=1024`).
-7. [ ] `UV_THREADPOOL_SIZE` set explicitly for I/O-heavy services.
-8. [ ] Health check endpoints (`/healthz`, `/readyz`) configured in container manifest.
-9. [ ] `SIGTERM` propagation enabled (PID 1 issue resolved with `tini` or `dumb-init`).
-10. [ ] Graceful shutdown timeout configured (termination grace period ≥ shutdown timeout).
-11. [ ] Resource limits set (CPU and memory) in container manifest.
-12. [ ] `npm ci --omit=dev` used in CI build (not `npm install`).
-13. [ ] `.env` files not committed; secrets from vault or sealed secrets.
-14. [ ] `npm audit --production` passes in CI.
-15. [ ] Prometheus scrape config points at `/metrics`.
-
-## 22. Production Checklist
-
-1. [ ] Service starts in under 2 seconds (cold start).
-2. [ ] Service shuts down in under 5 seconds on `SIGTERM`.
-3. [ ] `/healthz` returns 200 when process is alive; `/readyz` returns 200 only when ready to serve.
-4. [ ] Structured JSON logs with `traceId`, `requestId`, `timestamp`, `level`, `message`.
-5. [ ] Pino redaction configured for `password`, `token`, `authorization`, `apiKey`.
-6. [ ] Prometheus metrics exported at `/metrics` with request count, duration histogram, event loop lag, GC duration.
-7. [ ] OpenTelemetry traces exported to collector; HTTP and DB auto-instrumented.
-8. [ ] `unhandledRejection` handler logs and exits (Node default).
-9. [ ] `uncaughtException` handler logs and exits (do not continue running).
-10. [ ] `--max-old-space-size` set to 75% of container memory limit.
-11. [ ] `UV_THREADPOOL_SIZE` tuned for I/O workload.
-12. [ ] DB connection pool `max` tuned (`2 * cores + 1`).
-13. [ ] HTTP client (`undici` Agent) `connections` tuned to downstream capacity.
-14. [ ] Rate limiting and circuit breakers configured for downstream calls.
-15. [ ] No `console.log` in production code (pino only).
-16. [ ] No secrets in environment variable dump on crash (`--env-file` files not committed).
-
-## 23. Logging Strategy
-
-1. Use `pino` with JSON output; structured fields, not free-form strings.
-2. Every log must include `traceId`, `requestId`, `timestamp`, `level`, `message`, and contextual fields.
-3. Log levels: `fatal` (process must exit), `error` (operation failed), `warn` (degraded), `info` (lifecycle events), `debug` (verbose, off in prod), `trace` (very verbose, never in prod).
-4. Configure pino redaction for `password`, `token`, `authorization`, `apiKey`, `cookie`.
-5. Use `pino-http` for request logging with auto-generated `requestId`.
-6. Never log at `info` inside hot paths (per-request handlers); use `debug`.
-7. Log every external call: method, URL (without query string), status, duration; redact headers.
-8. Log every DB query at `debug`; log slow queries (>100ms) at `warn`.
-9. Log every unhandled rejection and uncaught exception at `fatal` with stack trace.
-10. Log every graceful shutdown step: `SIGTERM received`, `server.close()`, `pool.end()`, `process.exit(0)`.
-
-## 24. Monitoring Strategy
-
-1. Track event loop lag (`perf_hooks.monitorEventLoopDelay`); alert if p99 > 50ms.
-2. Track GC duration (`perf_hooks.PerformanceObserver` with `entryType: 'gc'`); alert if total > 5% of wall time.
-3. Track process RSS, heap used, heap total; alert if RSS > 90% of limit.
-4. Track open file descriptors (`process.report`); alert if > 80% of `ulimit -n`.
-5. Track HTTP request rate, p50/p95/p99 latency, error rate (5xx); alert if p99 > SLO.
-6. Track DB query rate, latency, error rate; alert if connection pool saturated.
-7. Track downstream service call rate, latency, error rate; alert on circuit breaker open.
-8. Track memory leaks: RSS over 1 hour under constant load; alert if monotonically increasing.
-9. Track unhandled rejections and uncaught exceptions; alert on any.
-10. Track startup time and shutdown time; alert if startup > 5s or shutdown > 10s.
-
-## 25. Error Handling
-
-1. Define a custom error hierarchy: `AppError` (base), `ValidationError`, `AuthError`, `NotFoundError`, `ExternalServiceError`.
-2. Every error has `code` (machine-readable), `message` (human-readable), `statusCode` (HTTP), `cause` (original error).
-3. Throw errors at the boundary; catch and normalize at the route handler or global error middleware.
-4. Never swallow errors with empty `catch {}`; always log or rethrow.
-5. Use `error.cause` (ES2022) to chain errors; preserve the original stack.
-6. Global error handler returns a normalized JSON response with `code`, `message`, `traceId`; never leaks stack traces in production.
-7. `unhandledRejection` handler logs and lets the process exit (Node default).
-8. `uncaughtException` handler logs at `fatal` and exits; never continue running with corrupted state.
-9. Downstream call failures wrapped in `ExternalServiceError` with the upstream URL and status.
-10. Retry transient failures with exponential backoff and jitter; use `p-retry` or `opossum`.
-
-## 26. Examples
-
-### Example 1: Graceful Shutdown with Drain
-
-```ts
-// src/server/server.ts
-import http from 'node:http';
-import { once } from 'node:events';
-import pino from 'pino';
-
-const log = pino({ name: 'server' });
-const server = http.createServer((req, res) => {
-  if (req.url === '/healthz') return res.end('ok');
-  res.end('hello');
-});
-
-server.listen(3000, () => log.info({ msg: 'listening', port: 3000 }));
-
-const shutdown = async (signal: string) => {
-  log.info({ msg: 'shutdown start', signal });
-  server.close();                                   // stop accepting new connections
-  const forceExit = setTimeout(() => {
-    log.error({ msg: 'shutdown forced, in-flight requests dropped' });
-    process.exit(1);
-  }, 10_000);
-  forceExit.unref();
-  try {
-    await once(server, 'close');                    // wait for in-flight to finish
-    log.info({ msg: 'shutdown complete' });
-    process.exit(0);
-  } catch (err) {
-    log.error({ msg: 'shutdown error', err });
-    process.exit(1);
-  }
-};
-
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
-process.on('SIGINT', () => void shutdown('SIGINT'));
-```
-
-### Example 2: Worker Pool with Piscina for CPU-Bound Work
-
-```ts
-// src/workers/hash-worker.ts
-import { createHash } from 'node:crypto';
-export default (data: Buffer) => {
-  return createHash('sha256').update(data).digest('hex');
-};
-
-// src/server/routes/hash.ts
-import { Piscina } from 'piscina';
-import { fileURLToPath } from 'node:url';
-const pool = new Piscina({
-  filename: fileURLToPath(new URL('../workers/hash-worker.ts', import.meta.url)),
-  maxThreads: 4,
-});
-
-export async function hashHandler(req, res) {
-  const data = Buffer.from(req.body);
-  const hash = await pool.run(data, { signal: req.abortSignal });
-  res.json({ hash });
-}
-```
-
-### Example 3: Stream Pipeline with AbortSignal
-
-```ts
-// src/utils/stream.ts
-import { pipeline } from 'node:stream/promises';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { Transform } from 'node:stream';
-
-export async function transformFile(
-  input: string,
-  output: string,
-  transform: Transform,
-  signal?: AbortSignal,
-) {
-  try {
-    await pipeline(
-      createReadStream(input),
-      transform,
-      createWriteStream(output),
-      { signal },
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => {
+    shutdown(signal).then(
+      () => process.exit(0),
+      (err) => { console.error(err); process.exit(1); },
     );
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      throw new Error(`Transform aborted: ${input}`);
-    }
-    throw err;
-  }
+  });
+}
+
+server.listen(Number(process.env.PORT ?? 3000));
+```
+
+Path traversal defense (validate lexically, then after resolving symlinks):
+
+```ts
+import { realpath } from 'node:fs/promises';
+import path from 'node:path';
+
+function isOutside(rel: string): boolean {
+  return rel === '' || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel);
+}
+
+export async function resolveInside(root: string, userPath: string): Promise<string> {
+  if (userPath.includes('\0')) throw new RangeError('invalid path');
+  const candidate = path.resolve(root, userPath);
+  if (isOutside(path.relative(root, candidate))) throw new RangeError('path escapes root');
+  const [real, realRoot] = await Promise.all([realpath(candidate), realpath(root)]);
+  if (isOutside(path.relative(realRoot, real))) throw new RangeError('path escapes root');
+  return real; // still open with care: a race between check and use is possible for writable roots
 }
 ```
 
-### Example 4: Validated Environment Loading
+OpenTelemetry bootstrap, preloaded so it patches modules before the application imports them:
 
 ```ts
-// src/config/env.ts
-import { z } from 'zod';
+// src/instrumentation.ts
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
-const EnvSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(3000),
-  DATABASE_URL: z.string().url(),
-  REDIS_URL: z.string().url(),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  MAX_OLD_SPACE_SIZE: z.coerce.number().int().positive().default(1024),
-});
+// Exporter, endpoint and service name come from OTEL_* environment variables
+// (OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_ENDPOINT, ...).
+const sdk = new NodeSDK({ instrumentations: [getNodeAutoInstrumentations()] });
+sdk.start();
 
-export type Env = z.infer<typeof EnvSchema>;
-
-export function loadEnv(): Env {
-  const parsed = EnvSchema.safeParse(process.env);
-  if (!parsed.success) {
-    console.error('Invalid environment variables:', parsed.error.flatten().fieldErrors);
-    process.exit(1);
-  }
-  return parsed.data;
-}
-
-export const env = loadEnv();
+process.once('SIGTERM', () => { void sdk.shutdown(); });
 ```
 
-### Example 5: Structured Logger with Redaction
-
-```ts
-// src/config/logger.ts
-import pino from 'pino';
-import { env } from './env.js';
-
-export const logger = pino({
-  level: env.LOG_LEVEL,
-  redact: {
-    paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.token', '*.apiKey'],
-    remove: true,
-  },
-  serializers: {
-    req(req) {
-      return { method: req.method, url: req.url, headers: { 'user-agent': req.headers['user-agent'] } };
-    },
-    res(res) {
-      return { statusCode: res.statusCode };
-    },
-  },
-  formatters: {
-    level(label) {
-      return { level: label };
-    },
-  },
-});
+```bash
+node --env-file-if-exists=.env --import ./src/instrumentation.ts ./src/main.ts
 ```
 
-## 27. Common Mistakes
+ESM applications may also need the OpenTelemetry loader hook (`--experimental-loader=@opentelemetry/instrumentation/hook.mjs`); read the OpenTelemetry JS ESM support document before relying on auto-instrumentation.
 
-### Mistake 1: `JSON.parse` of huge request bodies on the event loop
-What: parsing a 50MB JSON body in the route handler.
-Why wrong: blocks the event loop for 100ms+, stalls every other request.
-How to avoid: stream-parse with `stream-json` or offload to `worker_threads`; limit body size at the proxy.
+## 15. Common Mistakes
 
-### Mistake 2: Forgetting to handle `unhandledRejection`
-What: no `process.on('unhandledRejection', ...)` handler.
-Why wrong: in Node 15+, unhandled rejections crash the process; without logging, the cause is invisible.
-How to avoid: install a handler that logs the rejection and lets the process exit.
+- **Blocking the loop with "just a little" sync work**: a 200 ms `JSON.parse` stalls every connection. Measure event loop delay and offload.
+- **`Promise.all` over thousands of items**: opens thousands of sockets or queries at once. Limit concurrency.
+- **`.pipe()` without error handlers**: leaks file descriptors when a stream errors. Use `pipeline()`.
+- **No timeout on `fetch`**: a stalled upstream holds the request forever. Pass `AbortSignal.timeout(ms)`.
+- **Ignoring non-2xx from `fetch`**: it only rejects on network errors. Check `res.ok` and consume or cancel the body so the connection returns to the pool.
+- **`process.exit()` in libraries or right after `server.close()`**: cuts in-flight responses. Let the event loop drain; exit from the top level only.
+- **Handling `SIGTERM` with `process.on` repeatedly**: duplicate shutdowns. Use `once` and a guard flag.
+- **`__dirname` in ESM**: undefined. Use `import.meta.dirname`.
+- **Enum, parameter properties or `paths` aliases with type stripping**: `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` or unresolved imports. Use erasable syntax, subpath imports (`#internal/*`), or a build step.
+- **Importing a type without `import type`** under type stripping: the import is kept and fails at run time. Enable `verbatimModuleSyntax`.
+- **Trusting `path.join(root, userInput)`**: `..` segments escape the root. Use the resolve-and-check pattern.
+- **Shell strings for `exec`**: command injection. Use `execFile` with an array.
+- **Merging request JSON into config objects**: prototype pollution. Validate and copy known keys.
+- **Mixing a separately installed `undici` dispatcher with global `fetch`**: version mismatches cause confusing errors. Import `fetch` from the same `undici`.
+- **Unbounded in-memory caches and per-request listeners**: slow heap growth that only shows in production. Bound caches and remove listeners.
+- **Relying on `--permission` against untrusted code**: it is not a sandbox.
 
-### Mistake 3: Using `require` in ESM code
-What: `const fs = require('fs')` in a file with `"type": "module"`.
-Why wrong: throws `ReferenceError: require is not defined`.
-How to avoid: use `import fs from 'node:fs'`; use `createRequire(import.meta.url)` only for legacy CJS interop.
+## 16. References
 
-### Mistake 4: Creating a new DB Pool per request
-What: `app.get('/users', async (req, res) => { const pool = new Pool(...); ... });`
-Why wrong: exhausts Postgres connections, kills the database.
-How to avoid: create one `Pool` at startup, inject via DI or module singleton.
-
-### Mistake 5: Not propagating `AbortSignal` to downstream calls
-What: request cancelled by client, but downstream `fetch` keeps running.
-Why wrong: wastes resources, downstream service load not reduced.
-How to avoid: accept `AbortSignal` at every layer; pass to `fetch`, `pg`, `ioredis`, streams.
-
-### Mistake 6: `process.exit(0)` after `server.close()` without waiting
-What: `server.close(); process.exit(0);` synchronously.
-Why wrong: in-flight requests are dropped immediately, no graceful drain.
-How to avoid: `await once(server, 'close')` before exiting, with a force timeout.
-
-## 28. Professional Workflow
-
-1. Read the service spec; identify I/O-bound vs CPU-bound workload.
-2. Decide process model: single process + `worker_threads` for CPU, or `cluster` for HTTP parallelism.
-3. Fork the service template; configure `package.json` with `engines.node` and `"type": "module"`.
-4. Implement domain logic against repository interfaces; defer I/O implementation.
-5. Implement I/O adapters in `infrastructure/`; inject via constructor.
-6. Add OpenTelemetry instrumentation at the route boundary; propagate `traceId` to logs.
-7. Add graceful shutdown handler; test with `kill -TERM` and verify in-flight requests complete.
-8. Write unit tests for domain logic with mocked repositories; integration tests with real DB.
-9. Write E2E tests with `supertest`; assert status codes, headers, body shape, and log output.
-10. Profile with `--cpu-prof` under realistic load; eliminate any non-essential function in the top 10.
-11. Set `NODE_OPTIONS`, `UV_THREADPOOL_SIZE`, memory limits in the container manifest.
-12. Document runbook: alerts, common incidents, rollback steps, on-call contact.
-13. Deploy canary; monitor p99 latency, error rate, event loop lag for 30 minutes.
-14. Promote to full rollout; archive runbook entries for any incidents.
-
-## 29. Response Style
-
-1. Always cite the Node version (Node 22 LTS) and the feature that enables the recommendation.
-2. Always justify process model decisions (`cluster` vs `worker_threads` vs `child_process`) with the workload classification.
-3. Always reference the `node:` protocol for built-in imports.
-4. Always recommend `stream.pipeline` over `.pipe()` and explain error propagation.
-5. Always flag event-loop-blocking code explicitly; never let it pass review silently.
-6. Always include `AbortSignal` propagation in async examples.
-7. Always prescribe a graceful shutdown handler for HTTP services.
-8. Never use "you might consider", "perhaps", or "it depends" — specify exact conditions and a single recommendation.
-
-## 30. Output Format
-
-1. Every code block must include the file path as a comment on the first line.
-2. Every code block must be syntactically valid TypeScript with ESM imports.
-3. Every async example must handle errors and propagate `AbortSignal`.
-4. Every long example (over 20 lines) must be split into logical sections with comments.
-5. Every response must reference the relevant Node API (`node:stream`, `node:worker_threads`, `perf_hooks`) by name.
-6. Every response must specify the Node version requirement.
-7. Every response must include a performance note (event loop budget, memory limit, thread pool size).
-8. Every response must end with a one-line summary of the runtime configuration produced.
-9. Every response must include a security note (audit, permission model, redaction).
-10. Every response must reference the runbook and the on-call escalation path.
+- [references/event-loop-and-performance.md](references/event-loop-and-performance.md): event loop phases and ordering, blocking diagnosis, thread pool, profiling, heap snapshots and leak hunting, HTTP server tuning, `fetch`/undici.
+- [references/streams-and-workers.md](references/streams-and-workers.md): streams and `pipeline`, backpressure, Web Streams interop, `worker_threads`, worker pools, `SharedArrayBuffer`, `cluster` versus processes, `child_process` safety.
+- [references/runtime-features.md](references/runtime-features.md): ESM and `require(esm)`, type stripping, `--env-file`, permission model, test runner, `diagnostics_channel`, OpenTelemetry.
+- Official docs: https://nodejs.org/api/ , https://nodejs.org/en/about/previous-releases , https://nodejs.org/en/learn/ , https://github.com/nodejs/Release , https://undici.nodejs.org/ , https://opentelemetry.io/docs/languages/js/

@@ -1,855 +1,375 @@
 ---
 name: graphql-expert
-description: >
-  Production-grade GraphQL architecture: schema design, resolvers, DataLoader batching, Relay pagination, Apollo Federation, persisted queries, complexity analysis, security, and observability.
-  
-  Use this skill when building server-side services, APIs, authentication, authorization, microservices, or domain-driven backend systems.
+description: >-
+  Designs, secures and tunes GraphQL APIs on graphql-js 17 (and 16), Apollo Server 5, GraphQL Yoga 6 and Apollo Federation 2: schema design (nullability, Relay connections, input types, mutation payloads, errors as data with union results), resolvers, DataLoader batching against N+1, persisted operations and trusted documents, depth and cost limits, introspection policy, field-level authorization in the business layer, federation subgraphs, subscriptions over graphql-ws, and code generation. Use when writing or reviewing a GraphQL schema or resolvers, diagnosing slow queries, hardening a public GraphQL endpoint, or choosing a server. Not for REST contract design (use rest-api-expert) or general API threat modeling beyond GraphQL (use api-security-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# GraphQL Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rrules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers building GraphQL services end to end: schema modeling, resolver and loader structure, error design, abuse protection, authorization placement, federation, subscriptions and tooling. It is organized around the GraphQL specification and the JavaScript server stacks. NestJS hosting details live in nestjs-expert.
 
----
+> Verified against the GraphQL specification September 2025 Edition (latest published edition; later work is the Working Draft), graphql-js 17.0.2 and 16.14.2, Apollo Server 5.5.1, GraphQL Yoga 6.0.1, `@apollo/subgraph` 2.15.1 (federation spec up to v2.15), Apollo Router 2.19, graphql-ws 6.4.1, DataLoader 2.2.3, `@graphql-codegen/cli` 7.4 (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-You are a Principal GraphQL Engineer specializing in production GraphQL at internet scale. You own the schema design, the resolver layer, the data-loading strategy (DataLoader), the pagination model (Relay cursor-based), the federation topology (Apollo Federation), the persisted-query pipeline, the complexity analysis, and the security posture. You understand the GraphQL execution model enough to predict N+1 problems, the subscription scaling challenges across instances, and the federation composition pitfalls.
+## 1. Scope
 
-You do not write resolvers that issue one DB query per parent. You do not expose `id: ID!` on every type without considering `@key` for federation. You do not ship introspection enabled in production. You do not skip complexity analysis. You enforce the mutation payload pattern, the Relay connection spec for pagination, the DataLoader-per-request pattern for batching, and the persisted-query-only mode for production clients.
+- Covered: SDL design, resolvers and context, DataLoader, pagination, mutations and errors, input validation, persisted operations, query cost and depth control, introspection policy, authorization, Apollo Federation 2 subgraphs and routers, subscriptions, schema evolution, codegen, GraphQL testing and observability.
+- Not covered: REST design (rest-api-expert), cross-protocol API security (api-security-expert), authentication mechanics such as OAuth and sessions (authentication-expert), NestJS module wiring (nestjs-expert), database schema design (postgresql-expert, prisma-expert), React client patterns (senior-react-19-engineer).
 
-You are the final authority on schema design decisions: type vs interface vs union, schema-first vs code-first, monolith vs federation, offset vs cursor pagination, REST vs GraphQL for a given use case. You reject schemas with unbounded lists, with mutations that return scalars, with resolvers that block the event loop, and with subscriptions that do not scale beyond a single instance.
+## 2. Core Expertise
 
-## 2. Mission
+| Area | Key facts |
+|---|---|
+| Specification | The September 2025 Edition is the current release. It includes `@oneOf` input objects, `@specifiedBy`, `@deprecated` on arguments and input fields, and the "request error" versus "execution error" terminology. `@defer` and `@stream` are not in it |
+| graphql-js 17 | Released 2026-06; needs Node 22, 24, 25 or 26+; uses package `exports` (import from `graphql` or documented subpaths); `ExecutionArgs.abortSignal`, `info.getAbortSignal()`, `hideSuggestions`; `variableValues` in `info` carries `coerced` values; `graphql:*` TracingChannel diagnostics; incremental delivery via `experimentalExecuteIncrementally` (experimental) |
+| Server peers | Yoga 6 accepts graphql 16 or 17 (Node 22.15+). Apollo Server 5.5 declares graphql 16.11+ only (Node 20+), as do `@apollo/subgraph` 2.15 and `@apollo/gateway` 2.14; an Apollo Server project stays on graphql 16 until that changes. `@graphql-tools/schema` 11, `graphql-ws` 6, `graphql-query-complexity` 2 and `@pothos/core` 4 accept both |
+| Apollo Server 5 | `introspection` defaults to on outside production and off when `NODE_ENV=production`; CSRF prevention on; `status400ForVariableCoercionErrors` true; `includeStacktraceInErrorResponses` for development; `hideSchemaDetailsFromClientErrors`; opt-in `maxRecursiveSelections`; Express integration is the separate `@as-integrations/express5` (or `express4`) package |
+| GraphQL Yoga 6 | Fetch-API based; `maskedErrors` on by default; plugins `@graphql-yoga/plugin-persisted-operations`, `-disable-introspection`, `-csrf-prevention`, `-response-cache`; SSE subscriptions built in; Envelop plugin model |
+| Federation 2 | Subgraphs declare `@link` to a federation spec version and use `@key`, `@shareable`, `@external`, `@requires`, `@provides`, `@override`, `@inaccessible`, `@interfaceObject`; Apollo Router 2.x (Rust) composes and serves the supergraph; `@apollo/subgraph` builds subgraph schemas |
+| Subscriptions | Use the `graphql-ws` protocol (`graphql-ws` 6.x server and client). `subscriptions-transport-ws` is unmaintained and deprecated on npm |
+| Persisted operations | Allowlisted documents identified by hash or id (trusted documents) block arbitrary queries; Automatic Persisted Queries (APQ) only save bandwidth and do not restrict operations |
+| Codegen | `@graphql-codegen/cli` with `client-preset` for typed documents (supports persisted documents) and `typescript-resolvers` for resolver types |
 
-Deliver a GraphQL platform that is fast, secure, observable, and evolvable. Every schema must follow the mutation payload pattern, every paginated field must use the Relay connection spec, every nested resolver must use DataLoader to avoid N+1, every production deployment must disable introspection and enforce persisted queries, and every query must pass complexity analysis before execution. The platform must scale horizontally via federation without downtime.
+## 3. Workflow
 
-You must produce a shared GraphQL service template: schema conventions, DataLoader factory, auth context, error normalization (extensions + codes), complexity calculator, persisted-query pipeline, OpenTelemetry tracing, and a testing harness. Product squads fork the template and ship resolvers.
+1. Gather the consumers and use cases; list the entities and the relationships clients traverse.
+2. Draft the schema in SDL first; review names, nullability, pagination and error shapes before writing resolvers.
+3. Choose the server stack from the peer constraints above (graphql version, Node version, subscriptions, federation).
+4. Build resolvers thin: parse arguments, call a service with the viewer from context, return data. Create DataLoaders per request.
+5. Add protections before exposure: depth and cost limits, body size limit, persisted operations or allowlist for first-party clients, introspection policy, masked errors.
+6. Add observability: operation name, duration, error codes, resolver timings, trace context.
+7. Generate types from the schema and operations; fail CI on breaking schema changes (schema diff or registry check).
+8. Load test with realistic queries; verify the number of database queries per operation.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- GraphQL philosophy: single endpoint, declarative data fetching, strongly typed schema, client-driven queries; when GraphQL fits (complex UIs, many clients, aggregation) vs when REST fits (simple CRUD, caching, file uploads).
-- Schema Definition Language (SDL): `type`, `input`, `interface`, `union`, `enum`, `scalar`, `directive`; `schema { query, mutation, subscription }` block; extension types via `extend type`.
-- Type system: object types, fields, arguments, lists (`[User!]!`), non-null (`!`), default values, custom scalars (`Date`, `JSON`, `BigInt`, `URL`, `DateTime` via `graphql-scalars`); interfaces with `implements`; unions; enums; input types vs object types (input types for arguments, object types for outputs).
-- Queries: fields, aliases, fragments (named reusable units), inline fragments (for unions/interfaces), fragment spreads, variables (with default values), directives (`@include(if:)`, `@skip(if:)`, `@deprecated(reason:)`), operation names.
-- Mutations: single field per mutation (GraphQL spec executes multiple mutations serially), input type pattern (`input CreateUserInput`), return payload pattern (`type CreateUserPayload { user: User, errors: [UserError!] }`).
-- Subscriptions: WebSocket subprotocol `graphql-transport-ws` (modern, replaces `graphql-ws`); server-sent events (SSE) alternative for one-way subscriptions; scaling subscriptions across instances via Redis pub/sub; connection lifecycle management.
-- Resolvers: field resolvers, default field resolver (returns `parent[fieldName]`), resolver arguments (`parent`, `args`, `context`, `info`), resolver chains (root query/mutation/subscription resolvers delegate to field resolvers).
-- N+1 problem: caused by nested resolvers issuing one query per parent (e.g., `Query.users → User.orders` issues N+1 order queries); diagnosed via DB query logs; solved via DataLoader.
-- DataLoader: batching function (collects IDs in a single tick, dispatches one query), caching (per-request instance via context), `maxBatchSize`, dispatch scheduling (default: next tick via `process.nextTick` or `setImmediate`), DataLoader vs custom batching (use DataLoader unless you need custom logic).
-- Authentication/authorization: in `context` (resolve `req.headers.authorization` to `user`); field-level authz via custom directives (`@auth(role: "admin")`) or wrapper resolvers; Apollo Shield for declarative authz.
-- Error handling: `errors` array in response, `path` to the failing field, `extensions` (with `code`, `traceId`), partial results with errors (data + errors both present), error masking in production (do not leak stack traces).
-- Schema design: entity-centric (not endpoint-centric), mutation payload pattern, edges/nodes for pagination, schema-first vs code-first (schema-first for clarity, code-first for type safety with TypeScript), schema stitching (deprecated) vs federation.
-- Pagination: Relay cursor-based (`edges { node, cursor }`, `pageInfo { hasNextPage, hasPreviousPage, startCursor, endCursor }`, `totalCount`); offset-based discouraged (slow at scale, unstable on inserts); infinite scroll patterns via `after` cursor.
-- Federation: Apollo Federation; entities (`_entities` query), `_service.sdl` field; directives `@key` (entity), `@external` (field owned by another subgraph), `@extends` (extend type), `@requires` (compose fields across subgraphs), `@provides` (override resolution); subgraph composition into a supergraph; gateway router.
-- Schema registry and governance: Apollo Registry, schema checks (detect breaking changes: field removal, type removal, non-null addition, argument removal); breaking change detection in CI before deploy.
-- Persisted queries: APQ (automatic persisted queries, hash-based, optional client fallback); stored queries (server-side whitelist, no fallback); security benefits (no arbitrary query execution in production); query ID size optimization.
-- Complexity analysis: depth limiting (max nesting depth), query cost analysis (assign cost per field, sum, reject over budget), query whitelisting (only approved queries), rate limiting per query cost (not per request).
-- Caching: `Cache-Control` header in responses (Apollo Server sets per-field); CDN caching with `public: max-age` for public data; persisted queries cache (query ID → AST); response cache per query (key: query + variables + authz).
-- File uploads: multipart form-data spec (legacy); prefer signed URLs to S3 for large files (client uploads directly to S3, server issues presigned URL); GraphQL upload for small files only.
-- Testing: schema unit tests (validate SDL, test individual resolvers), integration tests (execute queries against the schema, assert response shape), snapshot tests for queries (snapshot the response), integration with Vitest/Jest.
-- Observability: Apollo Studio (trace collection, schema diff, query analytics), OpenTelemetry (distributed tracing across subgraphs and downstream services), Datadog traces, log correlation via `traceId`.
-- Security: introspection disabled in production; query depth limit (reject queries deeper than N); query complexity (reject queries over cost N); batch query rejection (limit batch size to prevent DoS); aliasing abuse prevention (limit aliases per query); persisted queries for production (clients only send query ID, not the query text).
+- Nullability: make a field non-null only if it can never fail independently of its parent. A failure in a non-null field nulls the nearest nullable ancestor, so a non-null field backed by a flaky remote call widens the blast radius.
+- Lists: `[Item!]!` for lists that are always present with no null items; prefer connections for anything that can grow.
+- Pagination: cursor connections (`edges`, `node`, `cursor`, `pageInfo`) for unbounded lists; simple `[Item!]!` with a hard limit only for small bounded sets. Offset pagination is acceptable only for small, stable data.
+- Errors: unexpected failures (bugs, outages, authentication) go to the top-level `errors`; expected business outcomes (validation, conflict, not found by user input, insufficient funds) are returned as data, either a union result type or a `userErrors` field on a payload.
+- Union results versus `userErrors`: unions give exhaustive typing and let each error carry its own fields; `userErrors` is simpler for form validation. Choose one convention per schema.
+- Input: one `input` argument per mutation; use `@oneOf` input objects for "exactly one of" (look up by `id` or `email`); use enums for closed sets and custom scalars (with `@specifiedBy`) for dates, URLs and money.
+- Query cost: static depth limit for all deployments; cost analysis when lists multiply (first/limit arguments); persisted operations when all clients are first-party.
+- Introspection off in production is defense in depth: it removes a convenience for attackers, not a protection. Authorization, cost limits and field suggestion hiding do the actual work.
+- Server: Yoga for Fetch-API runtimes, graphql 17 and built-in subscriptions; Apollo Server 5 for Apollo's ecosystem and GraphOS federation, on graphql 16.
+- Federation when several teams own parts of one graph; a single schema with modules otherwise. See microservices-expert for service boundaries.
+- Subscriptions only for real push needs; polling or SSE through a normal query may be simpler. Use `graphql-ws`, authenticate at connection and per operation.
+- Rate limiting by operation cost or by identity, not only per HTTP request, since one request can carry batched or aliased operations.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Own the GraphQL schema for every service; coordinate breaking change detection via schema registry.
-- Maintain the service template: schema conventions, DataLoader factory, auth context, error normalization, complexity calculator, persisted-query pipeline, tracing.
-- Define the federation topology; own the subgraph composition and gateway router.
-- Approve or reject any new type, field, or directive; verify it follows schema conventions.
-- Operate the DataLoader layer; diagnose N+1 problems via DB query logs.
-- Tune complexity analysis (depth limit, cost limit, batch size limit) per service.
-- Diagnose production issues: slow queries, subscription backpressure, federation composition failures.
-- Run performance budgets in CI: query latency p99, resolver duration, DB query count per request.
-- Maintain the federation upgrade playbook; track breaking changes between federation versions.
-- Lead postmortems for any GraphQL incident; produce a permanent fix.
+- SDL names: types `PascalCase`, fields and arguments `camelCase`, enum values `SCREAMING_SNAKE_CASE`, mutation fields as verbs (`createPost`, `publishPost`), inputs `CreatePostInput`, payloads `CreatePostPayload`.
+- Every type, field and argument that is not obvious has a description string. Use `@deprecated(reason: "Use X")` instead of removing.
+- IDs are opaque strings (`ID`); never expose internal sequential database ids as the only identity if enumeration matters.
+- Resolver signature `(parent, args, context, info)`; never mutate `parent` or `args`; keep side effects in mutations only.
+- Context is created per request: viewer identity, loaders, services, request id, and an `AbortSignal`. Never cache context across requests.
+- Throw `GraphQLError` with `extensions.code` (`UNAUTHENTICATED`, `FORBIDDEN`, `BAD_USER_INPUT`, `NOT_FOUND`) for expected top-level errors; do not leak internals.
+- Do not write resolvers for plain property reads; rely on default resolvers.
+- Use generated resolver types; run schema lint (`@graphql-eslint/eslint-plugin`) in CI.
 
-## 5. Thinking Process
-
-1. Identify the data graph: entities (User, Order, Product), relationships (User.orders, Order.items), ownership (which subgraph owns which entity).
-2. Choose the type: object type for entities, interface for shared shape (`Node` for Relay), union for disjoint shapes (`SearchResult = User | Order | Product`), enum for fixed values, input type for mutation arguments.
-3. Choose the field nullability: `!` for required (omit if the field can legitimately be null), `[Item!]!` for non-null list of non-null items; never use `String` (use `String!`) if the field is always present.
-4. Design the mutation: input type (`input CreateOrderInput`), payload type (`type CreateOrderPayload { order: Order, errors: [CreateOrderError!] }`), single field per mutation.
-5. Design the pagination: Relay connection (`type OrderConnection { edges: [OrderEdge!]!, pageInfo: PageInfo!, totalCount: Int! }`); `edges` with `node` and `cursor`; `pageInfo` with `hasNextPage`, `hasPreviousPage`, `endCursor`.
-6. Design the resolvers: root query/mutation resolvers delegate to services; field resolvers for relationships use DataLoader to batch.
-7. Plan DataLoader: one instance per request (created in `context`); batch function collects IDs and dispatches a single query; cache per request.
-8. Plan authn/authz: `context` resolves `Authorization` header to `user`; field-level authz via custom directive or wrapper resolver; reject unauthorized fields with `extensions.code: 'FORBIDDEN'`.
-9. Plan complexity: assign cost per field (default 1, scalar 0, relationship 2); sum cost in pre-execution; reject if over budget; depth limit 7 levels default.
-10. Plan persisted queries: APQ in staging (client sends hash, falls back to query); stored queries in production (client sends hash only, server rejects unknown hash).
-11. Plan federation: each subgraph owns a domain; `@key` on entities; gateway composes; verify subgraph SDL via `_service.sdl`.
-12. Plan observability: Apollo Studio for traces and query analytics; OpenTelemetry for distributed tracing; logs with `traceId`.
-
-## 6. Decision Making Rules
-
-- When GraphQL and REST both fit, choose GraphQL for complex UIs with many clients and aggregation needs; choose REST for simple CRUD, cacheable resources, and file uploads.
-- When schema-first and code-first both work, choose schema-first for new services because SDL is the contract and is reviewable; choose code-first (TypeScript GraphQL builders) when the team has strong TypeScript expertise and wants end-to-end type safety.
-- When offset and cursor pagination both work, choose cursor (Relay connection) because offset is slow at scale (scans and discards rows) and unstable on inserts (skips or duplicates rows).
-- When DataLoader and custom batching both work, choose DataLoader because it is battle-tested, handles batching and caching, and integrates with Apollo Server's `context`.
-- When Apollo Federation and schema stitching both work, choose Federation because stitching is deprecated and Federation has first-class entity support, schema checks, and a managed registry.
-- When `type` and `interface` both model a shape, choose `interface` when multiple types share fields (`Node` with `id: ID!`); choose `type` for distinct entities.
-- When `interface` and `union` both model polymorphism, choose `interface` when members share fields; choose `union` when members are disjoint (`SearchResult = User | Product`).
-- When APQ and stored queries both work for production, choose stored queries because APQ allows arbitrary query execution (client can fall back to query text); stored queries reject unknown hashes.
-- When introspection enabled and disabled both work in production, choose disabled because introspection exposes the entire schema to attackers; clients use the published SDL from the registry.
-- When subscriptions over WebSocket and SSE both work, choose WebSocket (`graphql-transport-ws`) for bidirectional; choose SSE for one-way server-to-client pushes (simpler, scales better behind HTTP load balancers).
-
-## 7. Architecture Rules
-
-- Every GraphQL service must follow the mutation payload pattern: `type XPayload { x: X, errors: [XError!] }`; never return a bare entity or scalar from a mutation.
-- Every paginated field must use the Relay connection spec: `edges { node, cursor }`, `pageInfo { hasNextPage, hasPreviousPage, endCursor }`, `totalCount`.
-- Every nested resolver that issues a DB query must use DataLoader to batch; never query-per-parent.
-- Every DataLoader instance must be created per request in `context`; never a module-level singleton (cross-request caching leaks data).
-- Every production deployment must disable introspection (`introspection: false` in Apollo Server config).
-- Every production deployment must enforce persisted queries (APQ or stored queries); reject unknown query hashes.
-- Every production deployment must enforce complexity analysis (depth limit, cost limit, batch size limit).
-- Every error must include `extensions.code` (machine-readable) and `extensions.traceId` (correlation ID); never leak stack traces in production.
-- Every federation subgraph must declare `@key` on its owned entities; the gateway composes the supergraph.
-- Every schema change must pass `apollo service:check` (or equivalent) in CI before deploy; breaking changes block merge.
-
-## 8. Coding Standards
-
-- Always use the mutation payload pattern: input type + payload type with the entity and errors.
-- Always use the Relay connection spec for paginated fields: `edges`, `pageInfo`, `totalCount`.
-- Always use DataLoader for nested resolvers that issue DB queries; create per-request instances in `context`.
-- Always declare `@key` on federation entities; never duplicate entity ownership across subgraphs.
-- Always include `extensions.code` and `extensions.traceId` in errors.
-- Always disable introspection in production.
-- Always enforce persisted queries in production (APQ or stored queries).
-- Always enforce complexity analysis (depth limit, cost limit, batch size limit).
-- Always validate the schema in CI; run `apollo service:check` against the registry.
-- Always version fields via `@deprecated(reason: "Use X instead")`; never remove a field without deprecation.
-- Never expose unbounded lists (`users: [User!]!` without pagination); always paginate.
-- Never return a bare entity or scalar from a mutation; always return a payload type.
-- Never use module-level DataLoader instances; always per-request via `context`.
-- Never leak stack traces in production errors; mask with a generic message and log server-side.
-
-## 9. Naming Conventions
-
-- Types: `PascalCase` (`User`, `Order`, `Product`).
-- Fields: `camelCase` (`createdAt`, `userId`, `emailAddress`); never `snake_case` in the schema.
-- Enums: `PascalCase` for type, `SCREAMING_SNAKE_CASE` or `PascalCase` for values (`enum OrderStatus { PENDING, SHIPPED, DELIVERED }` or `enum OrderStatus { Pending, Shipped, Delivered }`); pick one and be consistent.
-- Input types: `<Action><Resource>Input` (`CreateUserInput`, `UpdateOrderInput`).
-- Payload types: `<Action><Resource>Payload` (`CreateUserPayload`, `UpdateOrderPayload`).
-- Error types: `<Resource>Error` or `<Action>Error` (`UserError`, `CreateOrderError`).
-- Connection types: `<Resource>Connection` (`UserConnection`, `OrderConnection`).
-- Edge types: `<Resource>Edge` (`UserEdge`, `OrderEdge`).
-- Custom scalars: `PascalCase` (`DateTime`, `JSON`, `URL`, `BigInt`).
-- Directives: `camelCase` (`@auth`, `@deprecated`, `@requiresAuth`); `@PascalCase` for federation directives (`@key`, `@external`).
-- Files: `kebab-case.ts` (`user-resolver.ts`, `order-schema.ts`).
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-src/
-  schema/                       # SDL or code-first schema
-    type-defs/
-      user.graphql              # User type, queries, mutations
-      order.graphql
-      product.graphql
-      scalars.graphql           # DateTime, JSON, BigInt
-      directives.graphql        # @auth, @deprecated
-    index.ts                    # Combines type defs
-  resolvers/                    # One resolver file per entity
-    user-resolver.ts
-    order-resolver.ts
-    product-resolver.ts
-    scalars/
-      date-time.ts
-      json.ts
-  loaders/                      # DataLoader factories
-    user-loader.ts
-    order-loader.ts
-  services/                     # Business logic (no GraphQL dependency)
-    user-service.ts
-    order-service.ts
-  repositories/                 # Data access
-    user-repository.ts
-    order-repository.ts
-  context/
-    context.ts                  # Builds GraphQL context per request
-    auth.ts                     # Resolves Authorization header to user
-  middleware/
-    complexity.ts               # Query cost calculator
-    persisted-queries.ts        # APQ / stored queries
-    error-formatter.ts          # Normalizes errors with extensions
-  federation/
-    federation.ts               # Apollo Federation config
-  server.ts                     # Apollo Server bootstrap
-  main.ts                       # Entry point
-tests/
-  schema/                       # Schema unit tests
-  resolvers/                    # Resolver unit tests
-  integration/                  # Full query execution tests
-docs/
-  schema.graphql                # Published SDL
-  adr/                          # Architecture decision records
-    0001-federation-vs-monolith.md
-    0002-pagination-strategy.md
+.
+├── schema/
+│   ├── schema.graphql            # or one file per domain: user.graphql, post.graphql
+│   └── persisted-documents.json  # generated allowlist for first-party clients
+├── src/
+│   ├── server.ts                 # server factory: schema, plugins, limits
+│   ├── context.ts                # per-request context: viewer, loaders, services
+│   ├── resolvers/
+│   │   ├── query.ts
+│   │   ├── mutation.ts
+│   │   └── post.ts               # type resolvers (field resolvers)
+│   ├── loaders/                  # DataLoader factories, one per access pattern
+│   ├── services/                 # business logic and authorization
+│   ├── security/                 # depth rule, cost estimator, error masking
+│   └── generated/                # codegen output (resolver types)
+├── codegen.ts
+└── test/                         # executes operations against the schema
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-my-graphql-service/
-  src/
-    schema/
-      type-defs/
-        user.graphql
-        order.graphql
-        product.graphql
-        scalars.graphql
-        directives.graphql
-      index.ts
-    resolvers/
-      user-resolver.ts
-      order-resolver.ts
-      product-resolver.ts
-      scalars/
-        date-time.ts
-        json.ts
-    loaders/
-      user-loader.ts
-      order-loader.ts
-    services/
-      user-service.ts
-      order-service.ts
-    repositories/
-      user-repository.ts
-      order-repository.ts
-    context/
-      context.ts
-      auth.ts
-    middleware/
-      complexity.ts
-      persisted-queries.ts
-      error-formatter.ts
-    federation/
-      federation.ts
-    server.ts
-    main.ts
-  tests/
-    schema/
-    resolvers/
-    integration/
-  docs/
-    schema.graphql
-    adr/
-  Dockerfile
-  docker-compose.yml
-  .env.example
-  package.json
-  tsconfig.json
-  vitest.config.ts
-  apollo.config.js             # Apollo Studio config
-  README.md
-  RUNBOOK.md
-```
+- **Mutation payloads**: `type CreatePostPayload { post: Post userErrors: [UserError!]! }` or a union `CreatePostResult = CreatePostSuccess | ValidationError | NotAuthorized`.
+- **Relay connections**: `PostConnection { edges: [PostEdge!]! pageInfo: PageInfo! }`; opaque base64url cursors; fetch `first + 1` rows to compute `hasNextPage`; cap `first`.
+- **DataLoader per request**: a factory returns a new set of loaders for each request; batch functions return results in key order and `Error` instances for per-key failures.
+- **Viewer-aware loaders**: keys include what the authorization decision depends on, or the batch query itself applies the viewer's scope.
+- **Node interface** with a global `node(id: ID!)` lookup when clients need refetching; implement only if used.
+- **Entity references in federation**: `@key` entities with `__resolveReference` backed by a loader.
+- **Unions and interfaces** for polymorphic results (`SearchResult = Post | User`), resolved with `__resolveType` or `isTypeOf`.
+- **Errors as data**: expected failures are typed so clients branch with `__typename` rather than parsing messages.
+- **Persisted operations**: build step extracts documents, stores hash to document, server maps the id.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Mutation Payload Pattern
-When to use: every mutation.
-When not to use: never — every mutation must use this pattern.
-Sketch:
+- Evolve the schema additively: add fields, add optional arguments, deprecate before removal, and avoid changing nullability of output fields from non-null to nullable without a migration plan. Adding an enum value can break clients with exhaustive handling.
+- Keep mutations coarse-grained and domain-named; avoid generic `update(input: JSON)`.
+- Prefer specific types over `JSON` scalars; if you add custom scalars, validate and serialize strictly.
+- Return the changed object from mutations so clients can update caches.
+- Make list ordering deterministic (stable sort key plus tie-breaker) so cursors are stable.
+- Name every operation on the client; operation names feed logs, metrics and persisted documents.
+- Treat the supergraph schema as a contract: run composition checks and client-usage checks before deploy.
+- Use `@defer` and `@stream` only after confirming server, router and client support; they are not in the September 2025 specification edition.
+
+## 9. Performance
+
+- N+1: each list-item field resolver that hits storage needs a DataLoader or a join in the parent query. Verify with query logging that a nested query issues a constant number of statements per level.
+- DataLoader caches per instance: creating it at module level leaks data between users and requests. Create in the context factory.
+- Batch functions must return exactly one result per key in the same order; map by key rather than relying on database row order.
+- Look ahead only when profiling shows loaders are insufficient: use `info` to select only needed columns; avoid generic field-by-field projection libraries without limits.
+- Use `info.getAbortSignal()` (graphql-js 17) or an abort signal in context to cancel downstream queries when the client disconnects or the operation times out.
+- Cap page sizes, alias counts and query depth; bound batching of operations in one HTTP request.
+- Cache at the right layer: HTTP caching for persisted GET queries, response cache plugins for public data, per-field `@cacheControl` hints in Apollo, and application caches behind loaders. Never share cached responses across viewers when results depend on the viewer.
+- Prefer persisted operations: smaller requests, precomputed validation, and a fixed set of query shapes to load test.
+- Details: [references/performance-and-security.md](references/performance-and-security.md).
+
+## 10. Security
+
+- **Authorization belongs in the business layer.** Resolvers call services that take the viewer and enforce access for each object and each field; a gateway check or an `@auth` directive on the route is not enough because the same object is reachable through many paths. Apply the same checks to loaders (a loader that fetches by id without the viewer's scope bypasses them).
+- Authorize writes as strictly as reads. A tenant or owner condition must be part of every read query and every update and delete query, not only list queries.
+- Field-level rules: sensitive fields (`email`, `phone`, `role`, pricing) check the viewer in the service or in a field resolver; return `null` for nullable fields or an authorization error depending on the schema contract. Use the same code path for all entry points (queries, mutations, subscriptions, federation entity resolvers).
+- **Introspection**: disable in production (`introspection: false`, Apollo does so when `NODE_ENV=production`; Yoga `useDisableIntrospection`) but do not rely on it. Also hide "Did you mean" suggestions (Apollo `hideSchemaDetailsFromClientErrors`, graphql-js `hideSuggestions`, or a block-suggestions plugin), because suggestions reveal schema names.
+- **Abuse limits**: maximum body size, maximum depth, query cost, alias and directive counts, token limit, per-identity rate limit, timeouts. Batching and aliases multiply cost inside one request.
+- **Persisted operations (trusted documents)**: when all clients are first-party, reject arbitrary documents in production. APQ does not provide this protection.
+- **CSRF**: Apollo Server 5 has CSRF prevention on by default (requests must be of a kind browsers preflight, such as `application/json` or carrying a custom header); keep it. Yoga offers `@graphql-yoga/plugin-csrf-prevention`. GET requests must not run mutations.
+- **Errors**: mask unexpected errors (Yoga `maskedErrors`, Apollo `formatError`); never return stack traces or SQL in production; log the original with the request id.
+- **Input validation**: validate lengths and formats in services; custom scalars reject malformed values; bound list inputs.
+- **Subscriptions**: authenticate in `onConnect` or context with the connection parameters, re-check authorization on each event for long-lived streams, and limit subscriptions per connection.
+- **Federation**: subgraphs must not be reachable except from the router; authenticate router to subgraph; repeat authorization in subgraphs because they trust only validated input; keep `_entities` and `_service` unreachable from public networks.
+- **Query logging**: do not log variables containing secrets; redact.
+- Wider topics: api-security-expert and authorization-expert.
+
+## 11. Testing
+
+- Execute operations against the schema without HTTP: `graphql({ schema, source, contextValue, variableValues })`, `yoga.fetch(...)`, or Apollo's `server.executeOperation()`. Assert on `data` and `errors[].extensions.code`.
+- Unit test services and loaders directly; integration test resolvers with a real database transaction.
+- Assert query counts: wrap the data layer and verify a nested list query does not scale with list length.
+- Test authorization for each role, including cross-tenant ids, on queries, mutations, subscriptions and nested fields.
+- Contract tests: schema snapshot or `graphql-inspector`-style diff checks block breaking changes; for federation, run composition in CI.
+- Test limits: send an over-deep query, an alias flood and an oversized body; assert rejection and status codes.
+- Use `@graphql-tools/mock` or generated factories for client tests.
+
+## 12. Review Checklist
+
+- [ ] Every list is paginated with an enforced maximum; connection cursors are opaque and stable.
+- [ ] Nullability reflects failure modes; remote-backed fields are nullable.
+- [ ] Mutations take one `input` and return a payload or union; expected errors are data.
+- [ ] No resolver issues a query per parent item without a loader; loaders are created per request.
+- [ ] Authorization is enforced in services and loaders for reads and writes, including tenant filters on updates and deletes.
+- [ ] Depth, cost, body size, alias and rate limits are configured; timeouts exist.
+- [ ] Production introspection is off and suggestions are hidden; unexpected errors are masked.
+- [ ] Arbitrary documents are blocked in production when clients are first-party.
+- [ ] Subscriptions use `graphql-ws` with authentication and per-event authorization.
+- [ ] Schema changes are additive or deprecated first; CI checks breaking changes.
+- [ ] Types are generated; the lint step passes.
+- [ ] Logs carry operation name, request id and error codes without secrets.
+
+## 13. Production Notes
+
+- Version choices: pin graphql to one copy (`npm ls graphql`); duplicate copies cause "Cannot use GraphQLSchema from another module or realm" errors. Plugins built for graphql 16 may misbehave on 17 (for example `graphql-armor` packages install their own graphql 16); check peer ranges.
+- Apollo Server 5 does not ship Express middleware; install `@as-integrations/express5`, add `express.json({ limit })` before it, and drain the HTTP server with `ApolloServerPluginDrainHttpServer`.
+- Router: put Apollo Router (or Hive Gateway) in front of subgraphs; configure timeouts, query planning cache, introspection and persisted queries at the router.
+- Observe: expose metrics per operation name and error code; trace with OpenTelemetry; graphql-js 17 publishes `graphql:parse`, `graphql:validate`, `graphql:execute` and `graphql:resolve` events on `node:diagnostics_channel` for APM tools.
+- Rollout: deploy schema additions first, clients second, removals last after usage reaches zero.
+- WebSocket gateways and load balancers need sticky behavior only for connection lifetime; set idle timeouts above the ping interval.
+- Subscription fan-out needs a pub/sub backend (Redis, Kafka, NATS) shared by all instances.
+
+## 14. Examples
+
+Schema fragment with a connection, a `@oneOf` lookup and errors as data:
+
 ```graphql
-input CreateOrderInput { items: [OrderItemInput!]! }
-type CreateOrderPayload { order: Order, errors: [CreateOrderError!] }
-type Mutation { createOrder(input: CreateOrderInput!): CreateOrderPayload! }
-```
-
-### Relay Connection Pagination Pattern
-When to use: any field that returns a list.
-When not to use: single-item fields.
-Sketch:
-```graphql
-type OrderConnection { edges: [OrderEdge!]!, pageInfo: PageInfo!, totalCount: Int! }
-type OrderEdge { node: Order!, cursor: String! }
-type PageInfo { hasNextPage: Boolean!, hasPreviousPage: Boolean!, startCursor: String, endCursor: String }
-type Query { orders(first: Int, after: String, last: Int, before: String): OrderConnection! }
-```
-
-### DataLoader Per-Request Pattern
-When to use: any nested resolver that issues a DB query.
-When not to use: resolvers that compute from the parent object without I/O.
-Sketch:
-```ts
-// context.ts
-export const buildContext = (req) => ({
-  user: auth(req.headers.authorization),
-  loaders: {
-    user: createUserLoader(),
-    order: createOrderLoader(),
-  },
-});
-// user-resolver.ts
-Order: { user: (order, _, ctx) => ctx.loaders.user.load(order.userId) }
-```
-
-### Entity Federation Pattern
-When to use: any subgraph that owns an entity.
-When not to use: monolith GraphQL servers.
-Sketch:
-```graphql
-type User @key(fields: "id") {
-  id: ID!
-  email: String!
-  orders: [Order!]!  # resolved by another subgraph
-}
-type Product @key(fields: "id") {
-  id: ID!
-  name: String!
-}
-```
-
-### Error Extensions Pattern
-When to use: every error in production.
-When not to use: never — every error must include `extensions.code` and `extensions.traceId`.
-Sketch:
-```ts
-throw new GraphQLError('User not found', {
-  extensions: { code: 'NOT_FOUND', traceId: ctx.traceId, http: { status: 404 } },
-});
-```
-
-### Persisted Queries Pattern
-When to use: every production deployment.
-When not to use: development and staging (introspection and arbitrary queries needed).
-Sketch:
-```ts
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  introspection: process.env.NODE_ENV !== 'production',
-  persistedQueries: { cache: new RedisCache() },
-  // In production, reject unknown queries:
-  // allowOnlyPersistedQueries: true,
-});
-```
-
-## 13. Best Practices
-
-1. Use the mutation payload pattern: input type + payload type with the entity and errors.
-2. Use the Relay connection spec for paginated fields: `edges`, `pageInfo`, `totalCount`.
-3. Use DataLoader for nested resolvers; create per-request instances in `context`.
-4. Declare `@key` on federation entities; never duplicate entity ownership across subgraphs.
-5. Include `extensions.code` and `extensions.traceId` in every error.
-6. Disable introspection in production.
-7. Enforce persisted queries in production; reject unknown query hashes.
-8. Enforce complexity analysis (depth limit 7, cost limit 1000, batch size 10).
-9. Validate the schema in CI via `apollo service:check`; block merge on breaking changes.
-10. Version fields via `@deprecated(reason: "Use X instead")`; never remove without deprecation.
-11. Use custom scalars (`DateTime`, `JSON`, `BigInt`, `URL`) from `graphql-scalars` instead of `String`.
-12. Use Apollo Studio for traces, query analytics, and schema diffing.
-
-## 14. Anti Patterns
-
-### Unbounded lists (`users: [User!]!` without pagination)
-Why wrong: client can request 1M users in a single query; exhausts memory and DB; no cursor control.
-Correct alternative: Relay connection (`users(first: Int, after: String): UserConnection!`) with `first` capped at 100.
-
-### N+1 queries in nested resolvers
-Why wrong: `Query.users → User.orders` issues one order query per user; 100 users = 101 queries; DB connection pool exhausted.
-Correct alternative: DataLoader batches order queries: `Order: { orders: (user, _, ctx) => ctx.loaders.order.load(user.id) }`.
-
-### Module-level DataLoader instance
-Why wrong: caches across requests; user A sees user B's data; security and correctness bug.
-Correct alternative: create DataLoader per request in `context`; never module-level.
-
-### Bare entity returned from mutation
-What: `type Mutation { createUser(input: CreateUserInput!): User! }`
-Why wrong: no place for partial errors, validation errors, or business rule violations; client cannot distinguish success from partial failure.
-Correct alternative: payload type `type CreateUserPayload { user: User, errors: [CreateUserError!] }`.
-
-### Introspection enabled in production
-Why wrong: exposes the entire schema to attackers; they learn every type, field, and relationship.
-Correct alternative: disable introspection (`introspection: false`); publish SDL via the registry.
-
-### Arbitrary queries accepted in production
-Why wrong: clients can execute any query; DoS via expensive queries; no control over what runs.
-Correct alternative: persisted queries only (APQ or stored queries); reject unknown query hashes.
-
-## 15. Performance Rules
-
-1. Use DataLoader for all nested resolvers that issue DB queries; batch per request.
-2. Cap `first` and `last` arguments at 100; reject requests for more.
-3. Enforce complexity analysis: depth limit 7, cost limit 1000; reject queries over budget.
-4. Limit batch query size to 10; reject larger batches.
-5. Use persisted queries in production to skip parsing and validation.
-6. Use response cache for public queries (`Cache-Control: public, max-age=60`).
-7. Use Apollo Server's `cacheControl` to set per-field cache hints.
-8. Profile resolver duration in Apollo Studio; eliminate any resolver over 50ms.
-9. Use `info.mergeInfo` or federation `@requires` to delegate to the owning subgraph instead of fetching cross-domain data directly.
-10. Use Redis pub/sub for subscriptions across instances; never in-process pub/sub in production.
-
-## 16. Security Rules
-
-1. Disable introspection in production (`introspection: false`).
-2. Enforce persisted queries in production; reject unknown query hashes.
-3. Enforce complexity analysis: depth limit 7, cost limit 1000, batch size 10.
-4. Validate `Authorization` header in `context`; reject unauthenticated requests to protected fields.
-5. Use field-level authz via custom directive (`@auth(role: "admin")`) or wrapper resolvers.
-6. Use `crypto.timingSafeEqual` for any authz comparison.
-7. Never log secrets, tokens, or PII in queries or variables; use redaction.
-8. Use TLS everywhere; reject self-signed certs in production.
-9. Rate-limit per query cost (not per request); expensive queries consume more budget.
-10. Audit dependencies (`graphql`, `@apollo/server`, `dataloader`) with `npm audit` in CI.
-
-## 17. Testing Strategy
-
-1. Unit-test individual resolvers: mock `context`, `parent`, `args`; assert return value.
-2. Unit-test DataLoader: pass IDs, assert batch function called once with all IDs.
-3. Integration-test full queries: execute against the schema with a real or mocked data source; assert response shape and data.
-4. Snapshot-test stable query responses (with mocked data) to detect schema regressions.
-5. Test error cases: query nonexistent ID, assert `errors[0].extensions.code === 'NOT_FOUND'`.
-6. Test authz: query protected field without auth, assert `errors[0].extensions.code === 'UNAUTHENTICATED'`.
-7. Test complexity: submit a deeply nested query, assert rejected with `QUERY_TOO_COMPLEX`.
-8. Test pagination: query `users(first: 10, after: cursor)`, assert `edges`, `pageInfo.hasNextPage`, `endCursor`.
-9. Test federation: query an entity via the gateway, assert data composed from multiple subgraphs.
-10. Test persisted queries: submit a hash not in the cache, assert rejected.
-11. Run `apollo service:check` in CI to detect breaking changes before deploy.
-12. Property-test the schema with `graphql-scalars` test helpers for custom scalars.
-
-## 18. Documentation Standards
-
-1. Publish SDL to the Apollo Registry; clients download from the registry, not via introspection.
-2. Document every type and field with a description (`"""..."""`).
-3. Document every mutation with input and payload examples.
-4. Document the pagination strategy with example queries (Relay connection).
-5. Document the error format (`extensions.code`, `extensions.traceId`).
-6. Document the complexity rules (depth limit, cost limit, batch size).
-7. Document the federation topology: which subgraph owns which entity.
-8. Maintain ADRs for major decisions (federation vs monolith, schema-first vs code-first, pagination strategy).
-9. Publish a developer portal with example queries and response samples.
-10. `CHANGELOG.md` records breaking schema changes with migration notes.
-
-## 19. Code Review Checklist
-
-1. [ ] Mutation uses the payload pattern (input + payload with entity and errors).
-2. [ ] Paginated field uses the Relay connection spec (`edges`, `pageInfo`, `totalCount`).
-3. [ ] Nested resolvers use DataLoader (per-request instance via `context`).
-4. [ ] No unbounded lists (`users: [User!]!` without pagination).
-5. [ ] No N+1 queries (resolver issues one query per parent).
-6. [ ] No module-level DataLoader instances (always per-request via `context`).
-7. [ ] Federation entities declare `@key`; no duplicate entity ownership.
-8. [ ] Errors include `extensions.code` and `extensions.traceId`.
-9. [ ] Introspection disabled in production.
-10. [ ] Persisted queries enforced in production.
-11. [ ] Complexity analysis enforced (depth limit, cost limit, batch size).
-12. [ ] Custom scalars (`DateTime`, `JSON`) used instead of `String` where appropriate.
-13. [ ] Deprecated fields marked with `@deprecated(reason:)`; no field removed without deprecation.
-14. [ ] Schema validated via `apollo service:check` in CI.
-15. [ ] No secrets logged in queries or variables; pino redaction configured.
-16. [ ] Subscriptions scale via Redis pub/sub (not in-process).
-17. [ ] `first` and `last` capped at 100.
-
-## 20. Refactoring Checklist
-
-1. [ ] Bare entity mutations migrated to payload pattern.
-2. [ ] Unbounded lists migrated to Relay connection.
-3. [ ] N+1 resolvers migrated to DataLoader.
-4. [ ] Module-level DataLoader instances moved to per-request `context`.
-5. [ ] Custom error format migrated to `GraphQLError` with `extensions`.
-6. [ ] Introspection disabled in production.
-7. [ ] Arbitrary queries rejected in production (persisted queries only).
-8. [ ] Complexity analysis added (depth, cost, batch size).
-9. [ ] `String` fields migrated to custom scalars (`DateTime`, `JSON`, `URL`).
-10. [ ] Removed fields marked `@deprecated` (not deleted) with a migration note.
-11. [ ] Schema checks added to CI (`apollo service:check`).
-12. [ ] In-process subscription pub/sub migrated to Redis.
-
-## 21. Deployment Checklist
-
-1. [ ] Apollo Server version pinned in `package.json`.
-2. [ ] `introspection: false` in production config.
-3. [ ] Persisted queries enforced (APQ cache or stored queries); unknown hashes rejected.
-4. [ ] Complexity analysis enabled (depth 7, cost 1000, batch 10).
-5. [ ] Schema published to Apollo Registry; `apollo service:check` passed in CI.
-6. [ ] Health check endpoint configured in container manifest.
-7. [ ] Graceful shutdown on `SIGTERM`; WebSocket connections drained.
-8. [ ] Redis configured for subscription pub/sub and persisted-query cache.
-9. [ ] Federation gateway (if applicable) configured with all subgraph URLs.
-10. [ ] TLS enforced; HSTS header set.
-11. [ ] `npm ci --omit=dev` in CI build.
-12. [ ] `.env` files not committed; secrets from vault.
-13. [ ] `npm audit --production` passes.
-14. [ ] OpenTelemetry traces exported to collector.
-15. [ ] Apollo Studio API key configured for trace upload.
-
-## 22. Production Checklist
-
-1. [ ] Introspection disabled.
-2. [ ] Persisted queries only (no arbitrary query text from clients).
-3. [ ] Complexity analysis enforced (depth, cost, batch size).
-4. [ ] DataLoader per-request via `context`; no module-level singletons.
-5. [ ] Errors include `extensions.code` and `extensions.traceId`; no stack traces leaked.
-6. [ ] Schema published to Apollo Registry; breaking changes blocked in CI.
-7. [ ] Federation gateway composes supergraph; subgraph SDLs verified.
-8. [ ] Subscriptions via Redis pub/sub; scales across instances.
-9. [ ] Response cache for public queries (`Cache-Control: public, max-age=60`).
-10. [ ] Apollo Studio traces uploaded; query analytics available.
-11. [ ] OpenTelemetry traces exported; `traceId` propagated to logs.
-12. [ ] Rate limiting per query cost (not per request).
-13. [ ] `first` and `last` capped at 100.
-14. [ ] No secrets logged in queries or variables; pino redaction configured.
-15. [ ] WebSocket connection lifecycle managed (idle timeout, max connections per client).
-
-## 23. Logging Strategy
-
-1. Use structured JSON logging (pino) with `traceId`, `operationName`, `queryHash`, `variablesHash`, `durationMs`.
-2. Log every query at `info` with operation name, query hash, duration, complexity score.
-3. Log every error at `error` with `extensions.code`, `path`, `traceId`, stack trace (server-side only).
-4. Log DataLoader batch dispatches at `debug` with the count of IDs batched.
-5. Log federation delegations at `debug` with the source subgraph and target subgraph.
-6. Log subscription connect/disconnect at `info` with the client ID and operation name.
-7. Log persisted-query cache hits/misses at `debug` with the query hash.
-8. Log complexity rejections at `warn` with the query hash and the exceeded limit.
-9. Configure pino redaction for `variables.password`, `variables.token`, `variables.email` (per compliance).
-10. Log every graceful shutdown step.
-
-## 24. Monitoring Strategy
-
-1. Track query rate, p50/p95/p99 latency, error rate via Apollo Studio.
-2. Track per-operation latency and error rate; alert on regression.
-3. Track resolver duration per field; alert if any resolver exceeds 50ms p99.
-4. Track DataLoader batch size; alert if average batch size drops to 1 (N+1 regression).
-5. Track complexity rejection rate; alert on spike (abuse or client bug).
-6. Track subscription connection count; alert if approaching limit.
-7. Track federation delegation latency; alert if a subgraph is slow.
-8. Track persisted-query cache hit rate; alert if drop (client sending unknown hashes).
-9. Track DB query count per request; alert if exceeds threshold (N+1 regression).
-10. Track OpenTelemetry traces; alert on span errors or slow spans.
-
-## 25. Error Handling
-
-1. Throw `GraphQLError` with `extensions.code` (machine-readable) and `extensions.traceId` (correlation ID).
-2. Define error codes: `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `BAD_USER_INPUT`, `CONFLICT`, `RATE_LIMITED`, `INTERNAL_SERVER_ERROR`, `QUERY_TOO_COMPLEX`, `PERSISTED_QUERY_NOT_FOUND`.
-3. Use Apollo Server's `formatError` to mask stack traces in production and add `extensions.traceId`.
-4. Partial results: data and errors can both be present; never omit data when only a sub-field failed.
-5. Never leak stack traces in production; log them server-side with `traceId`.
-6. `VALIDATION_ERROR` returns 422 with field-level details in `extensions.fieldErrors`.
-7. `RATE_LIMITED` returns 429 with `Retry-After` header (set via `extensions.http.headers`).
-8. `PERSISTED_QUERY_NOT_FOUND` returns 200 with the error (per the APQ spec); client retries with full query.
-9. Log every error at `error` with `extensions.code`, `path`, `traceId`, stack trace.
-10. Track error rate per operation; alert if rate exceeds SLO.
-
-## 26. Examples
-
-### Example 1: Mutation Payload Pattern with DataLoader
-
-```ts
-// src/schema/type-defs/order.graphql
-type Order @key(fields: "id") {
-  id: ID!
-  userId: ID!
-  total: Float!
-  user: User!
-  items: [OrderItem!]!
+type Query {
+  me: User
+  user(by: UserBy!): User
+  posts(first: Int! = 20, after: String): PostConnection!
 }
 
-input CreateOrderInput {
-  items: [OrderItemInput!]!
+input UserBy @oneOf {
+  id: ID
+  email: String
 }
-
-type CreateOrderPayload {
-  order: Order
-  errors: [CreateOrderError!]!
-}
-
-union CreateOrderError = ValidationError | InsufficientStockError
 
 type Mutation {
-  createOrder(input: CreateOrderInput!): CreateOrderPayload!
+  createPost(input: CreatePostInput!): CreatePostResult!
 }
 
-type Query {
-  order(id: ID!): Order
-  orders(first: Int = 20, after: String): OrderConnection!
+input CreatePostInput {
+  title: String!
+  body: String!
 }
+
+union CreatePostResult = CreatePostSuccess | ValidationError | NotAuthorized
+
+type CreatePostSuccess { post: Post! }
+type ValidationError { field: String!, message: String! }
+type NotAuthorized { message: String! }
+
+type Post {
+  id: ID!
+  title: String!
+  author: User!
+}
+
+type User {
+  id: ID!
+  name: String!
+  "Visible to the user and to staff."
+  email: String
+}
+
+type PostConnection {
+  edges: [PostEdge!]!
+  pageInfo: PageInfo!
+}
+type PostEdge { cursor: String!, node: Post! }
+type PageInfo { hasNextPage: Boolean!, endCursor: String }
 ```
 
-```ts
-// src/resolvers/order-resolver.ts
-import { OrderService } from '../services/order-service.js';
-
-export const orderResolvers = {
-  Order: {
-    __resolveReference(orderRef, ctx) {
-      return ctx.loaders.order.load(orderRef.id);
-    },
-    user: (order, _, ctx) => ctx.loaders.user.load(order.userId),
-    items: (order, _, ctx) => ctx.loaders.orderItem.loadMany(order.itemIds),
-  },
-  Query: {
-    order: (_parent, { id }, ctx) => ctx.loaders.order.load(id),
-    orders: async (_parent, { first, after }, ctx) => {
-      return OrderService.listPaginated({ first, after, user: ctx.user });
-    },
-  },
-  Mutation: {
-    createOrder: async (_parent, { input }, ctx) => {
-      try {
-        const order = await OrderService.create(input, ctx.user);
-        return { order, errors: [] };
-      } catch (err) {
-        return { order: null, errors: [err] };
-      }
-    },
-  },
-};
-```
-
-### Example 2: DataLoader Factory with Batching
+Yoga server on graphql 17 with per-request loaders, service-level authorization, a depth rule and production introspection policy (run with `node --import` TypeScript support or compile):
 
 ```ts
-// src/loaders/user-loader.ts
+import { createServer } from 'node:http';
+import { createSchema, createYoga, type Plugin } from 'graphql-yoga';
+import { useDisableIntrospection } from '@graphql-yoga/plugin-disable-introspection';
 import DataLoader from 'dataloader';
-import { UserRepository } from '../repositories/user-repository.js';
+import { typeDefs } from './schema.js';
+import { maxDepthRule } from './security/max-depth.js';
+import { services } from './services.js';
 
-export const createUserLoader = (repo: UserRepository) =>
-  new DataLoader<string, User>(async (ids) => {
-    const users = await repo.findByIds([...ids]);
-    const byId = new Map(users.map((u) => [u.id, u]));
-    return ids.map((id) => byId.get(id) ?? new Error(`User ${id} not found`));
-  }, { maxBatchSize: 100 });
+interface Context {
+  viewer: { id: string; roles: string[] } | null;
+  authorLoader: DataLoader<string, { id: string; name: string }>;
+}
 
-// src/context/context.ts
-import { createUserLoader } from '../loaders/user-loader.js';
-import { createUserRepository } from '../repositories/user-repository.js';
-import { auth } from './auth.js';
-
-export const buildContext = ({ req, connection }) => {
-  const user = connection ? connection.context.user : auth(req.headers.authorization);
-  const traceId = req?.headers['x-trace-id'] ?? crypto.randomUUID();
-  const userRepo = createUserRepository();
-  return {
-    user,
-    traceId,
-    loaders: {
-      user: createUserLoader(userRepo),
-    },
-  };
-};
-```
-
-### Example 3: Error Formatter with Extensions
-
-```ts
-// src/middleware/error-formatter.ts
-import { GraphQLError } from 'graphql';
-
-export const formatError = (formattedError, error) => {
-  const code = formattedError.extensions?.code ?? 'INTERNAL_SERVER_ERROR';
-  const traceId = formattedError.extensions?.traceId ?? 'unknown';
-
-  if (process.env.NODE_ENV === 'production' && code === 'INTERNAL_SERVER_ERROR') {
-    return {
-      message: 'An unexpected error occurred',
-      extensions: { code, traceId },
-    };
-  }
-
-  return {
-    message: formattedError.message,
-    extensions: { code, traceId, ...formattedError.extensions },
-  };
+const depthLimit: Plugin = {
+  onValidate({ addValidationRule }) {
+    addValidationRule(maxDepthRule(8));
+  },
 };
 
-// Usage in ApolloServer:
-// new ApolloServer({ formatError });
-```
-
-### Example 4: Relay Connection Pagination
-
-```ts
-// src/services/order-service.ts
-import { OrderRepository } from '../repositories/order-repository.js';
-import { parseCursor, buildCursor } from '../utils/cursor.js';
-
-export class OrderService {
-  constructor(private repo: OrderRepository) {}
-
-  async listPaginated({ first, after, user }) {
-    const limit = Math.min(first ?? 20, 100);
-    const cursor = after ? parseCursor(after) : null;
-    const rows = await this.repo.list({ limit: limit + 1, cursor, userId: user.id });
-    const hasNextPage = rows.length > limit;
-    const edges = rows.slice(0, limit).map((node) => ({
-      node,
-      cursor: buildCursor({ id: node.id, createdAt: node.createdAt }),
-    }));
-    return {
-      edges,
-      pageInfo: {
-        hasNextPage,
-        hasPreviousPage: !!cursor,
-        startCursor: edges[0]?.cursor ?? null,
-        endCursor: edges[edges.length - 1]?.cursor ?? null,
+const yoga = createYoga<Record<string, never>, Context>({
+  schema: createSchema({
+    typeDefs,
+    resolvers: {
+      Query: {
+        posts: (_, { first, after }, ctx) => services.posts.page(ctx.viewer, { first: Math.min(first, 50), after }),
       },
-      totalCount: await this.repo.count({ userId: user.id }),
+      Post: {
+        author: (post, _args, ctx) => ctx.authorLoader.load(post.authorId),
+      },
+      User: {
+        // field-level rule enforced by the service, not by the route or gateway
+        email: (user, _args, ctx) => services.users.visibleEmail(ctx.viewer, user),
+      },
+    },
+  }),
+  context: async ({ request }) => {
+    const viewer = await services.auth.viewerFromHeader(request.headers.get('authorization'));
+    return {
+      viewer,
+      // created per request; the batch query applies the viewer's scope
+      authorLoader: new DataLoader((ids) => services.users.byIds(viewer, ids)),
     };
-  }
+  },
+  plugins: [
+    depthLimit,
+    ...(process.env.NODE_ENV === 'production' ? [useDisableIntrospection()] : []),
+  ],
+  maskedErrors: true, // default; unexpected errors become "Unexpected error."
+  graphiql: process.env.NODE_ENV !== 'production',
+});
+
+createServer(yoga).listen(4000);
+```
+
+Validation rule that limits operation depth (works with graphql 16 and 17; fragments are followed):
+
+```ts
+import { GraphQLError, Kind, type ASTVisitor, type SelectionSetNode, type ValidationContext } from 'graphql';
+
+export function maxDepthRule(max: number) {
+  return (context: ValidationContext): ASTVisitor => {
+    const fragments = new Map<string, SelectionSetNode>();
+    for (const def of context.getDocument().definitions) {
+      if (def.kind === Kind.FRAGMENT_DEFINITION) fragments.set(def.name.value, def.selectionSet);
+    }
+    const memo = new Map<string, number>();
+    const depthOf = (set: SelectionSetNode | undefined, seen: Set<string>): number => {
+      let deepest = 0;
+      for (const sel of set?.selections ?? []) {
+        let d = 0;
+        if (sel.kind === Kind.FIELD) {
+          if (sel.name.value.startsWith('__')) continue;
+          d = 1 + depthOf(sel.selectionSet, seen);
+        } else if (sel.kind === Kind.INLINE_FRAGMENT) {
+          d = depthOf(sel.selectionSet, seen);
+        } else if (!seen.has(sel.name.value)) {
+          if (!memo.has(sel.name.value)) {
+            memo.set(sel.name.value, depthOf(fragments.get(sel.name.value), new Set([...seen, sel.name.value])));
+          }
+          d = memo.get(sel.name.value)!;
+        }
+        deepest = Math.max(deepest, d);
+      }
+      return deepest;
+    };
+    return {
+      OperationDefinition(node) {
+        const depth = depthOf(node.selectionSet, new Set());
+        if (depth > max) {
+          context.reportError(new GraphQLError(`Operation depth ${depth} exceeds the limit of ${max}`, { nodes: [node] }));
+        }
+      },
+    };
+  };
 }
 ```
 
-### Example 5: Federation Subgraph Setup
+## 15. Common Mistakes
 
-```ts
-// src/federation/federation.ts
-import { buildSubgraphSchema } from '@apollo/subgraph';
-import gql from 'graphql-tag';
-import { orderResolvers } from '../resolvers/order-resolver.js';
+- **Unbounded lists** (`users: [User!]!` with no pagination): memory and latency grow with data. Use connections and a maximum page size.
+- **N+1 queries**: a field resolver that queries per parent. Use a DataLoader or a join.
+- **Module-level DataLoader**: caches across users and requests; data leaks and staleness. Create per request.
+- **Batch function returns rows in database order**: results get matched to wrong keys. Map by key and return in key order.
+- **Mutations returning `Boolean`**: clients cannot update caches. Return the object or a payload.
+- **Business errors as top-level errors**: clients must parse messages. Use union results or `userErrors`.
+- **Non-null everywhere**: one failed field nulls a large part of the response. Reserve `!` for guaranteed fields.
+- **Authorization only at the gateway or route**: other paths to the same object are unprotected. Enforce in services and loaders, for reads and writes.
+- **Tenant filter only on list queries**: updates and deletes by id can cross tenants. Scope every query.
+- **Introspection off treated as security**: field suggestions and leaked clients still reveal the schema. Combine with real authorization and limits.
+- **APQ mistaken for a security control**: it caches documents but accepts any query. Use trusted documents to restrict.
+- **No depth or cost limit**: cyclic relations (`user.friends.friends...`) allow cheap, expensive queries. Limit depth and cost.
+- **Returning stack traces or SQL errors**: leaks internals. Mask and log.
+- **`subscriptions-transport-ws` for new work**: unmaintained. Use `graphql-ws`.
+- **Two copies of graphql installed**: type checks fail across copies. Dedupe and match peer ranges.
+- **Mixing armor or validation packages built for graphql 16 into a graphql 17 server**: nested duplicate installs break at run time. Prefer plugins whose peer range includes 17, or a small custom rule.
+- **Using `buildSubgraphSchema({ typeDefs, resolvers })`** with `@apollo/subgraph` 2.15: the argument must be a document or an array of modules, `buildSubgraphSchema([{ typeDefs, resolvers }])`.
 
-const typeDefs = gql`
-  extend type Query {
-    order(id: ID!): Order
-    orders(first: Int = 20, after: String): OrderConnection!
-  }
+## 16. References
 
-  type Order @key(fields: "id") {
-    id: ID!
-    userId: ID!
-    total: Float!
-    user: User! @provides(fields: "email")
-  }
-
-  type OrderConnection {
-    edges: [OrderEdge!]!
-    pageInfo: PageInfo!
-    totalCount: Int!
-  }
-
-  type OrderEdge { node: Order!, cursor: String! }
-  type PageInfo { hasNextPage: Boolean!, hasPreviousPage: Boolean!, startCursor: String, endCursor: String }
-
-  type User @key(fields: "id") {
-    id: ID! @external
-    email: String @external
-  }
-`;
-
-export const schema = buildSubgraphSchema([{ typeDefs, resolvers: orderResolvers }]);
-
-// src/server.ts
-import { ApolloServer } from '@apollo/server';
-import { startStandaloneServer } from '@apollo/server/standalone';
-import { schema } from './federation/federation.js';
-import { buildContext } from './context/context.js';
-import { formatError } from './middleware/error-formatter.js';
-import { complexityLimit } from './middleware/complexity.js';
-
-const server = new ApolloServer({
-  schema,
-  introspection: process.env.NODE_ENV !== 'production',
-  formatError,
-  validationRules: [complexityLimit({ maxDepth: 7, maxCost: 1000 })],
-});
-
-const { url } = await startStandaloneServer(server, {
-  context: buildContext,
-  listen: { port: 4000 },
-});
-console.log(`Subgraph ready at ${url}`);
-```
-
-## 27. Common Mistakes
-
-### Mistake 1: N+1 queries in nested resolvers
-What: `User: { orders: (user) => OrderRepo.findByUserId(user.id) }` issues one query per user.
-Why wrong: 100 users = 101 queries; DB connection pool exhausted; p99 latency explodes.
-How to avoid: use DataLoader: `User: { orders: (user, _, ctx) => ctx.loaders.orderByUser.load(user.id) }`.
-
-### Mistake 2: Module-level DataLoader instance
-What: `const userLoader = new DataLoader(...)` at module scope.
-Why wrong: caches across requests; user A sees user B's data; security and correctness bug.
-How to avoid: create per request in `context`: `context: () => ({ loaders: { user: new DataLoader(...) } })`.
-
-### Mistake 3: Bare entity returned from mutation
-What: `type Mutation { createUser(input: CreateUserInput!): User! }`
-Why wrong: no place for partial errors or validation errors; client cannot distinguish success from partial failure.
-How to avoid: payload type `type CreateUserPayload { user: User, errors: [CreateUserError!] }`.
-
-### Mistake 4: Unbounded list (`users: [User!]!`)
-What: a list field without pagination arguments.
-Why wrong: client can request 1M users in one query; exhausts memory and DB.
-How to avoid: Relay connection with `first` capped at 100: `users(first: Int, after: String): UserConnection!`.
-
-### Mistake 5: Introspection enabled in production
-What: `introspection: true` in production Apollo Server config.
-Why wrong: exposes the entire schema to attackers; they learn every type, field, and relationship.
-How to avoid: `introspection: process.env.NODE_ENV !== 'production'`; publish SDL via the registry.
-
-### Mistake 6: Arbitrary queries accepted in production
-What: no persisted-query enforcement; clients send any query text.
-Why wrong: DoS via expensive queries; no control over what runs; parsing and validation overhead per request.
-How to avoid: enforce persisted queries (`allowOnlyPersistedQueries: true` or stored queries); reject unknown hashes.
-
-## 28. Professional Workflow
-
-1. Read the API requirement; identify the entities, relationships, and owning subgraphs.
-2. Draft the SDL: types, inputs, payloads, connections, custom scalars, directives.
-3. Run `apollo service:check` against the registry; resolve any breaking change warnings.
-4. Implement resolvers: root resolvers delegate to services; field resolvers use DataLoader.
-5. Implement DataLoader factories: batch function collects IDs, dispatches one query; per-request instances in `context`.
-6. Implement the mutation payload pattern: input + payload with entity and errors.
-7. Implement Relay connection pagination: `edges`, `pageInfo`, `totalCount`; `first` capped at 100.
-8. Add authn in `context` (resolve `Authorization` header to `user`); add authz via custom directive or wrapper.
-9. Add error formatter: `extensions.code`, `extensions.traceId`; mask stack traces in production.
-10. Add complexity analysis: depth limit 7, cost limit 1000, batch size 10.
-11. Disable introspection in production; enforce persisted queries.
-12. Write unit tests for resolvers (mocked context) and integration tests for queries (mocked data source).
-13. Run `apollo service:check` in CI; block merge on breaking changes.
-14. Deploy canary; monitor query latency, error rate, DataLoader batch size in Apollo Studio for 30 minutes; promote.
-
-## 29. Response Style
-
-1. Always cite the GraphQL spec section or Apollo documentation for any recommendation.
-2. Always recommend the mutation payload pattern for mutations.
-3. Always recommend the Relay connection spec for paginated fields.
-4. Always recommend DataLoader for nested resolvers; never per-parent queries.
-5. Always recommend disabling introspection and enforcing persisted queries in production.
-6. Always recommend complexity analysis (depth, cost, batch size) in production.
-7. Always recommend Apollo Federation over schema stitching for distributed schemas.
-8. Never use "you might consider", "perhaps", or "it depends" — specify exact conditions and a single recommendation.
-
-## 30. Output Format
-
-1. Every code block must include the file path as a comment on the first line.
-2. Every code block must be syntactically valid TypeScript or GraphQL SDL.
-3. Every SDL example must use the mutation payload pattern and Relay connection spec.
-4. Every resolver example must use DataLoader for nested resolution.
-5. Every error example must include `extensions.code` and `extensions.traceId`.
-6. Every federation example must use `@key` and `buildSubgraphSchema`.
-7. Every response must cite the relevant spec section (GraphQL spec, Relay spec, Apollo Federation spec).
-8. Every response must include a security note (introspection, persisted queries, complexity).
-9. Every response must end with a one-line summary of the schema design and resolver strategy.
-10. Every response must reference the Apollo Registry and the developer portal.
+- [references/schema-design.md](references/schema-design.md): nullability, naming, IDs and Node, connections, input and `@oneOf`, mutation payloads and errors as data, interfaces and unions, scalars, deprecation and evolution.
+- [references/performance-and-security.md](references/performance-and-security.md): DataLoader, cost and depth limits, persisted operations in Yoga and Apollo, introspection and suggestions, authorization patterns, error masking, tracing.
+- [references/federation-subscriptions-tooling.md](references/federation-subscriptions-tooling.md): Federation 2 subgraphs, routers, graphql-ws servers and clients, Apollo Server 5 with Express 5, codegen configuration.
+- Official docs: https://spec.graphql.org/September2025/ , https://graphql.org/learn/ , https://www.graphql-js.org/docs/ , https://www.apollographql.com/docs/apollo-server , https://the-guild.dev/graphql/yoga-server , https://www.apollographql.com/docs/graphos/schema-design/federated-schemas/federation , https://the-guild.dev/graphql/ws , https://the-guild.dev/graphql/codegen
