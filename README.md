@@ -1,6 +1,6 @@
 # Claude Code Ultimate Pack
 
-A collection of 67 [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code covering software architecture, frontend, backend, data, infrastructure, security, testing, mobile, blockchain and AI engineering.
+A collection of 80 [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code covering software architecture, frontend, backend, programming languages, data, infrastructure, security, testing, mobile, blockchain, AI engineering, and scientific and academic work.
 
 Each skill is a folder with a `SKILL.md` file. Claude Code loads a skill when your request matches its `description`, and reads the skill's `references/` files only when it needs the extra detail.
 
@@ -66,7 +66,7 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `refactoring-expert` | Behaviour-preserving refactoring and code smells |
 | `scalability-expert` | Scaling and performance optimisation of backend systems |
 
-### Frontend (11)
+### Frontend (12)
 
 | Skill | Covers |
 |---|---|
@@ -81,6 +81,7 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `ux-designer` | User research, information architecture, interaction design |
 | `core-web-vitals-expert` | LCP, INP, CLS and front-end performance |
 | `technical-seo-expert` | Crawling, indexing, Schema.org and structured data |
+| `vue-expert` | Vue 3 Composition API, Pinia, Vue Router, Nuxt, Vitest |
 
 ### Backend (5)
 
@@ -92,6 +93,16 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `graphql-expert` | GraphQL schemas, resolvers, federation, N+1 |
 | `rest-api-expert` | REST resource design, HTTP semantics, OpenAPI |
 
+### Languages (5)
+
+| Skill | Covers |
+|---|---|
+| `python-expert` | Modern Python, typing, uv, ruff, pytest, asyncio |
+| `go-expert` | Go modules, errors, concurrency, net/http, testing, profiling |
+| `rust-expert` | Rust 2024 edition, ownership, traits, tokio, Cargo workspaces |
+| `java-spring-expert` | Java 21/25 and Spring Boot, Spring Data JPA, Spring Security |
+| `csharp-dotnet-expert` | C# and .NET, ASP.NET Core minimal APIs, EF Core, xUnit |
+
 ### Data (5)
 
 | Skill | Covers |
@@ -102,7 +113,7 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `elasticsearch-expert` | Elasticsearch mappings, analyzers, query DSL |
 | `prisma-expert` | Prisma ORM schema, migrations, queries |
 
-### Infrastructure and DevOps (8)
+### Infrastructure and DevOps (11)
 
 | Skill | Covers |
 |---|---|
@@ -114,6 +125,9 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `linux-expert` | Linux and Ubuntu Server administration and hardening |
 | `cicd-expert` | CI/CD pipelines, GitHub Actions, GitHub repository settings |
 | `git-expert` | Git branching, history, recovery |
+| `gcp-expert` | Google Cloud IAM, Workload Identity Federation, Cloud Run, GKE |
+| `azure-expert` | Azure Entra ID, managed identities, Container Apps, AKS, Bicep |
+| `observability-expert` | OpenTelemetry, Prometheus and PromQL, Grafana, SLOs and alerting |
 
 ### Security (4)
 
@@ -133,12 +147,14 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `e2e-testing-expert` | End-to-end test strategy, flakiness, Cypress |
 | `playwright-expert` | Playwright Test |
 
-### Mobile (2)
+### Mobile (4)
 
 | Skill | Covers |
 |---|---|
 | `swift-expert` | Swift, SwiftUI and UIKit |
 | `android-expert` | Kotlin, Android architecture and Jetpack Compose |
+| `react-native-expert` | React Native with Expo, Expo Router, EAS Build and Update |
+| `flutter-expert` | Flutter and Dart, Riverpod, Bloc, go_router |
 
 ### Blockchain (11)
 
@@ -169,6 +185,13 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 | `anthropic-sdk-expert` | Claude API and the Anthropic SDKs |
 | `openai-sdk-expert` | OpenAI API and SDKs |
 | `gemini-sdk-expert` | Gemini API and the Google Gen AI SDK |
+
+### Scientific and Academic (2)
+
+| Skill | Covers |
+|---|---|
+| `scientific-python-expert` | NumPy, SciPy, numba, reproducible simulations, Matplotlib figures |
+| `latex-academic-expert` | LaTeX papers and theses, BibTeX and biblatex, arXiv submission |
 
 ---
 
@@ -258,7 +281,7 @@ Claude-Code-Ultimate-Pack/
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── LICENSE
-├── skills/                       # 67 skill folders
+├── skills/                       # 80 skill folders
 ├── templates/skill-template/     # starting point for a new skill
 ├── docs/
 │   ├── architecture.md

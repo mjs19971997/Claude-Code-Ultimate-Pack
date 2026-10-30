@@ -4,20 +4,22 @@
 
 Every skill in the pack, grouped by category. Each one lives at `skills/<name>/SKILL.md`.
 
-**Total skills: 67** in 10 categories.
+**Total skills: 80** in 12 categories.
 
 ## Contents
 
 - [Architecture (8)](#architecture-8)
-- [Frontend (11)](#frontend-11)
+- [Frontend (12)](#frontend-12)
 - [Backend (5)](#backend-5)
+- [Languages (5)](#languages-5)
 - [Data (5)](#data-5)
-- [Infrastructure and DevOps (8)](#infrastructure-and-devops-8)
+- [Infrastructure and DevOps (11)](#infrastructure-and-devops-11)
 - [Security (4)](#security-4)
 - [Testing (4)](#testing-4)
-- [Mobile (2)](#mobile-2)
+- [Mobile (4)](#mobile-4)
 - [Blockchain (11)](#blockchain-11)
 - [AI and LLM (9)](#ai-and-llm-9)
+- [Scientific and Academic (2)](#scientific-and-academic-2)
 
 ## Architecture (8)
 
@@ -32,7 +34,7 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`refactoring-expert`](../skills/refactoring-expert/SKILL.md) | Improves the structure of existing code without changing behavior: code smells, Fowler's refactoring catalog, preparatory refactoring, characterization tests and seams for legacy code, sprout and w... |
 | [`scalability-expert`](../skills/scalability-expert/SKILL.md) | Makes systems fast and able to grow under load: capacity planning (Little's law, utilization, Amdahl and the Universal Scalability Law), performance profiling (USE and RED methods, flame graphs), l... |
 
-## Frontend (11)
+## Frontend (12)
 
 | Skill | Description |
 |---|---|
@@ -47,6 +49,7 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`ux-designer`](../skills/ux-designer/SKILL.md) | Plans and evaluates user experience with evidence: choosing research methods, information architecture, interaction design, usability testing and heuristic evaluation (Nielsen), HEART metrics with... |
 | [`core-web-vitals-expert`](../skills/core-web-vitals-expert/SKILL.md) | Measures and improves web performance with Core Web Vitals (LCP, INP, CLS) using field data (CrUX, web-vitals attribution build) and lab tools (Lighthouse, DevTools), and fixes the causes: LCP imag... |
 | [`technical-seo-expert`](../skills/technical-seo-expert/SKILL.md) | Makes sites crawlable, indexable and eligible for rich results in search: robots.txt with correct longest-match rules, meta robots and X-Robots-Tag, canonicals, hreflang, XML sitemaps, redirects, p... |
+| [`vue-expert`](../skills/vue-expert/SKILL.md) | Builds and reviews Vue 3 apps with the Composition API and script setup: reactivity, props and defineModel, composables, Pinia, Vue Router (typed file-based routes, guards), Nuxt data fetching and... |
 
 ## Backend (5)
 
@@ -58,6 +61,16 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`graphql-expert`](../skills/graphql-expert/SKILL.md) | Designs, secures and tunes GraphQL APIs on graphql-js 17 (and 16), Apollo Server 5, GraphQL Yoga 6 and Apollo Federation 2: schema design (nullability, Relay connections, input types, mutation payl... |
 | [`rest-api-expert`](../skills/rest-api-expert/SKILL.md) | Designs and reviews HTTP/REST APIs: resource modeling, method and status code semantics (RFC 9110), Problem Details errors (RFC 9457), OpenAPI 3.1 and 3.2 contracts, cursor pagination, filtering, c... |
 
+## Languages (5)
+
+| Skill | Description |
+|---|---|
+| [`python-expert`](../skills/python-expert/SKILL.md) | Writes, reviews and ships modern Python 3.13 and 3.14 projects: typing with mypy and pyright, pyproject.toml packaging (PEP 621, dependency groups, build backends), uv, ruff, pytest, asyncio with T... |
+| [`go-expert`](../skills/go-expert/SKILL.md) | Writes, reviews and debugs idiomatic Go 1.26 and 1.27 services and libraries: modules (go.mod, go and toolchain directives, tool directive, workspaces, GOPRIVATE), error wrapping, context, goroutin... |
+| [`rust-expert`](../skills/rust-expert/SKILL.md) | Writes, reviews and debugs Rust 2024 edition code: ownership, borrowing and lifetimes, error handling with Result, thiserror and anyhow, traits and generics, async Rust on tokio, Cargo workspaces,... |
+| [`java-spring-expert`](../skills/java-spring-expert/SKILL.md) | Writes and reviews modern Java 21/25 code and Spring Boot 4 (Spring Framework 7) services: records, sealed types, pattern matching, virtual threads, dependency injection, Spring Data JPA with Flywa... |
+| [`csharp-dotnet-expert`](../skills/csharp-dotnet-expert/SKILL.md) | Writes and reviews modern C# and .NET services: ASP.NET Core minimal APIs (route groups, TypedResults, endpoint filters, built-in validation, OpenAPI), EF Core data access, dependency injection and... |
+
 ## Data (5)
 
 | Skill | Description |
@@ -68,7 +81,7 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`elasticsearch-expert`](../skills/elasticsearch-expert/SKILL.md) | Designs, queries, secures and operates Elasticsearch 9.x for search and analytics: explicit mappings (keyword versus text, multi-fields), analyzers, Query DSL (bool, filter context), ES\|QL, aggrega... |
 | [`prisma-expert`](../skills/prisma-expert/SKILL.md) | Designs Prisma ORM 7 data layers on PostgreSQL: schema.prisma, the prisma-client generator, driver adapters (@prisma/adapter-pg), prisma.config.ts, Prisma Migrate, queries and transactions, $extend... |
 
-## Infrastructure and DevOps (8)
+## Infrastructure and DevOps (11)
 
 | Skill | Description |
 |---|---|
@@ -80,6 +93,9 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`linux-expert`](../skills/linux-expert/SKILL.md) | Operates, hardens and troubleshoots Linux servers (Ubuntu Server LTS, Debian, RHEL family): systemd units and timers, sandboxing, OpenSSH, sudo and sudoers, nftables and ufw, netplan, apt and unatt... |
 | [`cicd-expert`](../skills/cicd-expert/SKILL.md) | Designs secure, fast CI/CD pipelines with GitHub Actions and the GitHub platform: build-once-promote artifacts, caching, test sharding, environments and approvals, blue/green and canary deployments... |
 | [`git-expert`](../skills/git-expert/SKILL.md) | Uses Git safely and effectively for everyday work and repository maintenance: branching strategies (trunk-based, GitHub flow), merge versus non-interactive rebase, conflict resolution and rerere, b... |
+| [`gcp-expert`](../skills/gcp-expert/SKILL.md) | Designs and operates workloads on Google Cloud: resource hierarchy, IAM and least privilege, keyless auth with Workload Identity Federation, Cloud Run, GKE, Cloud SQL, Pub/Sub, Cloud Storage, VPC n... |
+| [`azure-expert`](../skills/azure-expert/SKILL.md) | Designs and operates secure Azure workloads with Microsoft Entra ID identities, Azure RBAC, App Service, Container Apps, AKS, Azure SQL, Key Vault, private networking, Bicep and cost controls. |
+| [`observability-expert`](../skills/observability-expert/SKILL.md) | Instruments services and builds telemetry pipelines with OpenTelemetry (SDKs, zero-code agents, OTLP, Collector, sampling), Prometheus and PromQL, Grafana dashboards and alerting as code, structure... |
 
 ## Security (4)
 
@@ -99,12 +115,14 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`e2e-testing-expert`](../skills/e2e-testing-expert/SKILL.md) | Plans and writes browser end-to-end tests for critical user journeys: strategy and test pyramid, choosing Playwright or Cypress, test data seeded through the API or test-environment fixtures (never... |
 | [`playwright-expert`](../skills/playwright-expert/SKILL.md) | Designs and writes Playwright Test suites in TypeScript: role-based locators, web-first assertions and auto-waiting, setup projects with storageState authentication, test.extend fixtures, network m... |
 
-## Mobile (2)
+## Mobile (4)
 
 | Skill | Description |
 |---|---|
 | [`swift-expert`](../skills/swift-expert/SKILL.md) | Writes, reviews and migrates Swift 6 code for Apple platforms: strict concurrency (actors, Sendable, MainActor, async/await), SwiftUI, UIKit, Codable networking, Keychain storage, Swift Testing and... |
 | [`android-expert`](../skills/android-expert/SKILL.md) | Builds and reviews native Android apps in Kotlin, covering the former android-architecture-expert, android-kotlin-expert and jetpack-compose-expert skills: app architecture (UI, domain and data lay... |
+| [`react-native-expert`](../skills/react-native-expert/SKILL.md) | Builds, secures and ships React Native apps with Expo: Expo Router navigation, the New Architecture, Hermes, Expo Modules API native code, config plugins and prebuild, EAS Build, Submit and Update,... |
+| [`flutter-expert`](../skills/flutter-expert/SKILL.md) | Builds, tests and ships Flutter apps in Dart: widgets and layout constraints, Riverpod and Bloc state management, go_router navigation, platform channels with Pigeon, Material 3 theming, widget and... |
 
 ## Blockchain (11)
 
@@ -135,3 +153,10 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`anthropic-sdk-expert`](../skills/anthropic-sdk-expert/SKILL.md) | Builds applications on the Claude API with the official SDKs (Python `anthropic` 2.x, TypeScript `@anthropic-ai/sdk` 1.x): Messages API, streaming, tool use and the tool runner, adaptive thinking a... |
 | [`openai-sdk-expert`](../skills/openai-sdk-expert/SKILL.md) | Builds production integrations with the OpenAI API using the official Python and Node SDKs on the Responses API: input and instructions, function calling and built-in tools (web search, file search... |
 | [`gemini-sdk-expert`](../skills/gemini-sdk-expert/SKILL.md) | Builds production integrations with Gemini through the current Google Gen AI SDK (google-genai for Python, @google/genai for JavaScript): client setup for the Gemini Developer API or Gemini Enterpr... |
+
+## Scientific and Academic (2)
+
+| Skill | Description |
+|---|---|
+| [`scientific-python-expert`](../skills/scientific-python-expert/SKILL.md) | Writes fast, reproducible numerical Python with NumPy, SciPy and numba, and produces publication-quality Matplotlib figures. |
+| [`latex-academic-expert`](../skills/latex-academic-expert/SKILL.md) | Writes, builds and debugs LaTeX for journal and conference papers and theses: IEEEtran, elsarticle and acmart classes, BibTeX versus biblatex with biber, natbib, figures, booktabs and siunitx table... |

@@ -9,8 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+13 new skills (67 → 80), in the v3 layout with `references/` files and checked against current documentation (2026-10):
+
+- **Languages:** `python-expert`, `go-expert`, `rust-expert`, `java-spring-expert`, `csharp-dotnet-expert`
+- **Frontend:** `vue-expert`
+- **Mobile:** `react-native-expert`, `flutter-expert`
+- **Infrastructure and DevOps:** `gcp-expert`, `azure-expert`, `observability-expert`
+- **Scientific and Academic** (new category): `scientific-python-expert`, `latex-academic-expert`
+
+### Changed
+
+- The descriptions of `aws-expert`, `scalability-expert`, `swift-expert` and `android-expert` now point to the new skills in their "Not for" clauses.
+- `scripts/generate_skill_index.py` has two new categories: Languages, and Scientific and Academic.
+
 ### Planned
-- Additional skills for Rust, Go, Python, Java and C# ecosystems
 - Running `scripts/validate_skills.py` in CI on every pull request
 
 ---

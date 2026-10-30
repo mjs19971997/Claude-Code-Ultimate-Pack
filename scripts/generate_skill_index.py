@@ -33,17 +33,20 @@ CATEGORIES: list[tuple[str, list[str]]] = [
     ("Frontend", [
         "senior-react-19-engineer", "nextjs-15-architect", "typescript-master", "tailwindcss-master",
         "shadcn-ui-expert", "framer-motion-expert", "accessibility-expert", "ui-designer", "ux-designer",
-        "core-web-vitals-expert", "technical-seo-expert",
+        "core-web-vitals-expert", "technical-seo-expert", "vue-expert",
     ]),
     ("Backend", [
         "nodejs-architect", "expressjs-expert", "nestjs-expert", "graphql-expert", "rest-api-expert",
+    ]),
+    ("Languages", [
+        "python-expert", "go-expert", "rust-expert", "java-spring-expert", "csharp-dotnet-expert",
     ]),
     ("Data", [
         "postgresql-expert", "mongodb-expert", "redis-expert", "elasticsearch-expert", "prisma-expert",
     ]),
     ("Infrastructure and DevOps", [
         "aws-expert", "kubernetes-expert", "terraform-expert", "docker-expert", "nginx-expert",
-        "linux-expert", "cicd-expert", "git-expert",
+        "linux-expert", "cicd-expert", "git-expert", "gcp-expert", "azure-expert", "observability-expert",
     ]),
     ("Security", [
         "secure-coding-expert", "api-security-expert", "authentication-expert", "authorization-expert",
@@ -51,7 +54,7 @@ CATEGORIES: list[tuple[str, list[str]]] = [
     ("Testing", [
         "unit-testing-expert", "integration-testing-expert", "e2e-testing-expert", "playwright-expert",
     ]),
-    ("Mobile", ["swift-expert", "android-expert"]),
+    ("Mobile", ["swift-expert", "android-expert", "react-native-expert", "flutter-expert"]),
     ("Blockchain", [
         "solidity-expert", "smart-contract-security-expert", "ethereum-expert", "ethersjs-expert",
         "web3js-expert", "hardhat-expert", "foundry-expert", "defi-expert", "dao-expert", "nft-expert",
@@ -61,6 +64,7 @@ CATEGORIES: list[tuple[str, list[str]]] = [
         "ai-agent-architect", "crewai-expert", "langchain-expert", "prompt-engineering-expert",
         "mcp-expert", "rag-expert", "anthropic-sdk-expert", "openai-sdk-expert", "gemini-sdk-expert",
     ]),
+    ("Scientific and Academic", ["scientific-python-expert", "latex-academic-expert"]),
 ]
 
 MAX_DESCRIPTION = 200
