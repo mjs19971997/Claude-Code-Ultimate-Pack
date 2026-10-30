@@ -1,678 +1,385 @@
 ---
 name: langchain-expert
-description: >
-  Build LLM applications with LangChain: LCEL chains, agents, retrieval, memory, callbacks, streaming, and production hardening.
-  
-  Use this skill when designing AI agents, LLM applications, RAG pipelines, prompt workflows, multi-agent systems, or integrating LLM SDKs.
+description: >-
+  Builds LLM applications and agents with LangChain 1.x (create_agent, middleware, tools, structured output, LCEL runnables, init_chat_model) and LangGraph 1.x (StateGraph, reducers, checkpointers and durable execution, interrupts and human-in-the-loop, Command and Send, streaming modes, subgraphs), traced and evaluated with LangSmith. Absorbs the former langgraph-expert skill. Use when writing or migrating code that imports langchain, langchain_core or langgraph, designing agent graphs, adding approvals or persistence, or debugging recursion limits, state reducers and resume behavior. Not for retrieval pipeline design (use rag-expert), MCP servers (use mcp-expert), prompt wording (use prompt-engineering-expert), or CrewAI crews (use crewai-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# LangChain Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers building LLM applications with LangChain 1.x and LangGraph 1.x in Python (with notes for the JavaScript packages): the `create_agent` loop and its middleware, chat models and tools, LCEL runnables for non-agent pipelines, structured output, and the LangGraph runtime for custom graphs, persistence, interrupts and streaming. It absorbs the former langgraph-expert skill; the full graph material lives in a dedicated reference. Tracing and evaluation use LangSmith.
 
----
+> Verified against langchain 1.4.7, langchain-core 1.7.3, langgraph 1.2.18, langgraph-prebuilt 1.1.1, langgraph-checkpoint 4.3.1, langgraph-checkpoint-postgres 3.2.0, langsmith 0.14.16 (Python 3.10+), and on npm langchain 1.6.0 and @langchain/langgraph 1.5.3 (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The LangChain Expert builds LLM applications using LangChain: chains composed with LCEL (LangChain Expression Language), agents that call tools, retrieval pipelines over vector stores, conversation memory, callbacks for observability, and streaming for responsive UX. The expert owns the Runnable composition surface, the prompt and parser choices, the tool definitions, the retriever pipeline, the memory strategy, and the production hardening required to ship.
+## 1. Scope
 
-This role is distinct from a prompt engineer. LangChain forces the engineer to make composition, typing, streaming, fallbacks, and retries explicit. The expert chooses between legacy `Chain` classes and LCEL (always LCEL for new code), between deprecated `Memory` classes and `RunnableWithMessageHistory` (always the latter for new code), and between `AgentExecutor` and LangGraph (LangGraph for any stateful multi-step agent).
+- Covered: `langchain` (`create_agent`, `langchain.agents.middleware`, `langchain.tools`, `langchain.messages`, `init_chat_model`), `langchain-core` (runnables, LCEL, prompts, output parsers, caches, rate limiters), `langgraph` (StateGraph, Functional API, checkpointers, stores, interrupts, Command, Send, streaming, subgraphs, RetryPolicy), the `langgraph` CLI for local dev, and LangSmith tracing, datasets and evals.
+- Legacy: classic chains, `ConversationBufferMemory` style memory, `initialize_agent` and `AgentExecutor` are not part of `langchain` 1.x; they live in the separate `langchain-classic` package. `langgraph.prebuilt.create_react_agent` is deprecated in favor of `langchain.agents.create_agent`.
+- Not covered: retriever and vector store design, chunking, hybrid search and RAG evaluation (rag-expert), writing MCP servers (mcp-expert), prompt wording and few-shot design (prompt-engineering-expert), provider SDK specifics (anthropic-sdk-expert, openai-sdk-expert, gemini-sdk-expert), CrewAI (crewai-expert), general agent system architecture (ai-agent-architect).
 
-The expert is accountable for cost, latency, observability, and correctness. Every chain that ships must be typed, traced, streamed, fallback-equipped, budget-bounded, and tested against a golden set.
+## 2. Core Expertise
 
-## 2. Mission
+| Area | Key facts |
+|---|---|
+| Packages | `langchain` (agents, middleware, tools, messages, model init), `langchain-core` (runnables and base types), `langgraph` (runtime), provider packages such as `langchain-openai` and `langchain-anthropic`, `langchain-classic` (legacy) |
+| `create_agent` | `create_agent(model, tools, *, system_prompt, middleware, response_format, state_schema, context_schema, checkpointer, store, name, ...)` returns a compiled LangGraph graph; `model` is a `"provider:model"` string or a chat model instance |
+| Middleware | Hooks `before_agent`, `before_model`, `wrap_model_call`, `wrap_tool_call`, `after_model`, `after_agent`; built-ins include `HumanInTheLoopMiddleware`, `SummarizationMiddleware`, `ModelCallLimitMiddleware`, `ToolCallLimitMiddleware`, `ModelRetryMiddleware`, `ToolRetryMiddleware`, `ModelFallbackMiddleware`, `PIIMiddleware`, `ContextEditingMiddleware`, `TodoListMiddleware`, `LLMToolSelectorMiddleware` |
+| Structured output | `response_format=Schema` (auto: provider-native when supported, else tool calling), `ToolStrategy(Schema)`, `ProviderStrategy(Schema)`; result in `result["structured_response"]`; outside agents use `model.with_structured_output(Schema)` |
+| Runtime context | `context_schema` (a dataclass) plus `invoke(..., context=...)`; read it from `runtime.context` in middleware and `ToolRuntime` in tools; keep per-request identity out of model-visible arguments |
+| LCEL | `prompt | model | parser`, `RunnableParallel`, `RunnableLambda`, `RunnablePassthrough`, `.with_retry()`, `.with_fallbacks()`, `.batch(..., config={"max_concurrency": n})` |
+| StateGraph | State as `TypedDict` (or dataclass or Pydantic), reducers via `Annotated[T, reducer]`, nodes return partial updates, `compile(checkpointer=..., store=...)` |
+| Run config | `recursion_limit`, `configurable.thread_id`, `tags`, `metadata`, `max_concurrency` go in the config passed to `invoke`/`stream` (or `graph.with_config(...)`); `compile()` does not accept `recursion_limit` |
+| Persistence | Checkpointers: `InMemorySaver` (tests), `SqliteSaver`, `PostgresSaver`/`AsyncPostgresSaver`; stores for cross-thread memory; durability modes `"sync"`, `"async"` (default), `"exit"` |
+| Interrupts | `interrupt(value)` pauses (needs a checkpointer), resume with `Command(resume=...)` on the same `thread_id`; the node restarts from its beginning on resume |
+| Control flow | `Command(update=..., goto=...)` from a node or tool, `Send(node, input)` for dynamic fan-out, conditional edges, subgraphs as nodes |
+| Streaming | `stream_mode` values `values`, `updates`, `messages`, `custom`, `checkpoints`, `tasks`, `debug`; `version="v2"` returns typed parts with `type`, `ns`, `data` |
+| LangSmith | `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`; `@traceable`, `tracing_context`, datasets and `evaluate()` |
 
-Build LangChain applications that complete real tasks reliably, observably, and at production scale. Reliability means correct behavior under model drift, tool failures, and load. Observability means every LLM call, chain, and tool call is traced in LangSmith or OpenTelemetry. Scale means caching, batching, async, and rate limiting for throughput.
+## 3. Workflow
 
-The mission covers: LCEL composition, core abstractions (Runnable, ChatModel, PromptTemplate, OutputParser, Embeddings, VectorStore, Retriever, Memory), chat models, messages, prompts, chains, agents, tools, retrievers, vector stores, embeddings, text splitters, document loaders, output parsers, memory, callbacks, streaming, tracing, deployment, production patterns, and testing.
+1. Classify the task: one model call or fixed pipeline (LCEL), a model-plus-tools loop (`create_agent`), or custom control flow with branches, parallel work, approvals or long-running state (LangGraph).
+2. Pin versions: `langchain>=1.0`, a provider package, and `langgraph` when graphs are hand-built. Read the current docs for provider-specific model options.
+3. Define the contract first: tool signatures with typed arguments and docstrings, the structured output schema, the state or `context_schema`, and which actions are destructive.
+4. Build the smallest working version with `create_agent` or a two-node graph and a fake model (see Testing), then add middleware, persistence and streaming one concern at a time.
+5. Decide the memory model: short-term per `thread_id` through a checkpointer, long-term across threads through a store, and a context-size policy for long conversations.
+6. Put limits in place before the first real run: `recursion_limit` in the run config, `ModelCallLimitMiddleware`/`ToolCallLimitMiddleware`, tool timeouts, and human approval for irreversible tools.
+7. Turn on LangSmith tracing, build a small dataset from real failures, and add an evaluator before tuning prompts or models.
+8. Switch to a durable checkpointer (Postgres), run the graph under `langgraph dev` or your own server, and test resume after a process restart.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- **LCEL LangChain Expression Language**: pipe operator `|` for composition; `Runnable` interface (`invoke`, `stream`, `batch`, `ainvoke`, `astream`, `abatch`); automatic async, batching, tracing; fallbacks; retries; parallel execution with `RunnableParallel`; conditional routing with `RunnableBranch`.
-- **Core abstractions**: `Runnable` interface; `ChatModel` for chat LLMs; `LLM` for completion models (deprecated, prefer chat); `PromptTemplate`/`ChatPromptTemplate`/`MessagesPlaceholder`; `OutputParser`/`PydanticOutputParser`/`JsonOutputParser`; `Embeddings`; `VectorStore`; `Retriever`; `Memory` (deprecated, prefer LCEL patterns).
-- **Chat models**: `ChatOpenAI`, `ChatAnthropic`, `ChatGoogleGenerativeAI`, `ChatMistralAI`, `ChatCohere`, `AzureChatOpenAI`, `BedrockChat`; model configuration (temperature, max_tokens, model_kwargs, streaming); function/tool calling with `bind_tools`.
-- **Messages**: `SystemMessage`, `HumanMessage`, `AIMessage`, `ToolMessage`, `FunctionMessage` (deprecated); message roles; content blocks for multimodal (text, image, tool_use).
-- **Prompts**: `PromptTemplate.from_template` with `{variables}`; `ChatPromptTemplate.from_messages` with tuples; partial prompts; dynamic prompts with `RunnablePassthrough`; few-shot prompts with example selectors.
-- **Chains**: legacy `Chain` classes vs LCEL (prefer LCEL); `LLMChain`, `ConversationChain`, `RetrievalQA`, `SequentialChain`, `LLMRouterChain`; LCEL replacement: `prompt | model | parser`.
-- **Agents**: `AgentExecutor` with `create_tool_calling_agent`, `create_openai_tools_agent`, `create_react_agent`, `create_structured_chat_agent`; agent types; max iterations; early stopping; return intermediate steps; handle parsing errors.
-- **Tools**: `@tool` decorator with docstring as description; `args_schema` with Pydantic for type safety; `Tool` class for direct definition; `StructuredTool.from_function`; custom tool names; tool return direct vs LLM-processed; async tools with coroutine.
-- **Retrievers**: `VectorStoreRetriever` via `as_retriever`; `MultiQueryRetriever` for query expansion; `ContextualCompressionRetriever` for filtering; `EnsembleRetriever` for hybrid; `SelfQueryRetriever` for structured filters; `ParentDocumentRetriever` for child-parent chunks; `TimeWeightedVectorRetriever` for recency; web research retrievers like Tavily; custom retrievers with `Runnable` interface.
-- **Vector stores**: Chroma, FAISS, Pinecone, Weaviate, Qdrant, Milvus, pgvector, Redis, Elasticsearch, MongoDB Atlas; document CRUD; similarity search with scores; MMR search; filter by metadata.
-- **Embeddings**: `OpenAIEmbeddings`, `HuggingFaceEmbeddings`, `CohereEmbeddings`, `GoogleGenerativeAIEmbeddings`; fake embeddings for testing; async embeddings; caching with `CacheBackedEmbeddings`.
-- **Text splitters**: `RecursiveCharacterTextSplitter` with separators; `CharacterTextSplitter`; `TokenTextSplitter`; `MarkdownHeaderTextSplitter`; `HTMLHeaderTextSplitter`; `RecursiveJsonSplitter`; code splitters per language; chunk size and overlap strategies.
-- **Document loaders**: `PyPDFLoader`, `WebBaseLoader`, `S3FileLoader`, `GitLoader`, `NotionDirectoryLoader`, `ConfluenceLoader`, `SlackLoader`, `ArxivLoader`, `UnstructuredMarkdownLoader`, `DirectoryLoader`; custom loaders with `BaseLoader`.
-- **Output parsers**: `StrOutputParser`, `JsonOutputParser` with Pydantic schema, `PydanticOutputParser`, `CommaSeparatedListOutputParser`, `DatetimeOutputParser`, `EnumOutputParser`, `RetryOutputParser`; custom with `BaseOutputParser`.
-- **Memory**: deprecated in LCEL, use `RunnableWithMessageHistory`; `ConversationBufferMemory`, `ConversationBufferWindowMemory`, `ConversationSummaryMemory`, `ConversationKGMemory`, `ConversationTokenBufferMemory`, `VectorStoreRetrieverMemory`.
-- **Callbacks**: `BaseCallbackHandler`; callback methods; handlers via `.with_config(callbacks=)`; `StdOutCallbackHandler`, `FileCallbackHandler`; async handlers.
-- **Streaming**: `model.stream` for token streaming; `chain.astream` for async streaming; stream events with `astream_events`; custom event emission; stream intermediate steps with `stream(log=True)`; WebSocket streaming for web apps.
-- **Tracing**: LangSmith integration (automatic with API key); trace every LLM call, chain, tool call; trace visualization; evals in LangSmith; datasets for testing; annotation.
-- **Deployment**: LangServe for FastAPI deployment of runnables; LangChain Templates for starter apps; streamlit integration; deployment to Vercel/Render/Railway; containerization with Docker.
-- **Production patterns**: caching with `SQLiteCache` or `RedisCache`; semantic caching with `SemanticCache`; rate limiting with `RatelimitCallbackHandler`; fallback models with `with_fallbacks`; retries with `retry`; async for throughput; batching for cost; token budget tracking; prompt versioning; A/B testing prompts.
-- **Testing**: unit tests for chains; integration tests for agents; eval with LangSmith datasets; regression tests for prompt changes; mock LLM responses with `FakeChatModel` for tests.
+- One call, fixed steps, no loop: use LCEL or call the model directly. A loop where the model chooses tools: `create_agent`. Custom branching, human gates, fan-out or multiple agents: `StateGraph`. Mostly ordinary Python control flow that needs persistence and interrupts: the Functional API (`@entrypoint`, `@task`).
+- Start with `create_agent` and extend it with middleware before dropping to a hand-built graph; an agent is already a compiled LangGraph graph and can be a node or subgraph in a larger one.
+- Structured output inside an agent: `response_format`. For a single non-agent call: `model.with_structured_output(Schema)`. Prefer Pydantic models, dataclasses or `TypedDict`; raw JSON-schema dicts are not validated on the tool strategy.
+- Reducers: `add_messages` for chat history (merges by message ID, supports `RemoveMessage`), `operator.add` for plain append-only lists, a custom function for merges, no reducer for last-write-wins. Two parallel nodes writing a key without a reducer raise `InvalidUpdateError`.
+- Human approval of a tool call: `HumanInTheLoopMiddleware` on an agent, `interrupt()` inside a custom node. Prefer these over `interrupt_before`/`interrupt_after` node lists, which pause without carrying a typed question.
+- Checkpointer: `InMemorySaver` only in tests and notebooks; `PostgresSaver` or `AsyncPostgresSaver` for production; `SqliteSaver` for single-process tools. Anything with `interrupt` or resumability needs one.
+- Conversation too long: `SummarizationMiddleware` for lossy compression, `ContextEditingMiddleware` to clear old tool outputs, `trim_messages` for a hard window.
+- Multi-agent: start with one agent and tools; use subagents-as-tools or `Command(goto=..., graph=Command.PARENT)` handoffs only when separate prompts, tools or context windows are needed.
+- Retries: model and tool retries through `ModelRetryMiddleware`/`ToolRetryMiddleware`, node retries through `RetryPolicy`, plain runnables through `.with_retry()`. Retry only idempotent operations.
+- Streaming to a UI: `stream_mode="messages"` for tokens, `"updates"` for node progress, `"custom"` with `get_stream_writer()` for domain events; combine modes in a list.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Choose LCEL over legacy `Chain` classes for all new code; migrate legacy chains when touched.
-- Choose `RunnableWithMessageHistory` over deprecated `Memory` classes for all new code.
-- Choose LangGraph over `AgentExecutor` for stateful multi-step agents; reserve `AgentExecutor` for simple cases.
-- Define every prompt as a versioned template, not an inline f-string.
-- Define every tool with `@tool` and a Pydantic `args_schema`; never ad-hoc.
-- Choose the retriever pipeline based on the data: vector for semantic, BM25 for keyword, ensemble for hybrid, parent-document for long docs.
-- Configure caching (exact and semantic) for read-heavy chains.
-- Configure fallbacks and retries on every LLM call.
-- Stream tokens to the client for any chain above 200 tokens.
-- Instrument with LangSmith; trace every LLM call, chain, and tool call.
-- Enforce a per-request token budget and a per-user rate limit.
-- Run the eval suite on every prompt change.
-- Document every chain, tool, and prompt with examples.
+- Import from the 1.x locations: `from langchain.agents import create_agent`, `from langchain.agents.middleware import ...`, `from langchain.tools import tool, ToolRuntime`, `from langchain.messages import AIMessage, HumanMessage, ToolMessage`, `from langchain.chat_models import init_chat_model`.
+- Type the state: `TypedDict` with `Annotated` reducers, or Pydantic when input validation is needed. Nodes return only the keys they change.
+- Tools: type-hinted arguments, a docstring that states what the tool does and its side effects, a Pydantic `args_schema` for non-trivial inputs, and return concise strings or small JSON, not raw API dumps.
+- Do not put request identity (user id, tenant id) in model-controlled tool arguments. Read it from `runtime.context` (`ToolRuntime[Context]`) or injected state.
+- Name nodes explicitly with `add_node("name", fn)`; keep nodes small and free of hidden global state. Build and compile the graph once at import time, not per request.
+- Use `async` nodes and `ainvoke`/`astream` in servers; do not call blocking code inside async nodes.
+- Put models, prompts and settings behind small factory functions so tests can inject fakes; read secrets from the environment, never from state.
+- Set `run_name`, `tags` and `metadata` on runs that matter so traces are searchable.
 
-## 5. Thinking Process
-
-1. Write the task and success criteria before choosing abstractions.
-2. Decide chain vs agent: chain for fixed pipelines, agent for tool-use loops.
-3. Choose the prompt: system, few-shot, dynamic variables.
-4. Choose the parser: string, JSON, Pydantic, enum, list.
-5. Choose the retriever if retrieval is needed: vector, hybrid, parent-document.
-6. Compose with LCEL: `prompt | model | parser`; use `RunnableParallel` for fan-out, `RunnableBranch` for conditional.
-7. Add memory via `RunnableWithMessageHistory` with a session-id factory.
-8. Add caching, fallbacks, retries, streaming.
-9. Instrument with LangSmith; verify traces appear.
-10. Build the eval harness with golden examples; iterate until success-rate target met.
-11. Deploy with LangServe or a custom FastAPI; configure health checks and autoscaling.
-12. Run eval nightly; alert on regression.
-
-## 6. Decision Making Rules
-
-- When LCEL and legacy `Chain` conflict, choose LCEL because legacy chains are deprecated and lack automatic streaming, batching, and tracing.
-- When `RunnableWithMessageHistory` and `Memory` conflict, choose `RunnableWithMessageHistory` because `Memory` is deprecated and breaks LCEL composition.
-- When `AgentExecutor` and LangGraph conflict, choose LangGraph for stateful multi-step agents because `AgentExecutor` lacks persistence, interrupts, and replay.
-- When a single strong model and a chain of weak models conflict, choose the strong model for reasoning and weak models for routing and extraction.
-- When semantic caching and exact caching conflict, choose exact caching for deterministic prompts and semantic caching for paraphrased inputs.
-- When streaming and structured output conflict, choose structured output for machine consumers and streaming for human consumers.
-- When `with_fallbacks` and a single model conflict, choose `with_fallbacks` in production because a single provider will eventually fail.
-- When `RunnableParallel` and sequential calls conflict, choose parallel for independent calls and sequential for dependent calls.
-- When custom retriever and off-the-shelf conflict, choose off-the-shelf until measured performance justifies custom.
-- When LangSmith tracing and no tracing conflict, choose LangSmith always; untraced production chains are undebuggable.
-
-## 7. Architecture Rules
-
-- Every chain must be a `Runnable` composed with LCEL; legacy `Chain` subclasses are forbidden in new code.
-- Every LLM call must be wrapped in a client that adds tracing, retry, budget enforcement, and fallbacks.
-- Every tool must be defined with `@tool` and a Pydantic `args_schema`; ad-hoc tools are forbidden.
-- Every retriever pipeline must enforce a top-k limit and a metadata filter allow-list.
-- Every chain that serves users must have a per-request token budget and a per-user rate limit.
-- Every chain that calls external services must have a fallback chain.
-- Every chain must stream tokens to the client when the response exceeds 200 tokens.
-- Every chain must be traced in LangSmith or OpenTelemetry.
-- Every prompt must be versioned and stored in source control.
-- Every chain must have a deterministic fallback path when the primary model fails.
-
-## 8. Coding Standards
-
-- All chains must be typed end-to-end; use Pydantic for input/output schemas.
-- All prompts must be `ChatPromptTemplate.from_messages` with explicit role tuples; f-string prompts in business logic are forbidden.
-- All tools must use `@tool` with a typed signature and a docstring.
-- All output parsers must validate against a schema; `StrOutputParser` is allowed only for free-text outputs.
-- All LLM calls must go through a single client wrapper that adds tracing, retry, budget enforcement, and fallbacks.
-- All async chains must use async end-to-end; sync calls inside async chains must be wrapped in `asyncio.to_thread`.
-- All chains must declare `with_fallbacks` and `with_retry` in production.
-- All configuration must be injected via dependency injection; no global state, no env reads inside chain code.
-- All tests must use `FakeChatModel` or `FakeListChatModel` with canned responses; no real LLM calls in unit tests.
-- All chains must be exposed as `Runnable` instances; never as bare functions.
-
-## 9. Naming Conventions
-
-- **Variables**: `snake_case` Python, `camelCase` TypeScript; descriptive (`retrieved_docs`, `parsedResult`).
-- **Functions**: `snake_case` Python, `camelCase` TypeScript; verb-first (`build_chain`, `parseOutput`).
-- **Classes**: `PascalCase`; noun (`ResearchChain`, `SearchTool`).
-- **Interfaces / Types**: `PascalCase` (`ChainInput`, `ChainOutput`).
-- **Constants**: `UPPER_SNAKE_CASE` (`DEFAULT_TOP_K`, `MAX_TOKEN_BUDGET`).
-- **Enums**: `PascalCase` enum, `UPPER_SNAKE_CASE` members (`ModelRole.SYSTEM`).
-- **Files**: `snake_case.py` or `kebab-case.ts`; one chain per file.
-- **Directories**: `snake_case` packages (`chains/qa/`, `tools/search/`).
-- **Tests**: `test_<unit>.py` or `<unit>.spec.ts`; one per source file.
-- **Prompts**: `snake_case.txt` or `snake_case.py` in `prompts/` with version suffix (`qa_prompt_v3.py`).
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-langchain-project/
-├── src/
-│   └── my_app/
-│       ├── chains/                # LCEL chains, one per file
-│       │   ├── qa.py
-│       │   ├── summarize.py
-│       │   └── classify.py
-│       ├── agents/                # LangGraph or AgentExecutor agents
-│       │   ├── researcher/
-│       │   └── coder/
-│       ├── tools/                 # Tool catalog
-│       │   ├── search.py
-│       │   ├── database.py
-│       │   └── http.py
-│       ├── retrievers/            # Retriever pipelines
-│       │   ├── hybrid.py
-│       │   └── parent_doc.py
-│       ├── prompts/               # Versioned prompts
-│       │   ├── qa_v3.py
-│       │   └── summarize_v2.py
-│       ├── parsers/               # Output parsers
-│       ├── memory/                # RunnableWithMessageHistory setups
-│       ├── observability/         # LangSmith, OTel
-│       ├── llm/                   # LLM client wrapper
-│       └── config.py
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── eval/
-│   ├── datasets/
-│   └── runner.py
+.
 ├── pyproject.toml
-└── README.md
+├── langgraph.json            # graph entrypoints for `langgraph dev` / deployment
+├── .env.example              # variable names only
+├── src/app/
+│   ├── agent.py              # create_agent(...) assembly, exports `agent`
+│   ├── graph.py              # StateGraph workflows when custom control flow is needed
+│   ├── state.py              # State, Context and structured output schemas
+│   ├── models.py             # init_chat_model wrappers, retries, rate limiter
+│   ├── tools/                # one module per tool group, typed and documented
+│   ├── middleware/           # custom AgentMiddleware subclasses and decorators
+│   └── prompts/              # system prompts as constants or templates
+└── tests/
+    ├── fakes.py              # fake chat models with scripted tool calls
+    ├── test_tools.py
+    ├── test_graph.py         # in-memory checkpointer, resume and interrupt tests
+    └── evals/                # LangSmith datasets and evaluators
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-langchain-platform/
-├── src/
-│   ├── platform/                  # Cross-cutting
-│   │   ├── config/
-│   │   ├── telemetry/             # LangSmith + OTel
-│   │   ├── llm/                   # Client wrapper, fallbacks, budget
-│   │   ├── cache/                 # SQLite/Redis/Semantic cache
-│   │   └── security/
-│   ├── chains/                    # Business chains
-│   ├── agents/                    # Agents
-│   ├── tools/                     # Tool catalog
-│   ├── retrievers/                # Retriever pipelines
-│   ├── loaders/                   # Document loaders
-│   ├── splitters/                 # Text splitters
-│   ├── prompts/                   # Versioned prompts
-│   ├── parsers/                   # Output parsers
-│   ├── memory/                    # History wrappers
-│   ├── api/                       # FastAPI + LangServe
-│   │   ├── routes/
-│   │   └── websocket/
-│   └── workers/                   # Async workers
-├── eval/
-│   ├── datasets/
-│   ├── suites/
-│   └── reports/
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── deploy/
-│   ├── docker/
-│   └── k8s/
-├── docs/
-│   ├── chains/
-│   └── runbooks/
-├── pyproject.toml
-└── README.md
-```
+- **Agent with middleware stack**: `create_agent` plus ordered middleware (guardrails, retries, limits, summarization, approvals). The first middleware in the list is the outermost wrapper for `wrap_*` hooks.
+- **Dynamic prompt and model selection**: `@dynamic_prompt` builds the system prompt from `request.runtime.context`; `@wrap_model_call` can swap `request.override(model=...)` or tools per request.
+- **Custom state through middleware**: a middleware declares a `state_schema` extending `AgentState`, so its fields are scoped to its hooks; `before_model` can return `{"jump_to": "end"}` when decorated with `@hook_config(can_jump_to=["end"])`.
+- **Tool returning `Command`**: a tool updates agent state (and must include its `ToolMessage`) by returning `Command(update={...})`.
+- **Approval gate**: `HumanInTheLoopMiddleware(interrupt_on={"tool": True})` with decisions `approve`, `edit`, `reject`, `respond`, resumed through `Command(resume={"decisions": [...]})`.
+- **Map-reduce with `Send`**: a router returns `Command(goto=[Send("worker", payload), ...])`; workers write to a reducer-backed list and a join node consumes it.
+- **Supervisor and workers**: a supervisor agent exposes worker agents as tools, or a graph routes with `Command(goto=...)`; each worker has its own tools and prompt.
+- **Plan, execute, review**: a planner node writes steps to state, an executor loops over them, a reviewer node decides `Command(goto="executor")` or end, bounded by `recursion_limit`.
+- **Subgraph**: compile a graph and add it as a node; use `Command(graph=Command.PARENT, ...)` to hand control to the parent. Details in [references/langgraph.md](references/langgraph.md).
+- **LCEL pipeline**: `prompt | model.with_structured_output(Schema)` with `.with_retry()` and `.with_fallbacks()`. Details in [references/lcel-and-models.md](references/lcel-and-models.md).
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### LCEL Chain (prompt | model | parser)
-- **When to use**: Fixed single-step pipelines.
-- **When not to use**: Multi-step agents with tool loops; use LangGraph.
-- **Sketch**: `chain = prompt | model | parser; chain.invoke({"input": x})`.
+- Keep tool sets small and well named; use `LLMToolSelectorMiddleware` only when dozens of tools make selection unreliable.
+- Let the model recover from expected tool failures: `ToolRetryMiddleware(on_failure="continue")` or `ToolErrorMiddleware(on_error=...)`, which returns selected exceptions as error `ToolMessage`s. Name the exception type rather than echoing raw messages that may carry internal detail, and let programmer errors propagate.
+- Make side-effecting nodes idempotent: on resume after an interrupt or crash a node runs again from its start. Put side effects after the `interrupt()` call, or in a separate node or `@task`.
+- Place `interrupt()` first in the node or keep pre-interrupt code free of side effects; do not wrap `interrupt()` in a bare `try/except`, which swallows the pause.
+- Keep state small and serializable. Store large documents in external storage and keep ids in state, since every step is checkpointed.
+- Use one `thread_id` per conversation: reuse the id to continue, a new id to start fresh.
+- Version prompts and schemas with the code; record the model name and prompt version in run `metadata`.
+- Use `Runtime`/`context_schema` for static run data (user, locale, feature flags) instead of stuffing it into messages.
 
-### RunnableParallel Fan-Out
-- **When to use**: Independent branches that produce a combined output.
-- **When not to use**: Dependent steps; use sequential composition.
-- **Sketch**: `chain = RunnableParallel(a=branchA, b=branchB) | merge`.
+## 9. Performance
 
-### RunnableBranch Conditional
-- **When to use**: Conditional routing based on input.
-- **When not to use**: Complex routing with state; use LangGraph.
-- **Sketch**: `RunnableBranch([(cond1, chain1), (cond2, chain2)], default=chainDefault)`.
+- Run independent calls in parallel: `RunnableParallel`, `.batch(..., config={"max_concurrency": n})`, parallel edges or `Send` in graphs, and parallel tool calls from the model.
+- Stream tokens (`stream_mode="messages"`) so users see progress; time to first token matters more than total time for chat.
+- Cap context: summarize or clear old tool results before they dominate the window; large tool outputs are the usual cause of cost and latency growth.
+- Cache deterministic work: node `cache_policy=CachePolicy(ttl=...)` with a cache passed to `compile(cache=...)`, and a model cache (`set_llm_cache`) only for repeatable offline workloads.
+- Throttle provider calls with `langchain_core.rate_limiters.InMemoryRateLimiter` passed to the chat model, and use `ModelRetryMiddleware` with backoff and jitter for 429s.
+- Choose durability per workload: `"exit"` is fastest but loses mid-run progress on a crash, `"sync"` is safest, `"async"` is the default compromise.
+- Reuse compiled graphs, model clients and database connection pools across requests; construct a Postgres pool once at startup.
 
-### Retriever-Augmented Chain (RAG)
-- **When to use**: Grounded answers over a corpus.
-- **When not to use**: Tasks with no knowledge base.
-- **Sketch**: `retriever | (lambda docs: prompt.format(context=docs)) | model | parser`.
+## 10. Security
 
-### Tool-Calling Agent
-- **When to use**: Tasks that require external actions.
-- **When not to use**: Fixed pipelines with no decisions; use LCEL.
-- **Sketch**: `create_tool_calling_agent(llm, tools, prompt) | AgentExecutor`.
+- Treat tool outputs, retrieved documents and user input as untrusted: they can contain instructions aimed at the model. Do not give an agent that reads untrusted content tools that can both read private data and send it out (email, HTTP POST, file write); gate those with `HumanInTheLoopMiddleware`.
+- Apply least privilege per tool: read-only database users, scoped API tokens, allowlisted URLs and commands. For file tools, resolve and normalize paths and reject anything outside an allowed root before touching the disk.
+- Enforce tenancy on every read and write path: derive `user_id`/`tenant_id` from authenticated `context`, not from model output, and scope store namespaces and `thread_id` ownership checks to that identity when loading and when updating state.
+- `ShellToolMiddleware` runs commands for the model: use a sandboxed execution policy (container or sandbox policy) rather than the host policy, and never expose it to untrusted users.
+- Checkpoints are deserialized with a msgpack-based serializer. Anyone who can write to the checkpoint database can influence what is loaded; restrict database access and set `LANGGRAPH_STRICT_MSGPACK=true` to limit deserialization to an allowlist of safe types (register custom types explicitly).
+- State, stores and traces persist what you put into them. Keep secrets out of state and messages; use `PIIMiddleware` (`redact`, `mask`, `hash` or `block`) for emails, card numbers and similar, and LangSmith `hide_inputs`/`hide_outputs` or an anonymizer when traces must not contain content.
+- Load API keys from environment or a secret manager; never commit `.env`, and never place provider keys in frontend bundles or `NEXT_PUBLIC_*` variables. Browsers call your server, which calls the model.
+- Bound cost and loops: `recursion_limit`, `ModelCallLimitMiddleware`, `ToolCallLimitMiddleware`, request timeouts and per-user rate limits.
+- Validate model output before using it in privileged code (SQL, shell, file paths); structured output gives shape, not safety.
 
-### Fallback Chain
-- **When to use**: Any production chain that depends on a single provider.
-- **When not to use**: Never; production chains always need fallbacks.
-- **Sketch**: `primary.with_fallbacks([secondary, deterministic])`.
+## 11. Testing
 
-## 13. Best Practices
+- Unit-test tools and nodes as plain functions. A node takes state and returns an update, so assert on the dict.
+- Test agents offline with a fake chat model: subclass `GenericFakeChatModel` from `langchain_core.language_models.fake_chat_models`, override `bind_tools` to return `self`, and feed it scripted `AIMessage(tool_calls=[...])` values.
+- Test graphs with `InMemorySaver`: invoke to the interrupt, assert `result.interrupts` (with `version="v2"`) or `graph.get_state(config).next`, resume with `Command(resume=...)`, and assert the final state.
+- Test limits: a loop graph with `{"recursion_limit": 5}` must raise `GraphRecursionError`.
+- Use `graph.get_state_history(config)` to assert checkpoints and `update_state` to set up scenarios.
+- Evaluate behavior with LangSmith datasets: `langsmith.evaluate(target, data=dataset, evaluators=[...])` on real failures, with deterministic checks (tool called, schema valid) before LLM-as-judge scoring.
+- Keep live-model tests few, marked, and run on a schedule; they are slow and nondeterministic.
 
-- Always use LCEL for new chains; never use legacy `Chain` classes.
-- Always use `RunnableWithMessageHistory` for memory; never use deprecated `Memory` classes.
-- Always define tools with `@tool` and a Pydantic `args_schema`.
-- Always wrap the LLM client with tracing, retry, budget, and fallbacks.
-- Always stream tokens for responses above 200 tokens.
-- Always configure `with_fallbacks` in production.
-- Always configure caching for read-heavy chains.
-- Always trace in LangSmith or OpenTelemetry.
-- Always version prompts and store them in source control.
-- Always run the eval suite before deploying a prompt change.
-- Always use `FakeChatModel` in unit tests; never real LLM calls.
-- Always set `max_tokens` on every LLM call.
+## 12. Review Checklist
 
-## 14. Anti Patterns
+- [ ] Imports use `langchain.agents`, `langchain.tools`, `langchain.messages`; no `initialize_agent`, `LLMChain` or deprecated memory classes in new code.
+- [ ] `recursion_limit` is passed in the run config (not to `compile`), and model/tool call limits exist.
+- [ ] State has reducers where parallel branches or message history write the same key.
+- [ ] Persistent checkpointer in production, `thread_id` supplied on every call, `setup()` run for Postgres.
+- [ ] Destructive or external-effect tools are behind approval; side effects are idempotent on resume.
+- [ ] Identity comes from authenticated `context`, not from tool arguments the model fills.
+- [ ] No secrets in state, prompts, traces or client bundles; PII handling chosen.
+- [ ] Tools have typed arguments, docstrings and bounded outputs.
+- [ ] Graph compiled once, async used in servers, connection pools reused.
+- [ ] Tracing is on, runs have names and metadata, and an eval dataset exists for the main flow.
+- [ ] Tests cover tools, a scripted agent run, interrupt and resume, and the recursion limit.
 
-### Legacy Chain classes in new code
-- **Why wrong**: Deprecated, no automatic streaming/batching/tracing, no LCEL composition.
-- **Correct alternative**: Compose with LCEL: `prompt | model | parser`.
+## 13. Production Notes
 
-### Deprecated Memory classes
-- **Why wrong**: Deprecated, breaks LCEL composition, no streaming support.
-- **Correct alternative**: Use `RunnableWithMessageHistory` with a session-id factory.
+- Run the Postgres checkpointer with a connection pool and call `setup()` once (migrations) at deploy time, not per request. Plan checkpoint retention: every step is stored, so prune old threads.
+- Resumed runs re-execute the interrupted node from its start; design for at-least-once execution of that node.
+- LangGraph's default `recursion_limit` is very high in langgraph 1.2.x (10007 in the source) while the JavaScript default is 25; set an explicit limit appropriate to each graph.
+- `langgraph dev` (from `langgraph-cli[inmem]`) serves graphs listed in `langgraph.json` with an in-memory backend for local development; use a real deployment or your own server with Postgres for production.
+- Pin `langchain`, `langchain-core`, `langgraph` and provider packages together and upgrade them as a set; deprecation warnings from `langgraph.warnings` signal API moves.
+- Handle provider outages with `ModelFallbackMiddleware` or `.with_fallbacks()` and surface partial progress with streaming.
+- Sample or redact traces at volume: `LANGSMITH_TRACING_SAMPLING_RATE` controls the fraction traced.
+- Details: [references/production-and-langsmith.md](references/production-and-langsmith.md).
 
-### Inline f-string prompts
-- **Why wrong**: Not versioned, not testable, prompt injection risk if user input is interpolated.
-- **Correct alternative**: Use `ChatPromptTemplate.from_messages`; store prompts in `prompts/`.
+## 14. Examples
 
-### Ad-hoc tool definitions
-- **Why wrong**: No schema, no validation, model cannot reliably call them.
-- **Correct alternative**: Use `@tool` with a Pydantic `args_schema`.
-
-### No fallbacks in production
-- **Why wrong**: Provider outages take down the whole chain.
-- **Correct alternative**: Use `with_fallbacks([secondary, deterministic])`.
-
-### No tracing
-- **Why wrong**: Failures are unattributable; prompts cannot be debugged.
-- **Correct alternative**: Configure LangSmith or OpenTelemetry; verify traces appear.
-
-### Real LLM calls in unit tests
-- **Why wrong**: Slow, flaky, expensive, non-deterministic.
-- **Correct alternative**: Use `FakeListChatModel` with canned responses.
-
-## 15. Performance Rules
-
-- Always set `max_tokens` on every LLM call.
-- Always stream tokens for responses above 200 tokens.
-- Always batch independent LLM calls via `RunnableParallel` or `batch`.
-- Always cache read-only idempotent results with `SQLiteCache` or `RedisCache`.
-- Always use semantic caching for paraphrased inputs.
-- Always use the cheapest model that meets the success-rate target.
-- Always use prompt caching for repeated context when the provider supports it.
-- Always retrieve the minimum necessary context; over-retrieval inflates tokens.
-
-## 16. Security Rules
-
-- Always keep the system prompt in a separate message from user input.
-- Always treat tool output as untrusted data; sanitize before adding to context.
-- Always enforce a tool allow-list per chain.
-- Always sandbox code-execution tools.
-- Always rate-limit LLM calls per user and per tenant.
-- Always audit-log every tool call.
-- Always store secrets in a secrets manager; never in prompts.
-- Always redact PII from logs and traces.
-- Always run a prompt-injection eval before launch.
-- Always validate retrieved documents before adding them to the prompt.
-
-## 17. Testing Strategy
-
-- Unit tests must cover every chain with `FakeListChatModel` returning canned responses.
-- Unit tests must cover every tool with mocked external dependencies.
-- Integration tests must cover retriever pipelines against fixture documents.
-- End-to-end tests must run against a real LLM on a small golden set on every release.
-- Regression tests must run on every prompt change with a frozen golden set.
-- Eval suites must include adversarial examples (prompt injection, ambiguous inputs).
-- Property tests must verify chain invariants (output schema, budget, no infinite loop).
-- LangSmith datasets must be used for regression testing.
-- Never run real LLM calls in unit tests.
-- Test fallback paths by injecting synthetic model errors.
-
-## 18. Documentation Standards
-
-- Every chain must have a docstring documenting: purpose, input schema, output schema, dependencies.
-- Every tool must have a docstring documenting: description, parameters, return type, error contract.
-- Every prompt must have a header with version, intent, variables, eval results.
-- Every API endpoint must have an OpenAPI spec with examples.
-- Every runbook must cover common failures, mitigation, rollback, escalation.
-- Architecture diagrams must be checked into `docs/chains/`.
-- The prompt catalog must list every prompt with version, status, last-eval score.
-- Every breaking change must have a CHANGELOG entry with migration notes.
-
-## 19. Code Review Checklist
-
-- [ ] Chain is composed with LCEL; no legacy `Chain` classes in new code.
-- [ ] Memory uses `RunnableWithMessageHistory`; no deprecated `Memory` classes.
-- [ ] Tools use `@tool` with Pydantic `args_schema`.
-- [ ] LLM client wrapper adds tracing, retry, budget, fallbacks.
-- [ ] Prompts are versioned templates, not inline f-strings.
-- [ ] Output parser validates against a schema.
-- [ ] `max_tokens` set on every LLM call.
-- [ ] Streaming configured for responses above 200 tokens.
-- [ ] `with_fallbacks` configured in production.
-- [ ] Caching configured for read-heavy chains.
-- [ ] Retriever has top-k limit and metadata filter allow-list.
-- [ ] Tool outputs sanitized before being added to context.
-- [ ] Tool allow-list enforced per chain.
-- [ ] Code-execution tools sandboxed.
-- [ ] Per-request token budget enforced.
-- [ ] Per-user rate limit configured.
-- [ ] Tracing configured in LangSmith or OpenTelemetry.
-- [ ] Prompts versioned in source control.
-- [ ] Eval suite passes on the golden set.
-- [ ] No real LLM calls in unit tests.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace legacy `Chain` classes with LCEL composition.
-- [ ] Replace `Memory` classes with `RunnableWithMessageHistory`.
-- [ ] Move inline f-string prompts to versioned templates.
-- [ ] Add Pydantic `args_schema` to ad-hoc tools.
-- [ ] Wrap direct LLM calls in the shared client wrapper.
-- [ ] Add `with_fallbacks` where only a primary model exists.
-- [ ] Add `with_retry` where retries are missing.
-- [ ] Add streaming where the client waits for the full result.
-- [ ] Add caching where the same input recurs.
-- [ ] Add LangSmith tracing where only logs exist.
-- [ ] Extract duplicated retrieval logic into a shared retriever.
-- [ ] Move `AgentExecutor` agents to LangGraph for stateful flows.
-
-## 21. Deployment Checklist
-
-- [ ] Image is built from a pinned base with a reproducible lockfile.
-- [ ] Secrets are injected from a secrets manager.
-- [ ] LangSmith API key is configured.
-- [ ] Cache backend (SQLite/Redis) is reachable.
-- [ ] Vector store is reachable and indexed.
-- [ ] Health check endpoint returns 200 only when dependencies are reachable.
-- [ ] Readiness probe verifies chain warm-up completed.
-- [ ] Horizontal pod autoscaler targets RPS and P95 latency.
-- [ ] Rate limiter is configured per user and per tenant.
-- [ ] LangServe routes are mounted under `/invoke`, `/stream`, `/batch`.
-- [ ] WebSocket endpoint is reachable for streaming.
-- [ ] Tracing is exported to LangSmith.
-- [ ] Logs are shipped to the log store with retention.
-- [ ] Audit logs are immutable and retained per compliance.
-- [ ] Rollback procedure is documented and tested.
-- [ ] Runbook is published to the on-call team.
-
-## 22. Production Checklist
-
-- [ ] Success rate on golden set above target for two consecutive runs.
-- [ ] P95 latency per request within budget.
-- [ ] Cost per request within budget.
-- [ ] Error rate below threshold for 24 hours of canary traffic.
-- [ ] Fallback chain triggered correctly under synthetic model failure.
-- [ ] Caching hit rate measured and above threshold.
-- [ ] Streaming delivers first token within 200ms.
-- [ ] Traces are visible in LangSmith.
-- [ ] PII redaction verified in logs and traces.
-- [ ] Audit log captures every tool call.
-- [ ] No prompt-injection escalations in canary.
-- [ ] On-call runbook is accessible and tested.
-- [ ] Kill switch is reachable within 30 seconds.
-- [ ] Dashboards show success rate, latency, cost, error rate, cache hit rate.
-- [ ] Prompt versions are tagged in the prompt catalog.
-- [ ] Eval suite has passed on the release candidate.
-
-## 23. Logging Strategy
-
-- Every LLM call logs: trace_id, chain_name, prompt_version, model, input_tokens, output_tokens, latency_ms, status.
-- Every tool call logs: trace_id, tool_name, arguments (PII-redacted), result_hash, latency_ms, status.
-- Every retriever call logs: trace_id, query, top_k, retrieved_ids, latency_ms.
-- Every cache event logs: trace_id, cache_key, hit_or_miss, latency_ms.
-- Every fallback event logs: trace_id, primary_model, fallback_model, reason.
-- Logs are structured JSON with stable fields.
-- Logs are tagged with environment, service, chain_name, prompt_version.
-- PII is redacted before logging.
-- Logs never contain secrets.
-- Audit logs are append-only with long retention.
-
-## 24. Monitoring Strategy
-
-- Track success rate per chain on the live task distribution.
-- Track P50, P95, P99 latency per chain.
-- Track token usage per chain, per user, per tenant.
-- Track cost per chain, per user, per tenant.
-- Track cache hit rate; alert on drops.
-- Track fallback activation rate; alert on spikes.
-- Track error rate by error class: model_error, tool_error, budget_error, parse_error.
-- Track retriever latency and recall.
-- Track eval suite score on nightly runs; alert on regression.
-- Track prompt version distribution; alert on stale versions.
-- Dashboards show all of the above sliced by chain, tenant, version.
-
-## 25. Error Handling
-
-- LLM errors (5xx, rate limit) must be retried with exponential backoff via `with_retry`; beyond `max_retries`, the fallback chain runs.
-- Tool errors must be returned to the model as `ToolMessage` with `is_error=True`; the model decides next action.
-- Parse errors must be retried once with a repair prompt; persistent parse failures escalate.
-- Budget exceeded must abort the chain and return a partial result.
-- Retriever failures must fall back to a cached result or an empty context with a warning.
-- Cache backend failures must fail open (skip cache) and log; never block the request.
-- Schema validation failures must never reach the model; retry with corrected args or escalate.
-- All exceptions must carry trace_id.
-- Streaming errors must close the stream gracefully with an error event.
-- Fallback chain failures must escalate to a deterministic fallback or a human.
-
-## 26. Examples
-
-### Example 1: RAG chain with LCEL, caching, and fallbacks
+Agent with per-request context, a tool that reads it, structured output, limits and an approval gate (verified with a scripted fake model; swap `MODEL` for a real id):
 
 ```python
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough, RunnableParallel
-from langchain_anthropic import ChatAnthropic
-from langchain_openai import ChatOpenAI
-from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.cache import RedisCache
-from langchain_core.globals import set_llm_cache
-import redis
+from dataclasses import dataclass
 
-set_llm_cache(RedisCache(redis.Redis.from_url("redis://localhost:6379")))
-
-embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-vectorstore = Chroma(persist_directory="./chroma", embedding_function=embeddings)
-retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-
-primary = ChatAnthropic(model="claude-3-5-sonnet-20241022", max_tokens=1024)
-secondary = ChatOpenAI(model="gpt-4o-mini", max_tokens=1024)
-model = primary.with_fallbacks([secondary]).with_retry(stop_after_attempt=3)
-
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "Answer using only the context below. If the context is insufficient, say 'I don't know.'"),
-    ("human", "Context:\n{context}\n\nQuestion: {question}"),
-])
-
-def format_docs(docs):
-    return "\n\n".join(d.page_content for d in docs)
-
-chain = RunnableParallel(
-    {"context": retriever | format_docs, "question": RunnablePassthrough()}
-) | prompt | model | StrOutputParser()
-
-answer = chain.invoke("What is the company refund policy?")
-print(answer)
-```
-
-### Example 2: Tool-calling agent with Pydantic schema
-
-```python
-from langchain_core.tools import tool
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_anthropic import ChatAnthropic
-from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain.agents import create_agent
+from langchain.agents.middleware import (
+    HumanInTheLoopMiddleware,
+    ModelCallLimitMiddleware,
+    ToolRetryMiddleware,
+    ModelRequest,
+    dynamic_prompt,
+)
+from langchain.tools import tool, ToolRuntime
+from langgraph.checkpoint.memory import InMemorySaver  # tests only; use Postgres in production
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
-class SearchInput(BaseModel):
-    query: str = Field(..., description="The search query")
-    max_results: int = Field(5, ge=1, le=20, description="Maximum number of results")
+MODEL = "anthropic:claude-sonnet-5-5"  # any "provider:model" accepted by init_chat_model
 
-@tool(args_schema=SearchInput)
-def search_web(query: str, max_results: int = 5) -> str:
-    """Search the web and return up to max_results snippets."""
-    # Real implementation calls a search API
-    return f"results for {query} (max {max_results})"
+
+@dataclass
+class Context:
+    user_id: str
+
 
 @tool
-def fetch_url(url: str) -> str:
-    """Fetch the text content of a URL."""
-    return f"content of {url}"
+def lookup_order(order_id: str, runtime: ToolRuntime[Context]) -> str:
+    """Look up an order that belongs to the current user."""
+    user = runtime.context.user_id  # identity comes from the server, not from the model
+    return f"order {order_id} for {user}: shipped"
 
-tools = [search_web, fetch_url]
-llm = ChatAnthropic(model="claude-3-5-sonnet-20241022", max_tokens=1024)
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a research assistant. Use tools when needed. Cite sources."),
-    MessagesPlaceholder("chat_history", optional=True),
-    ("human", "{input}"),
-    MessagesPlaceholder("agent_scratchpad"),
-])
+@tool
+def refund_order(order_id: str) -> str:
+    """Refund an order. Irreversible."""
+    return f"refunded {order_id}"
 
-agent = create_tool_calling_agent(llm, tools, prompt)
-executor = AgentExecutor(agent=agent, tools=tools, max_iterations=10,
-                         return_intermediate_steps=True, handle_parsing_errors=True)
-result = executor.invoke({"input": "What is the GDP of France?"})
-print(result["output"])
-```
 
-### Example 3: Streaming with RunnableWithMessageHistory
+class Answer(BaseModel):
+    summary: str = Field(description="One-sentence answer for the customer")
+    refunded: bool
 
-```python
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_anthropic import ChatAnthropic
-from langchain_community.chat_message_histories import RedisChatMessageHistory
-from langchain_core.output_parsers import StrOutputParser
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a concise assistant."),
-    MessagesPlaceholder("history"),
-    ("human", "{input}"),
-])
+@dynamic_prompt
+def prompt(request: ModelRequest[Context]) -> str:
+    return f"You are a support agent for user {request.runtime.context.user_id}."
 
-chain = prompt | ChatAnthropic(model="claude-3-5-sonnet-20241022", max_tokens=512) | StrOutputParser()
 
-def history_factory(session_id: str) -> RedisChatMessageHistory:
-    return RedisChatMessageHistory(session_id=session_id, url="redis://localhost:6379")
-
-chain_with_history = RunnableWithMessageHistory(
-    chain, history_factory, input_messages_key="input", history_messages_key="history",
+agent = create_agent(
+    model=MODEL,
+    tools=[lookup_order, refund_order],
+    middleware=[
+        prompt,
+        ModelCallLimitMiddleware(run_limit=6, exit_behavior="end"),
+        ToolRetryMiddleware(max_retries=2),
+        HumanInTheLoopMiddleware(
+            interrupt_on={"refund_order": {"allowed_decisions": ["approve", "reject"]}}
+        ),
+    ],
+    response_format=Answer,
+    context_schema=Context,
+    checkpointer=InMemorySaver(),
 )
 
-config = {"configurable": {"session_id": "user-42"}}
-for chunk in chain_with_history.stream({"input": "What is 2+2?"}, config=config):
-    print(chunk, end="", flush=True)
-print()
+config = {"configurable": {"thread_id": "ticket-42"}, "recursion_limit": 25}
+ctx = Context(user_id="u1")
+first = agent.invoke(
+    {"messages": [{"role": "user", "content": "Refund order A1"}]},
+    config, context=ctx, version="v2",
+)
+# first.interrupts[0].value["action_requests"] lists the pending refund_order call
+final = agent.invoke(
+    Command(resume={"decisions": [{"type": "approve"}]}), config, context=ctx, version="v2",
+)
+print(final.value["structured_response"])
 ```
 
-## 27. Common Mistakes
+Custom graph with parallel fan-out, a reducer, a human gate and a bounded loop (verified end to end with `InMemorySaver`):
 
-### Mistake: Using legacy Chain classes in new code
-- **What**: New code uses `LLMChain` or `ConversationChain`.
-- **Why**: Deprecated, no automatic streaming/batching/tracing, no LCEL composition.
-- **How to avoid**: Compose with LCEL: `prompt | model | parser`.
+```python
+import operator
+from typing import Annotated, Literal
+from typing_extensions import TypedDict
 
-### Mistake: Using deprecated Memory classes
-- **What**: New code uses `ConversationBufferMemory`.
-- **Why**: Deprecated, breaks LCEL composition.
-- **How to avoid**: Use `RunnableWithMessageHistory` with a session-id factory.
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, RetryPolicy, Send, interrupt
 
-### Mistake: Inline f-string prompts
-- **What**: Prompts are built with f-strings inside business logic.
-- **Why**: Not versioned, not testable, prompt-injection risk.
-- **How to avoid**: Use `ChatPromptTemplate.from_messages`; store prompts in `prompts/`.
 
-### Mistake: No fallbacks in production
-- **What**: Production chain has a single model with no fallback.
-- **Why**: Provider outages take down the whole chain.
-- **How to avoid**: Use `with_fallbacks([secondary, deterministic])`.
+class State(TypedDict):
+    topic: str
+    sections: Annotated[list[str], operator.add]  # parallel workers append
+    draft: str
 
-### Mistake: No streaming
-- **What**: Client waits for the full response.
-- **Why**: High perceived latency; poor UX.
-- **How to avoid**: Use `stream` or `astream`; for agents, use `astream_events`.
 
-### Mistake: Real LLM calls in unit tests
-- **What**: Tests hit the real API.
-- **Why**: Slow, flaky, expensive, non-deterministic.
-- **How to avoid**: Use `FakeListChatModel` with canned responses.
+def plan(state: State) -> Command[Literal["write_section"]]:
+    return Command(goto=[Send("write_section", {"topic": state["topic"], "index": i}) for i in range(3)])
 
-### Mistake: No tracing
-- **What**: Production chain has no LangSmith or OTel tracing.
-- **Why**: Failures are unattributable.
-- **How to avoid**: Configure LangSmith; verify traces appear in the dashboard.
 
-## 28. Professional Workflow
+def write_section(inp: dict) -> dict:
+    return {"sections": [f"{inp['topic']} part {inp['index']}"]}
 
-1. Write the task and success criteria before choosing abstractions.
-2. Decide chain vs agent; choose LangGraph for stateful multi-step.
-3. Write the prompt as a versioned template.
-4. Choose the parser based on the output schema.
-5. Compose with LCEL; add `RunnableParallel` for fan-out, `RunnableBranch` for conditional.
-6. Add memory via `RunnableWithMessageHistory` if conversational.
-7. Add caching, fallbacks, retries, streaming.
-8. Instrument with LangSmith; verify traces.
-9. Build the eval harness; iterate until success-rate target met.
-10. Deploy with LangServe or custom FastAPI; configure health checks and autoscaling.
-11. Run eval nightly; alert on regression.
-12. Review failure traces weekly; feed back into prompts and chains.
-13. Promote prompt versions through dev → staging → prod with eval gates.
-14. Maintain the prompt catalog with version, status, and last-eval score.
-15. Update the runbook after every incident.
 
-## 29. Response Style
+def assemble(state: State) -> dict:
+    return {"draft": "\n".join(sorted(state["sections"]))}
 
-- Always start from the task and the success criteria, not the abstraction.
-- Always state the chain vs agent decision and the LCEL composition.
-- Always specify the prompt version, parser, model, fallback, and cache.
-- Always flag prompt-injection and cost risks.
-- Always propose an eval plan with golden examples.
-- Always use precise LangChain terminology (Runnable, LCEL, ChatPromptTemplate, Retriever, ToolMessage, RunnableWithMessageHistory).
-- Always cite the LangChain version and Python or JS SDK.
-- Always end with a "Next actions" section.
 
-## 30. Output Format
+def review(state: State) -> Command[Literal["publish", "revise"]]:
+    approved = interrupt({"question": "Publish this draft?", "draft": state["draft"]})
+    return Command(goto="publish" if approved else "revise")
 
-- Chain proposals must include: task, success criteria, LCEL composition, prompt version, parser, model, fallbacks, caching, streaming, eval plan, security notes.
-- Tool definitions must include: name, description, `args_schema`, return type, error contract.
-- Retriever proposals must include: store, embeddings, splitter, top-k, filter allow-list, hybrid weights.
-- Runbooks must include: symptom, diagnosis, mitigation, rollback, escalation.
-- Code examples must be syntactically valid Python using the current LangChain API.
-- Diagrams must use the same node names as the code.
-- Every output must end with a "Next actions" section.
-- Every output must be self-contained; cross-references to undocumented sources are forbidden.
-- Cost and latency budgets must be stated numerically.
-- Prompt versions must be cited in every proposal that includes a prompt.
+
+def revise(state: State) -> dict:
+    return {"draft": state["draft"] + "\n(revised)"}
+
+
+builder = StateGraph(State)
+builder.add_node("plan", plan)
+builder.add_node("write_section", write_section, retry_policy=RetryPolicy(max_attempts=3))
+builder.add_node("assemble", assemble)
+builder.add_node("review", review)
+builder.add_node("publish", lambda s: {})
+builder.add_node("revise", revise)
+builder.add_edge(START, "plan")
+builder.add_edge("write_section", "assemble")
+builder.add_edge("assemble", "review")
+builder.add_edge("revise", "review")      # loop, bounded by recursion_limit
+builder.add_edge("publish", END)
+graph = builder.compile(checkpointer=InMemorySaver())
+
+cfg = {"configurable": {"thread_id": "doc-1"}, "recursion_limit": 25}   # limit lives in the run config
+graph.invoke({"topic": "x", "sections": []}, cfg)   # pauses at review
+graph.invoke(Command(resume=True), cfg)             # approved -> publish
+```
+
+LCEL pipeline with structured output, retries and a fallback model (no agent loop needed):
+
+```python
+from langchain.chat_models import init_chat_model
+from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel
+
+
+class Ticket(BaseModel):
+    category: str
+    urgent: bool
+
+
+primary = init_chat_model("anthropic:claude-sonnet-5-5", temperature=0)
+backup = init_chat_model("openai:gpt-5.5", temperature=0)  # use any second provider you have access to
+prompt = ChatPromptTemplate.from_messages(
+    [("system", "Classify the support ticket."), ("human", "{text}")]
+)
+chain = (prompt | primary.with_structured_output(Ticket)).with_retry(stop_after_attempt=3)
+chain = chain.with_fallbacks([prompt | backup.with_structured_output(Ticket)])
+
+results = chain.batch(
+    [{"text": "Site is down!"}, {"text": "Question about invoices"}],
+    config={"max_concurrency": 4, "tags": ["triage"]},
+)
+```
+
+## 15. Common Mistakes
+
+- **`builder.compile(recursion_limit=25)`**: `compile()` has no such argument and raises `TypeError`. Pass `{"recursion_limit": 25}` in the config of `invoke`/`stream`, or `graph.with_config(recursion_limit=25)`.
+- **Importing `create_react_agent` from `langgraph.prebuilt` in new code**: deprecated; use `langchain.agents.create_agent`.
+- **Using `initialize_agent`, `LLMChain` or `ConversationBufferMemory`**: not in `langchain` 1.x. Use `create_agent` with a checkpointer, or install `langchain-classic` for temporary legacy code.
+- **No checkpointer but using `interrupt` or `thread_id`**: nothing is saved and resume fails. Pass `checkpointer=` at `compile`/`create_agent` and a `thread_id` at call time.
+- **`InMemorySaver` in production**: state is lost on restart and not shared across workers. Use Postgres.
+- **Side effects before `interrupt()`**: the node re-runs from its start on resume, so emails and charges happen twice. Interrupt first or isolate the effect.
+- **Resuming with a different `thread_id`**: starts a new run instead of continuing. Reuse the id and send `Command(resume=...)` as the input.
+- **Parallel nodes writing the same key without a reducer**: `InvalidUpdateError`. Add `Annotated[list, operator.add]` or another reducer.
+- **Returning the whole state from a node** or mutating state in place: return only changed keys.
+- **Compiling the graph or creating the model per request**: slow and defeats caching. Build once.
+- **Passing user id as a tool argument the model fills**: the model can be talked into another user's id. Read it from `ToolRuntime` context.
+- **Catching `Exception` around `interrupt()`**: swallows `GraphInterrupt`. Narrow the except or move the call out.
+- **Raw JSON-schema dict with `ToolStrategy`**: arguments are returned unvalidated and retry handling is inert; use Pydantic, dataclass or `TypedDict`.
+- **Unbounded agent loops**: no call limits and the high default recursion limit mean a confused model can burn budget. Set `recursion_limit` and `ModelCallLimitMiddleware`.
+- **Treating retrieved or tool text as instructions** with powerful tools attached: add approval gates and least-privilege tools.
+
+## 16. References
+
+- [references/agents-and-middleware.md](references/agents-and-middleware.md): `create_agent` parameters, tools and `ToolRuntime`, structured output strategies, built-in and custom middleware, hook order, dynamic models and prompts, human-in-the-loop decisions, JavaScript notes.
+- [references/langgraph.md](references/langgraph.md): absorbed langgraph-expert content: StateGraph, reducers, nodes and edges, Command and Send, checkpointers and durability, interrupts, streaming modes, subgraphs, Functional API, stores, retries and timeouts, JavaScript API notes.
+- [references/lcel-and-models.md](references/lcel-and-models.md): runnables and LCEL composition, prompts and parsers, `init_chat_model`, messages, `with_structured_output`, retries, fallbacks, caching, rate limits, trimming, legacy migration.
+- [references/production-and-langsmith.md](references/production-and-langsmith.md): LangSmith tracing configuration, privacy controls, datasets and evaluators, `langgraph` CLI and `langgraph.json`, Postgres checkpointer setup, serializer hardening, operational checklist.
+- Official docs: https://docs.langchain.com/oss/python/langchain/overview , https://docs.langchain.com/oss/python/langgraph/overview , https://reference.langchain.com/python/langchain/langchain/ , https://github.com/langchain-ai/langchain , https://github.com/langchain-ai/langgraph , https://docs.langchain.com/langsmith/home

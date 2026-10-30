@@ -1,614 +1,310 @@
 ---
 name: tailwindcss-master
-description: >
-  Designs scalable Tailwind 3.4+ design systems with semantic tokens, variant composition, dark mode, container queries, and zero dead CSS in production.
-  
-  Use this skill when building web frontends with React, Next.js, TypeScript, TailwindCSS, shadcn/ui, Framer Motion, or when addressing UI/UX, accessibility, or performance.
+description: >-
+  Builds and maintains Tailwind CSS 4 styling systems with CSS-first configuration (@import "tailwindcss", @theme, @utility, @custom-variant, @variant, @source, @plugin, @reference), the Vite, PostCSS and CLI integrations, the OKLCH default palette, built-in container queries, dark mode through @custom-variant, class sorting with prettier-plugin-tailwindcss, and statically detectable class names. Covers the v3 to v4 upgrade tool and every breaking change. Use when setting up Tailwind 4, writing theme tokens or custom utilities and variants, migrating a tailwind.config.js project, debugging missing classes, or composing class names in components. Not for component library structure (use shadcn-ui-expert), design-system strategy (use ui-designer), accessibility audits (use accessibility-expert), or animation libraries (use framer-motion-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-hand-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# Tailwind CSS Master
 
----
+This skill covers Tailwind CSS 4: how the CSS-first configuration works, how classes are detected and generated, how to extend the theme with design tokens, custom utilities and variants, how to wire Tailwind into Vite, PostCSS or the CLI, and how to migrate from v3. It focuses on keeping the generated CSS predictable and the class names in components statically analyzable.
 
-## 1. Role
+> Verified against tailwindcss 4.3.3, @tailwindcss/vite 4.3.3 (Vite 5.2 to 8), @tailwindcss/postcss 4.3.3, @tailwindcss/cli 4.3.3, @tailwindcss/upgrade 4.3.3, prettier-plugin-tailwindcss 0.8.1, tailwind-merge 3.7.0, class-variance-authority 0.7.1, Node.js 22 (2026-10).
 
-The TailwindCSS Master owns the design system implementation in Tailwind: the token architecture, the variant composition strategy, the dark mode mechanism, the responsive and container-query conventions, and the integration with component libraries. This role treats Tailwind as a design system runtime, not a styling free-for-all.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The master enforces token discipline — semantic over atomic, composition over duplication, `clsx` + `tailwind-merge` for runtime composition, `cva` for variant-driven components. They refuse inline arbitrary values when a token exists, refuse `@apply` for cross-cutting concerns, and refuse hand-written CSS for anything Tailwind can express.
+## 1. Scope
 
-## 2. Mission
+- Covered: Tailwind CSS 4.x setup and configuration, theme variables, custom utilities and variants, source detection, dark mode, responsive and container-query variants, prefixes, plugins, v3 to v4 migration, formatting and linting for class names, and class composition helpers (`clsx`, `tailwind-merge`, `class-variance-authority`).
+- Not covered: Tailwind 3.x projects that stay on v3 (browser support below Safari 16.4, Chrome 111 or Firefox 128 requires v3.4), component library architecture (shadcn-ui-expert), UX and visual design decisions (ui-designer, ux-designer), WCAG audits (accessibility-expert), motion (framer-motion-expert), page speed work (core-web-vitals-expert).
 
-Deliver Tailwind-powered UIs where the design system is encoded in `tailwind.config.ts`, every color is semantic, every component uses `cva` for variants, dark mode works via `class` strategy, container queries replace media queries where the component is context-aware, and the production CSS is under 30 KB gzipped with zero dead classes.
+## 2. Core Expertise
 
-## 3. Core Expertise
+| Area | Key facts |
+|---|---|
+| Entry point | One line in your CSS: `@import "tailwindcss";`. It loads the layers `theme, base, components, utilities`, the default theme and Preflight. No `tailwind.config.js` and no `@tailwind` directives |
+| Theme variables | `@theme { --color-brand-500: oklch(...); --font-display: ...; --breakpoint-3xl: 120rem; }` creates utilities (`bg-brand-500`, `font-display`, `3xl:*`) and CSS variables. Namespaces include `--color-*`, `--font-*`, `--text-*`, `--font-weight-*`, `--tracking-*`, `--leading-*`, `--breakpoint-*`, `--container-*`, `--spacing`, `--radius-*`, `--shadow-*`, `--blur-*`, `--ease-*`, `--animate-*` |
+| Theme options | `@theme inline` (utilities use the value instead of the variable; needed when a theme variable references another variable), `@theme static` (always emit variables), `--color-*: initial;` clears a namespace, `--*: initial;` clears the whole default theme |
+| Custom utilities | `@utility name { ... }` (works with all variants); functional `@utility tab-* { tab-size: --value(integer, --default(4)); }` with `--value()` and `--modifier()` |
+| Custom variants | `@custom-variant dark (&:where(.dark, .dark *));`, block form with `@slot`; `@variant dark { ... }` applies a variant inside custom CSS; 4.3 allows stacked and compound `@variant` |
+| Sources | Automatic detection scans the project (respecting `.gitignore`, skipping `node_modules`, binaries, CSS and lockfiles). `@source "../path"`, `@source not "../legacy"`, `@source inline("{hover:,}bg-red-{50,{100..900..100},950}")`, `@import "tailwindcss" source("../src")`, `source(none)` |
+| Build integrations | `@tailwindcss/vite` (preferred with Vite), `@tailwindcss/postcss` (Next.js and other PostCSS hosts), `@tailwindcss/cli`, plus `@tailwindcss/webpack` and `@tailwindcss/turbopack` packages; `@tailwindcss/browser` is for prototyping |
+| Colors | Default palette in OKLCH; 4.2 added mauve, olive, mist and taupe. `--alpha(var(--color-x) / 50%)` and opacity modifiers such as `bg-black/50` compile to `color-mix()` |
+| Layout features | Container queries built in (`@container`, `@sm:`, `@max-md:`, `@min-[475px]:`, named `@container/main` with `@sm/main:`), `not-*`, `in-*`, `nth-*`, `inert`, `starting:`; logical-property utilities (`pbs-*`, `mbs-*`, `inline-*`, `block-*`) since 4.2; `scrollbar-*`, `zoom-*` since 4.3 |
+| Compatibility | `@config "./tailwind.config.js"` and `@plugin "@tailwindcss/typography"` load v3-style config and plugins; `corePlugins`, `safelist` and `separator` are not supported |
+| Browser baseline | Safari 16.4, Chrome 111, Firefox 128 (relies on `@property`, `color-mix()`, cascade layers) |
+| Tooling | `npx @tailwindcss/upgrade` for v3 to v4, `tailwindcss canonicalize` to normalize class lists, `prettier-plugin-tailwindcss` for ordering, `eslint-plugin-better-tailwindcss` for lint rules |
 
-- Tailwind 3.4+ feature set including `has-*`, `group-has-*`, `peer-has-*`, logical properties, subgrid, and the v4 alpha engine considerations.
-- Installation: PostCSS plugin, standalone CLI, Vite plugin, and Next.js built-in integration.
-- Configuration: `tailwind.config.ts`, `content` paths, `theme` extension, `presets`, `darkMode` strategy (`'class'`, `'selector'`, `'media'`).
-- Core utilities: layout, flexbox, grid, spacing, sizing, typography, colors, borders, backgrounds, effects, filters, tables, transitions, transforms, animation, interactivity, SVG.
-- Responsive design: `sm`, `md`, `lg`, `xl`, `2xl` mobile-first breakpoints; custom breakpoints for design specs.
-- Dark mode: `class` strategy with a toggle, `prefers-color-scheme` fallback, custom variants for multi-theme.
-- Arbitrary values: square brackets, arbitrary properties, arbitrary variants, `theme()` inside arbitrary values.
-- Variants: `hover`, `focus`, `active`, `group-hover`, `peer-checked`, `has-*`, `focus-within`, `first`, `last`, `odd`, `even`, `file`, `marker`, `selection`, custom variants.
-- Plugins: `@tailwindcss/typography`, `@tailwindcss/forms`, `@tailwindcss/aspect-ratio`, `@tailwindcss/line-clamp`, `@tailwindcss/container-queries`, custom plugins.
-- `@apply`: when to use (rare), when not to use (almost always).
-- `@layer`: `base`, `components`, `utilities`; correct placement of custom CSS.
-- `@screen` and `@variant` (v4) directives.
-- `theme()` and `screen()` functions in custom CSS.
-- Custom theme: `extend` vs override, semantic color tokens, design tokens with CSS variables.
-- Component patterns: `@apply` composition, external composition with `clsx` + `tailwind-merge` (`cn`), `cva` variants, `tailwind-variants` library.
-- shadcn/ui integration: CSS variable theming, `cn` utility, Radix compatibility.
-- Next.js integration: built-in PostCSS, `tailwind.config.ts` at the root, font integration with `next/font`.
-- JIT vs AOT (v4 engine): performance characteristics, build-time generation.
-- Performance: `content` configuration, source detection, purge accuracy, dead CSS elimination.
-- Container queries: `@container`, `@sm`, `@md`, `@lg` variants, `@container` naming.
-- Data attribute variants: `data-[state=open]:`, `group-data-[state=open]:`, `peer-data-[state=open]:`.
+## 3. Workflow
 
-## 4. Responsibilities
+1. Check browser support requirements. If Safari below 16.4, Chrome below 111 or Firefox below 128 matters, stay on v3.4.
+2. Install the integration that matches the build tool: `tailwindcss` plus `@tailwindcss/vite`, `@tailwindcss/postcss` or `@tailwindcss/cli`.
+3. Create one entry stylesheet with `@import "tailwindcss";` and import it once from the app entry.
+4. Put design tokens in `@theme` (colors in OKLCH, fonts, breakpoints, easing, animations); reference them through utilities, not hard-coded values.
+5. Write components with complete, static class strings; map props to class names through lookup objects or `cva`.
+6. Add custom utilities (`@utility`) and variants (`@custom-variant`) for repeated patterns instead of long arbitrary values or `@apply` chains.
+7. Set the dark mode strategy (media query default, or `@custom-variant dark` with a class or data attribute) before building dark styles.
+8. Add `prettier-plugin-tailwindcss` with `tailwindStylesheet` pointing at the entry CSS and check the production build output size.
+9. For migrations, run the upgrade tool on a clean branch, then read the diff using [references/upgrade-from-v3.md](references/upgrade-from-v3.md).
 
-- Define the `tailwind.config.ts` token architecture: colors, spacing, typography, shadows, radii, motion.
-- Author the `cn` utility (`clsx` + `tailwind-merge`) and ensure every component uses it.
-- Author `cva`-based component variants for every reusable UI primitive.
-- Establish dark mode strategy and the toggle mechanism.
-- Define the responsive and container-query conventions per design spec.
-- Review every PR for token discipline; reject inline arbitrary values when tokens exist.
-- Tune the `content` paths for accurate purge; verify zero dead CSS in production.
-- Lead the migration from CSS Modules / Styled Components / Emotion to Tailwind.
-- Document the design system in Storybook with Tailwind-powered stories.
-- Operate the production CSS budget; alert when the bundle exceeds 30 KB gzipped.
+## 4. Decision Rules
 
-## 5. Thinking Process
+- Vite project: `@tailwindcss/vite`. Other PostCSS pipelines (including Next.js): `@tailwindcss/postcss`. No bundler: `@tailwindcss/cli`. Do not combine two integrations.
+- Remove `postcss-import` and `autoprefixer` when using `@tailwindcss/postcss`; v4 handles imports and vendor prefixes.
+- Token that should create a utility: `@theme`. Plain variable that should not: `:root { --x: ... }`.
+- A theme variable that references another variable (for example `--font-sans: var(--font-inter)`): use `@theme inline`.
+- Repeated class combination: component abstraction (React/Vue component, partial) first; `@utility` when it is a single-purpose CSS pattern; `@apply` mainly for third-party markup you do not control.
+- Variant depends on state or attributes: `@custom-variant`. A one-off selector: arbitrary variant `[&>svg]:size-4`.
+- Dark mode: media query default for system-only; `@custom-variant dark (&:where(.dark, .dark *));` or `[data-theme=dark]` for a user toggle.
+- Container queries (`@container` + `@md:`) for components that live in different layout widths; viewport breakpoints for page-level layout.
+- Spacing between children: prefer `flex`/`grid` with `gap-*` over `space-x-*`/`space-y-*` (selector changed in v4).
+- Classes that exist only at runtime (CMS-provided names): `@source inline(...)` safelist with explicit ranges, or avoid driving styles from arbitrary strings.
+- Tailwind with Sass, Less or Stylus: not supported; use native CSS nesting and variables.
+- CSS modules, Vue/Svelte `<style>` blocks needing `@apply`: add `@reference "../app.css";` (or `@reference "tailwindcss";`) at the top, or use `var(--color-*)` directly. Each separately processed stylesheet costs a Tailwind run, so prefer utilities in markup.
 
-Every styling decision begins with the token: is this color, spacing, radius, or shadow in the config? If yes, use the token. If no, ask whether it should be a token (reused three or more times) or an arbitrary value (one-off).
+## 5. Coding Standards
 
-Every component decision begins with the variant: does this component have visual variants (size, intent, state)? If yes, encode them in `cva` and consume via the component's `className` prop merged with `cn`. If no, a single `className` prop suffices.
+- Class names appear as complete literal strings in source files. Never build them from fragments (`` `bg-${color}-500` ``); use lookup objects of full class strings.
+- Order classes with `prettier-plugin-tailwindcss`; do not hand-sort. Configure `tailwindFunctions` for helper names such as `cn`, `cva` and `clsx`.
+- Use the v4 syntax: `shadow-xs`, `rounded-xs`, `outline-hidden`, `ring-3`, opacity modifiers (`bg-black/50`), important suffix (`flex!`), variable shorthand with parentheses (`bg-(--brand)`), and variants stacked left to right (`dark:hover:bg-brand-600`).
+- Define colors in OKLCH when adding tokens; name tokens by role when possible (`--color-surface`, `--color-accent`) and map raw palette values underneath.
+- Keep `@theme` at the top level of the stylesheet, not nested in selectors or media queries.
+- Prefer theme variables over the deprecated `theme()` function; in CSS write `var(--color-red-500)`, and `theme(--breakpoint-xl)` only inside media queries.
+- Use logical utilities (`ms-*`, `me-*`, `ps-*`, `pe-*`, `inline-*`, `block-*`) for layouts that must support right-to-left text.
+- Keep arbitrary values (`w-[137px]`) rare; add a theme token when a value repeats.
+- Write interactive states with `hover:`, `focus-visible:`, `disabled:`, `aria-*:` and `data-*:` variants rather than JavaScript-driven class toggling where possible.
 
-Every responsive decision begins with mobile-first: write the base styles, then layer `sm:`, `md:`, `lg:` overrides. Container queries replace media queries when the component's layout depends on its container, not the viewport.
-
-The master then validates against production: does the build emit under 30 KB gzipped? Does Lighthouse report zero unused CSS? Does dark mode toggle without flash? Does the design match the Figma spec to the pixel?
-
-## 6. Decision Making Rules
-
-- When semantic tokens and raw hex values conflict, choose semantic tokens because they enable theming and dark mode without code changes.
-- When `cva` and inline conditional classes conflict, choose `cva` because variants are auditable and type-safe.
-- When `@apply` and `cn` conflict, choose `cn` because runtime composition preserves source order and supports consumer overrides.
-- When container queries and media queries conflict, choose container queries when the component is context-aware because media queries break component reuse.
-- When `class` and `media` dark mode strategies conflict, choose `class` because user-toggleable themes require explicit control.
-- When arbitrary values and tokens conflict, choose tokens when the value is reused three or more times because tokens are auditable.
-- When `extend` and override conflict, choose `extend` because override breaks downstream presets.
-- When `@layer base` and inline styles conflict, choose `@layer base` for resets and typography because layering controls cascade.
-- When plugins and custom CSS conflict, choose plugins because they integrate with the variant system.
-- When `theme()` in arbitrary values and CSS variables conflict, choose CSS variables for runtime theming because they update without rebuilds.
-
-## 7. Architecture Rules
-
-- Always define semantic color tokens in `theme.extend.colors` backed by CSS variables.
-- Always use the `class` dark mode strategy with a `.dark` selector on `<html>`.
-- Always scope `content` paths to actual source files; never include `node_modules` blindly.
-- Always layer custom CSS in `@layer base`, `@layer components`, or `@layer utilities`; never write unlayered CSS.
-- Always export a `cn` utility from `lib/utils/cn.ts` and use it in every component.
-- Always encode component variants in `cva` and export the variant type.
-- Always consume tokens via utility classes; never hard-code hex values in components.
-- Always pair container queries with named containers when a component has multiple nested contexts.
-- Always document token additions in the design system README.
-- Never use `@apply` to compose across component boundaries.
-
-## 8. Coding Standards
-
-- Always use `tailwind.config.ts` (TypeScript) over `.js` for type safety.
-- Always define a strict `content` array; verify with `npx tailwindcss --content-check`.
-- Always use semantic color names (`background`, `foreground`, `primary`, `muted`) over palette names (`gray-500`).
-- Always use `cn` for runtime class composition.
-- Always define `cva` variants outside the component for testability.
-- Always use the `class:` strategy for dark mode with a toggle on `<html>`.
-- Always use mobile-first responsive prefixes.
-- Always prefer container queries for context-aware components.
-- Always use `data-*` attributes and `data-[attr=value]:` variants for state-driven styling.
-- Always use `@layer base` for global resets and typography defaults.
-- Always use `@layer components` for compound class compositions via `@apply` (rare).
-- Always use `@layer utilities` for custom utilities that should override components.
-
-## 9. Naming Conventions
-
-- Tokens: semantic kebab-case (`background`, `foreground`, `primary`, `primary-foreground`, `muted`, `border`, `ring`).
-- CSS variables: `--background`, `--foreground`, `--primary`, `--radius`, `--ring`; namespace per theme.
-- Custom utilities: kebab-case (`scrollbar-hide`, `text-balance`).
-- Component variants: `cva` base plus `variants` object with keys like `size`, `variant`, `intent`.
-- Variant values: kebab-case (`'sm'`, `'md'`, `'lg'`, `'destructive'`, `'outline'`).
-- Files: `kebab-case.tsx` for components; `tailwind.config.ts` at the root.
-- Directories: `kebab-case` for feature folders; `lib/utils/` for the `cn` utility.
-- Custom variants: kebab-case (`mobile`, `tablet`, `desktop` if custom breakpoints).
-- Container names: kebab-case (`@container/sidebar`, `@container/card`).
-- Dark mode: `.dark` class on `<html>`; never `.dark-mode` or `.theme-dark`.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-src/
-├── styles/
-│   ├── globals.css           # @tailwind base/components/utilities, @layer
-│   └── themes.css            # CSS variables for light/dark
-├── lib/
-│   └── utils/
-│       ├── cn.ts             # clsx + tailwind-merge
-│       └── variants.ts       # Shared cva definitions
-├── components/
-│   ├── ui/                   # Button, Input, Dialog with cva
-│   │   ├── button.tsx
-│   │   ├── button.variants.ts
-│   │   └── index.ts
-│   ├── data/                 # DataTable, lists
-│   └── feedback/             # Toast, Skeleton
-├── features/
-│   ├── auth/
-│   │   └── components/
-│   └── billing/
-├── hooks/
-├── stores/
-├── types/
-└── tailwind.config.ts        # At project root
-```
-
-## 11. Project Structure
-
-```
-my-app/
-├── .github/workflows/
-│   ├── ci.yml
-│   └── lighthouse.yml
-├── public/
-│   └── images/
+.
+├── package.json
+├── vite.config.ts              # @tailwindcss/vite plugin (or postcss.config.mjs)
+├── .prettierrc.json            # prettier-plugin-tailwindcss + tailwindStylesheet
 ├── src/
 │   ├── styles/
-│   ├── lib/utils/
+│   │   ├── app.css             # @import "tailwindcss"; @source; @plugin; dark variant
+│   │   ├── theme.css           # @theme tokens (importable by other apps/packages)
+│   │   ├── utilities.css       # @utility definitions
+│   │   └── base.css            # @layer base element defaults
 │   ├── components/
-│   ├── features/
-│   ├── hooks/
-│   ├── stores/
-│   └── types/
-├── tests/
-│   ├── visual/               # Chromatic snapshots
-│   └── e2e/
-├── .eslintrc.cjs
-├── .prettierrc
-├── next.config.ts
-├── package.json
-├── playwright.config.ts
-├── postcss.config.js
-├── tailwind.config.ts
-├── tsconfig.json
-└── vitest.config.ts
+│   │   └── button.tsx          # cva variants with full class strings
+│   ├── lib/cn.ts               # clsx + tailwind-merge helper
+│   └── main.tsx                # imports styles/app.css once
+└── index.html
 ```
 
-## 12. Design Patterns
+## 7. Design Patterns
 
-### Semantic Token Layer
-When to use: every project. When not to use: never. Sketch: `colors: { background: 'hsl(var(--background))', primary: 'hsl(var(--primary))' }` with CSS variables per theme.
+- **Token layer**: `theme.css` holds `@theme` tokens; apps import it (`@import "../brand/theme.css";`) so several projects share one design language. In a design system, reset the defaults with `--color-*: initial;` and define only the palette you ship.
+- **Semantic color variables**: raw palette in `@theme`, role variables switched per theme (`--surface`) and exposed with `@theme inline { --color-surface: var(--surface); }`, so `bg-surface` follows the active theme without `dark:` variants everywhere.
+- **Variant maps**: component props map to full class strings with `cva`; `tailwind-merge` resolves conflicts when callers pass extra classes.
+- **Container-driven components**: mark the component root with `@container` and size internals with `@sm:`/`@md:`, so the same card works in a sidebar and in a main column.
+- **Custom utilities for repeated CSS**: `@utility scrollbar-hidden { ... }` keeps variants working (`md:scrollbar-hidden`).
+- **Functional utilities**: `@utility tab-* { tab-size: --value(integer, --default(4)); }` gives `tab`, `tab-2`, `tab-[8]` and theme-driven values.
+- **Data and ARIA variants**: style from attributes (`aria-expanded:rotate-90`, `data-[state=open]:block`, `group-data-[open]:...`) to keep state in markup attributes that assistive tech also reads.
+- **Safelist by range**: `@source inline("{hover:,}bg-red-{50,{100..900..100},950}")` for classes that cannot appear literally in source.
+- Details: [references/v4-configuration.md](references/v4-configuration.md) and [references/patterns-and-tooling.md](references/patterns-and-tooling.md).
 
-### cva Variant Component
-When to use: any component with visual variants. When not to use: single-style components. Sketch: `const buttonVariants = cva('base', { variants: { size: { sm: '...', md: '...' }, variant: { default: '...', destructive: '...' } }, defaultVariants: { size: 'md', variant: 'default' } })`.
+## 8. Best Practices
 
-### cn Composition Utility
-When to use: every component that accepts a `className` prop. When not to use: never. Sketch: `export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }`.
+- Keep design decisions in tokens: spacing scale (`--spacing`), type scale (`--text-*`), radii, shadows, easing, and breakpoints.
+- Use Preflight's resets as the base; add project defaults in `@layer base` (heading sizes, link colors) instead of per-element overrides.
+- Test content at the smallest and largest container sizes, with long words and RTL text.
+- Respect user preferences: `motion-reduce:`, `prefers-contrast` variants (`contrast-more:`), `forced-colors:`, and dark mode.
+- Use `outline-hidden` (not `outline-none`) when replacing the default focus outline so forced-colors mode still shows focus, and always provide a visible `focus-visible:` style.
+- Use the `sr-only` utility for screen-reader text and `not-sr-only` to undo it.
+- Document custom utilities and tokens next to their definition with a one-line comment.
+- Version-pin `tailwindcss` and all `@tailwindcss/*` packages to the same version.
 
-### Container Query Component
-When to use: components that adapt to their container width. When not to use: viewport-dependent layout. Sketch: `<div className="@container"><div className="@sm:grid-cols-2 @lg:grid-cols-3">...</div></div>`.
+## 9. Performance
 
-### Data-Attribute State
-When to use: state-driven styling from Radix or custom. When not to use: ephemeral state better suited to inline conditionals. Sketch: `data-[state=open]:animate-in data-[state=closed]:animate-out`.
+- Tailwind generates only the CSS for classes it finds, so build size follows usage; check the production CSS size after adding safelists (`@source inline` ranges emit every listed class and variant).
+- The v4 engine is a Rust-based scanner plus Lightning CSS; the v4.0 release notes report builds up to 5x faster for full builds and over 100x faster for incremental builds.
+- Limit scanning: `@source not "./legacy"` and `@import "tailwindcss" source("../src")` in monorepos where the build runs from the repository root; `source(none)` plus explicit `@source` entries for multi-stylesheet projects.
+- Avoid one Tailwind run per CSS module or component style block (`@reference` makes each a separate compile); keep styling in utilities.
+- Use native CSS features the framework already flattens (nesting, variables, `color-mix()`) rather than preprocessors.
+- Prefer `gap` and `grid` over `space-*`/`divide-*` on large lists.
+- Ship the compiled CSS as one cacheable file with content hashing; avoid runtime compilation (`@tailwindcss/browser`) in production.
 
-### Dark Mode Toggle
-When to use: any user-facing app. When not to use: single-theme dashboards. Sketch: `<html class="dark">` toggled by `next-themes`, with `dark:` variants in components.
+## 10. Security
 
-### @layer Base Reset
-When to use: global typography and resets. When not to use: component styles. Sketch: `@layer base { body { @apply bg-background text-foreground; } }`.
+- Production CSS should be a static file; keep `style-src 'self'` in the Content-Security-Policy and do not add `unsafe-inline` for Tailwind. `@tailwindcss/browser` compiles styles in the browser at runtime, so use it only for prototypes and demos.
+- The dark-mode toggle snippet is commonly inlined in `<head>`; serve it as an external script or protect an inline copy with a nonce or hash.
+- `@plugin` and `@config` execute JavaScript from packages or files at build time. Treat them like any build dependency: pin versions, review sources, and do not load plugins from untrusted paths.
+- Pin and audit `tailwindcss`, `@tailwindcss/*`, `prettier-plugin-tailwindcss`, `tailwind-merge`, and CDN-hosted scripts (use Subresource Integrity if a CDN script is unavoidable).
+- User-controlled HTML (CMS, Markdown, comments) can carry class attributes such as `fixed inset-0 z-50` that overlay the page. Sanitize HTML with an allowlist that strips `class` (or restricts it), and scope typography output (`prose`) to a sanitized container.
+- Never interpolate user input into class names or `@source`/`@import` paths; class names should come from fixed lookup tables.
+- Do not put secrets in CSS custom properties or theme variables; the stylesheet is public.
+- Review third-party CSS imported with `@import url(...)`; prefer local copies.
 
-## 13. Best Practices
+## 11. Testing
 
-- Always use TypeScript config (`tailwind.config.ts`).
-- Always scope `content` to source files; run `npx tailwindcss --content-check` in CI.
-- Always use semantic tokens backed by CSS variables.
-- Always use the `class` dark mode strategy with `next-themes`.
-- Always use `cn` for runtime class composition.
-- Always define `cva` variants outside the component.
-- Always use mobile-first responsive prefixes.
-- Always prefer container queries for context-aware components.
-- Always use `data-*` attributes and `data-[attr=value]:` variants for state.
-- Always layer custom CSS in `@layer`.
-- Always verify production CSS is under 30 KB gzipped.
-- Always use `prefers-reduced-motion` for non-essential animations.
+- Build check in CI: compile the CSS (`vite build`, `@tailwindcss/cli --minify`) and fail on errors; unknown utilities in `@apply` abort the build.
+- Snapshot or assert on critical generated rules by building a small fixture stylesheet and searching the output for expected selectors (for example `.btn-primary`, a custom `@utility`, a safelisted class).
+- Use `npx @tailwindcss/cli canonicalize "px-4 py-4"` to verify class lists collapse to canonical forms (`p-4`) when cleaning up code.
+- Visual regression tests (Playwright screenshots) for components in light, dark and narrow-container states; accessibility checks (axe) for contrast and focus.
+- Lint with `eslint-plugin-better-tailwindcss` (unknown classes, conflicting classes, canonical form) and format with Prettier.
+- For migrations, run the upgrade tool on a branch, build, and compare screenshots against v3 for pages that use `space-*`, `divide-*`, `ring`, `shadow-sm`, `border` without a color, and buttons.
 
-## 14. Anti Patterns
+## 12. Review Checklist
 
-### Anti-pattern: Hard-coded hex values
-Why wrong: breaks theming and dark mode; cannot be audited. Correct alternative: semantic tokens (`bg-primary`, `text-muted-foreground`).
+- [ ] One entry stylesheet imports `tailwindcss`; no `@tailwind` directives, `postcss-import` or `autoprefixer` left.
+- [ ] All class names are complete literals or come from lookup maps; no string-built classes.
+- [ ] Tokens live in `@theme` at top level; variable-referencing tokens use `@theme inline`.
+- [ ] Dark mode strategy is explicit (`@custom-variant dark` if class or attribute based).
+- [ ] v4 renames applied (`shadow-xs`, `rounded-xs`, `outline-hidden`, `ring-3`, `flex!`, `bg-(--x)`); no removed utilities (`bg-opacity-*`, `flex-grow`, `overflow-ellipsis`).
+- [ ] Borders, dividers and rings specify a color (default is `currentcolor`).
+- [ ] `@source` entries cover external UI libraries in `node_modules`; ignored paths are intentional.
+- [ ] Focus-visible styles exist; reduced-motion and forced-colors considered.
+- [ ] Prettier plugin configured with `tailwindStylesheet`; CI builds the CSS.
+- [ ] No untrusted input in class names; CSP has no `unsafe-inline` for styles.
 
-### Anti-pattern: `@apply` for cross-cutting concerns
-Why wrong: hides source order, breaks consumer overrides, harder to debug. Correct alternative: `cn` composition or a `cva` variant.
+## 13. Production Notes
 
-### Anti-pattern: Inline conditional className strings
-Why wrong: un-auditable, no type safety, hard to test. Correct alternative: `cva` variants with named keys.
+- Vite and PostCSS builds optimize and minify CSS in production mode; with the CLI pass `--minify` (or `--optimize`).
+- Output uses cascade layers and `@property`, so serve the CSS to supported browsers only; there is no automatic fallback for older ones.
+- `npx @tailwindcss/upgrade` needs Node.js 20 or newer; run it in a new branch with a clean working tree so the diff is reviewable. It rewrites config to CSS, templates and dependencies, but it can leave things for manual follow-up (see the reference).
+- The upgrade tool cannot process `@apply` of utilities removed in v4 (for example `bg-opacity-50`); replace them with opacity modifiers before running it.
+- Source detection reads `.gitignore`; a dependency listed there is skipped unless registered with `@source`.
+- Monorepo packages that ship Tailwind classes need consumers to register them with `@source "../node_modules/@acme/ui"` (or the workspace path).
+- Cascade-layer order is `theme, base, components, utilities`; unlayered third-party CSS beats layered rules, so import third-party CSS inside a layer (`@import "lib.css" layer(components);`) when you need utilities to win.
+- Details: [references/upgrade-from-v3.md](references/upgrade-from-v3.md).
 
-### Anti-pattern: Media queries for context-aware components
-Why wrong: breaks component reuse across layouts. Correct alternative: container queries.
+## 14. Examples
 
-### Anti-pattern: Unscoped `content` paths
-Why wrong: generates classes from dependencies, inflates bundle. Correct alternative: explicit source paths only.
-
-### Anti-pattern: Override instead of extend
-Why wrong: breaks downstream presets and shadcn/ui updates. Correct alternative: `theme.extend`.
-
-## 15. Performance Rules
-
-- Always scope `content` to actual source files; never include `node_modules` or build output.
-- Always run `npx tailwindcss --content-check` in CI.
-- Always verify production CSS is under 30 KB gzipped.
-- Always use `@layer` to control cascade and purge correctness.
-- Always purge unused variants by removing unused `corePlugins` (e.g., `preflight` only if needed).
-- Always use `next/font` with `display: swap` for fonts.
-- Always preload the LCP image and set `fetchpriority="high"`.
-- Always set `aspect-ratio` or `width`/`height` on media to prevent CLS.
-
-## 16. Security Rules
-
-- Never inline user-supplied strings into `className` without sanitization.
-- Always validate dynamic class names against an allowlist when constructing from data.
-- Never use `dangerouslySetInnerHTML` with Tailwind-styled content from untrusted sources.
-- Always escape dynamic content in `content-['...']` arbitrary values.
-- Always sanitize user input rendered into `style` attributes.
-- Always audit custom plugins for injection of untrusted content.
-- Always use `@layer` to prevent accidental override of security-critical styles (e.g., `display: none` on auth forms).
-- Never store tokens or theme secrets in client-visible CSS variables.
-
-## 17. Testing Strategy
-
-- Always snapshot visual regression with Chromatic or Percy.
-- Always test `cva` variants with `getVariants()` unit tests.
-- Always test the `cn` utility for conflict resolution.
-- Always test dark mode toggle in E2E.
-- Always test responsive layouts at `sm`, `md`, `lg`, `xl` breakpoints in Playwright.
-- Always test container query components at multiple widths.
-- Always verify accessibility of color combinations with axe.
-- Always test that production build has no dead CSS (Lighthouse audit).
-- Always test that `prefers-reduced-motion` disables non-essential animations.
-- Always test keyboard focus styles are visible.
-
-## 18. Documentation Standards
-
-- Document every semantic token in the design system README.
-- Document every `cva` variant with a Storybook story.
-- Document the dark mode strategy and toggle mechanism.
-- Document the responsive and container-query conventions.
-- Document the `cn` utility and when to use it.
-- Document `@layer` usage and custom CSS placement.
-- ADRs record token additions, plugin additions, and major refactors.
-- `CHANGELOG.md` records breaking token or variant changes.
-
-## 19. Code Review Checklist
-
-- [ ] No hard-coded hex values; semantic tokens used.
-- [ ] `cn` used for runtime class composition.
-- [ ] `cva` variants defined outside the component.
-- [ ] Dark mode variants present where color is used.
-- [ ] Responsive prefixes are mobile-first.
-- [ ] Container queries used for context-aware layout.
-- [ ] `data-[state=*]:` variants used for state-driven styling.
-- [ ] No unscoped `content` paths in `tailwind.config.ts`.
-- [ ] `@layer` used for custom CSS.
-- [ ] `@apply` used sparingly with justification.
-- [ ] No `!important` without a documented reason.
-- [ ] No arbitrary values where tokens exist.
-- [ ] Production CSS under 30 KB gzipped.
-- [ ] Lighthouse reports zero unused CSS.
-- [ ] Dark mode toggle works without flash.
-- [ ] `prefers-reduced-motion` respected.
-- [ ] Focus-visible styles present.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace hard-coded hex values with semantic tokens.
-- [ ] Replace inline conditional classes with `cva` variants.
-- [ ] Replace `@apply` chains with `cn` composition.
-- [ ] Replace media queries with container queries where appropriate.
-- [ ] Replace unscoped `content` with explicit source paths.
-- [ ] Replace `theme.extend` overrides with additive extensions.
-- [ ] Migrate CSS Modules to Tailwind utilities.
-- [ ] Migrate Styled Components to Tailwind with `cn`.
-- [ ] Consolidate duplicate `cva` definitions into shared variants.
-- [ ] Remove unused custom utilities and plugins.
-
-## 21. Deployment Checklist
-
-- [ ] `tailwindcss` build completes with zero warnings.
-- [ ] Production CSS purged; verified with Lighthouse "unused CSS" audit.
-- [ ] Production CSS under 30 KB gzipped.
-- [ ] `content` paths scoped; `--content-check` passes.
-- [ ] Source maps generated for production debugging.
-- [ ] CDN configured for CSS with immutable cache headers.
-- [ ] Dark mode SSR-correct; no flash of incorrect theme.
-- [ ] Fonts loaded with `display: swap` and preloaded.
-- [ ] LCP image preloaded with `fetchpriority="high"`.
-- [ ] `prefers-reduced-motion` respected.
-- [ ] `prefers-color-scheme` fallback configured.
-- [ ] Visual regression snapshots approved.
-- [ ] Lighthouse budget diff attached to the PR.
-- [ ] Bundle analyzer confirms no duplicate Tailwind builds.
-- [ ] `tailwind.config.ts` validated in CI.
-- [ ] Storybook built and published.
-
-## 22. Production Checklist
-
-- [ ] Visual regression baseline current.
-- [ ] Dark mode tested across all routes.
-- [ ] Responsive layouts tested at all breakpoints.
-- [ ] Container query components tested at multiple widths.
-- [ ] Color contrast meets WCAG 2.2 AA.
-- [ ] Focus-visible styles present and visible.
-- [ ] `prefers-reduced-motion` respected globally.
-- [ ] Print stylesheet present for key flows.
-- [ ] Production CSS cached immutably on the CDN.
-- [ ] Font loading strategy verified (no FOIT, minimal FOUT).
-- [ ] LCP image optimized and preloaded.
-- [ ] No layout shift on image load.
-- [ ] No dead CSS in production.
-- [ ] Theme tokens documented and versioned.
-- [ ] `cn` utility tested.
-- [ ] `cva` variants tested and snapshotted.
-
-## 23. Logging Strategy
-
-- Always log theme changes (light/dark) for analytics.
-- Always log container query breakpoint crossings for layout analytics.
-- Always log font load failures with the font family name.
-- Always log CLS contributions per element with the offending class.
-- Always log LCP element class names for correlation.
-- Always log dead CSS percentage from Lighthouse in CI.
-- Always log CSS bundle size per route.
-- Always log `prefers-reduced-motion` adoption.
-- Always log dark mode adoption.
-- Never log user-supplied class names without sanitization.
-
-## 24. Monitoring Strategy
-
-- Always monitor production CSS bundle size per route.
-- Always alert when CSS exceeds 30 KB gzipped.
-- Always monitor CLS; alert when p75 exceeds 0.1.
-- Always monitor LCP; alert when p75 exceeds 2.5 s.
-- Always monitor dark mode adoption and toggle failures.
-- Always monitor font load success rate.
-- Always monitor `prefers-reduced-motion` adoption.
-- Always monitor dead CSS percentage from Lighthouse CI.
-- Always monitor visual regression snapshot failures.
-- Always run Lighthouse CI on every PR.
-
-## 25. Error Handling
-
-- Always validate `cn` inputs gracefully; never throw on invalid class values.
-- Always provide a fallback theme when CSS variables are missing.
-- Always render a noscript fallback for theme toggle.
-- Always handle font load failure with a system font fallback.
-- Always handle image load failure with an `onError` fallback.
-- Always handle container query failure with a media query fallback.
-- Always handle `prefers-color-scheme` when `class` is unset.
-- Always log theme initialization errors with the theme name.
-- Always validate `cva` variant inputs at runtime in development.
-- Always render an error boundary for components that depend on theme.
-
-## 26. Examples
-
-### Example 1: Semantic tokens with CSS variables
+Entry stylesheet with tokens, semantic colors, a data-attribute dark variant, a functional utility and a component (compiled with tailwindcss 4.3.3):
 
 ```css
-/* src/styles/themes.css */
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  --primary: 222 47% 11%;
-  --primary-foreground: 210 40% 98%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --border: 214 32% 91%;
-  --ring: 222 47% 11%;
-  --radius: 0.5rem;
+@import "tailwindcss";
+
+@source "../node_modules/@acme/ui";          /* classes inside a gitignored dependency */
+@source not "./legacy";                        /* directory without Tailwind classes */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  --font-display: "Satoshi", sans-serif;
+  --breakpoint-3xl: 120rem;
+  --color-brand-500: oklch(0.62 0.19 259);
+  --color-brand-600: oklch(0.55 0.2 259);
+  --ease-snappy: cubic-bezier(0.2, 0, 0, 1);
+  --animate-fade-in: fade-in 0.2s var(--ease-snappy);
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 }
 
-.dark {
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-  --primary: 210 40% 98%;
-  --primary-foreground: 222 47% 11%;
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
-  --border: 217 33% 20%;
-  --ring: 215 20% 65%;
+/* Role-based colors that change with the theme; inline so utilities use the variable reference */
+@theme inline {
+  --color-surface: var(--surface);
+}
+:root { --surface: oklch(0.99 0 0); }
+[data-theme="dark"] { --surface: oklch(0.2 0.02 260); }
+
+@utility tab-* {
+  tab-size: --value(integer, --default(4));    /* tab, tab-2, tab-[8] */
+}
+
+@utility scrollbar-hidden {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-lg bg-brand-500 px-4 py-2 font-medium text-white hover:bg-brand-600;
+  }
 }
 ```
 
+Vite setup (install `tailwindcss` and `@tailwindcss/vite`):
+
 ```ts
-// tailwind.config.ts
-import type { Config } from 'tailwindcss';
-export default {
-  darkMode: 'class',
-  content: ['./src/**/*.{ts,tsx}'],
-  theme: {
-    extend: {
-      colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
-        muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
-        border: 'hsl(var(--border))',
-        ring: 'hsl(var(--ring))',
-      },
-      borderRadius: {
-        DEFAULT: 'var(--radius)',
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-    },
-  },
-} satisfies Config;
+// vite.config.ts
+import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  plugins: [tailwindcss()],
+});
 ```
 
-### Example 2: cva button with variants
+```css
+/* src/style.css, imported from the app entry or linked from index.html */
+@import "tailwindcss";
+```
+
+PostCSS hosts use `postcss.config.mjs` with `export default { plugins: { "@tailwindcss/postcss": {} } };`. The CLI form is `npx @tailwindcss/cli -i src/app.css -o dist/app.css --minify`.
+
+Component variants with full class strings, `cva` and `tailwind-merge` (type-checked with TypeScript 7):
 
 ```ts
-// src/components/ui/button.variants.ts
-import { cva } from 'class-variance-authority';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { cva, type VariantProps } from "class-variance-authority";
 
-export const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+export const cn = (...inputs: ClassValue[]): string => twMerge(clsx(inputs));
+
+export const button = cva(
+  "inline-flex items-center justify-center rounded-md font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
-      size: {
-        sm: 'h-8 px-3',
-        md: 'h-10 px-4',
-        lg: 'h-12 px-6 text-base',
+      intent: {
+        primary: "bg-blue-600 text-white hover:bg-blue-500 focus-visible:outline-blue-600",
+        danger: "bg-red-600 text-white hover:bg-red-500 focus-visible:outline-red-600",
+        ghost: "bg-transparent text-neutral-900 hover:bg-neutral-100 dark:text-neutral-50 dark:hover:bg-neutral-800",
       },
-      variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        destructive: 'bg-red-600 text-white hover:bg-red-700',
-        outline: 'border border-input bg-background hover:bg-muted',
-        ghost: 'hover:bg-muted',
-      },
+      size: { sm: "h-8 px-3 text-sm", md: "h-10 px-4 text-sm", lg: "h-12 px-6 text-base" },
     },
-    defaultVariants: { size: 'md', variant: 'default' },
+    defaultVariants: { intent: "primary", size: "md" },
   },
 );
+export type ButtonProps = VariantProps<typeof button>;
 
-export type ButtonVariant = ReturnType<typeof buttonVariants>;
+// cn(button({ intent: "danger", size: "lg" }), "px-2 bg-black") keeps only the last px-* and bg-* classes
 ```
 
-```tsx
-// src/components/ui/button.tsx
-import { forwardRef, ButtonHTMLAttributes } from 'react';
-import { cn } from '@/lib/utils/cn';
-import { buttonVariants } from './button.variants';
+## 15. Common Mistakes
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  size?: 'sm' | 'md' | 'lg';
-  variant?: 'default' | 'destructive' | 'outline' | 'ghost';
-}
+- **Dynamic class names** (`` `bg-${color}-600` ``, `"text-" + tone`): Tailwind scans text and never sees the complete class, so no CSS is generated. Use a map of full strings (`{ blue: "bg-blue-600", red: "bg-red-600" }`) or `@source inline(...)`.
+- **Keeping `@tailwind base; @tailwind components; @tailwind utilities;`**: removed in v4. Use `@import "tailwindcss";`.
+- **Leaving `tailwindcss` as the PostCSS plugin**: v4 needs `@tailwindcss/postcss` (and no `postcss-import` or `autoprefixer`).
+- **Expecting `tailwind.config.js` to load automatically**: not detected in v4. Move settings to CSS or load explicitly with `@config`.
+- **Using `@layer utilities { .foo {} }` for custom utilities**: those no longer get variants. Use `@utility foo { ... }`.
+- **Border, divide or ring without a color**: defaults changed to `currentcolor` (and `ring` is 1px). Add colors, or `ring-3` plus an explicit color for the old look.
+- **`outline-none` to remove focus rings**: it now means `outline-style: none`; use `outline-hidden` for the old invisible-outline behavior and keep a visible focus style.
+- **`@apply` in CSS modules, Vue or Svelte style blocks without `@reference`**: theme, utilities and variants from other files are not available there.
+- **Referencing a variable-based token without `@theme inline`**: the utility resolves the variable where it is defined and can fall back unexpectedly.
+- **Sass, Less or Stylus pipelines**: not supported; remove them before adding Tailwind.
+- **Old stacking order**: variants apply left to right in v4 (`*:first:pt-0` instead of v3's `first:*:pt-0`); reverse order-sensitive stacks from v3.
+- **Relying on `hover:` for touch devices**: in v4 `hover` applies only when the primary input supports hover; restore the old behavior with `@custom-variant hover (&:hover);` only if needed.
+- **Mixing different `@tailwindcss/*` versions**: keep all packages on the same version.
+- **Scanning surprises**: classes in a dependency listed in `.gitignore` or `node_modules` are skipped; register it with `@source`.
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, size, variant, ...props }, ref) => (
-    <button ref={ref} className={cn(buttonVariants({ size, variant }), className)} {...props} />
-  ),
-);
-Button.displayName = 'Button';
-```
+## 16. References
 
-### Example 3: Container query component
-
-```tsx
-// src/components/data/card-grid.tsx
-import { cn } from '@/lib/utils/cn';
-
-export function CardGrid({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn('@container', className)}>
-      <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4">
-        {children}
-      </div>
-    </div>
-  );
-}
-```
-
-## 27. Common Mistakes
-
-### Mistake: Using `theme.extend.colors` override instead of extend
-What: `colors: { primary: '#000' }` replaces the entire color palette. Why wrong: loses default colors and shadcn/ui tokens. How to avoid: always use `theme.extend.colors`.
-
-### Mistake: Forgetting dark mode variants
-What: `bg-background text-foreground` without `dark:` counterparts. Why wrong: dark mode uses the same tokens but some custom utilities do not. How to avoid: use semantic tokens backed by CSS variables so dark mode requires no extra variants.
-
-### Mistake: `@apply` in component files
-What: `@apply flex items-center` inside a `.button` class in `globals.css`. Why wrong: hides source order, breaks consumer overrides. How to avoid: use `cva` and `cn` for component composition.
-
-### Mistake: Unscoped `content` paths
-What: `content: ['./**/*']` including `node_modules`. Why wrong: generates thousands of unused classes. How to avoid: scope to `./src/**/*.{ts,tsx}`.
-
-### Mistake: Hard-coded hex values in components
-What: `className="bg-[#3b82f6]"`. Why wrong: breaks theming; cannot be audited. How to avoid: define a token and use `bg-primary`.
-
-### Mistake: Media queries for card layouts
-What: `sm:grid-cols-2 md:grid-cols-3` for a card that lives in different containers. Why wrong: breaks when the card is in a sidebar. How to avoid: use container queries.
-
-### Mistake: Inline conditional class strings
-What: `className={`base ${isActive ? 'bg-blue-500' : 'bg-gray-200'}`}`. Why wrong: un-auditable, no type safety. How to avoid: use `cva` variants.
-
-## 28. Professional Workflow
-
-1. Read the design spec and extract tokens (colors, spacing, typography, radii, shadows).
-2. Write `themes.css` with CSS variables for light and dark.
-3. Write `tailwind.config.ts` with semantic tokens referencing the variables.
-4. Write the `cn` utility in `lib/utils/cn.ts`.
-5. Define `cva` variants for every reusable component.
-6. Implement components consuming tokens and variants.
-7. Add Storybook stories for every variant and state.
-8. Add Chromatic visual regression snapshots.
-9. Run `npx tailwindcss --content-check` and verify purge.
-10. Run Lighthouse and verify zero unused CSS.
-11. Open a PR with the CSS bundle size delta.
-12. Address review comments; never bypass token discipline.
-13. Ship behind a feature flag; monitor CLS and LCP.
-14. Document new tokens in the design system README.
-15. Update `CHANGELOG.md` for breaking changes.
-
-## 29. Response Style
-
-- Always answer with code first, prose second.
-- Always state the Tailwind version compatibility for any feature.
-- Always cite the Tailwind documentation when introducing an unfamiliar utility.
-- Always explain trade-offs in terms of theming, performance, and maintainability.
-- Never use hedging language; specify exact conditions.
-- Always propose the simplest token-based solution.
-- Always close with a checklist of next steps for multi-part answers.
-- Always refuse to write code that uses hard-coded values where tokens exist.
-
-## 30. Output Format
-
-- Always prefix code blocks with a language tag (`tsx`, `ts`, `css`).
-- Always include the file path as a comment on the first line.
-- Always separate examples with horizontal rules.
-- Always number workflow steps with ordered lists.
-- Always use checklists for review and deployment sections.
-- Always bold key terms on first use.
-- Always quote documentation references with the URL.
-- Never inline more than 80 characters of code per line.
-- Always conclude with a one-line summary of the change.
-- Always annotate token additions with the design rationale.
+- [references/v4-configuration.md](references/v4-configuration.md): directives and functions, theme namespaces and options, source detection, custom utilities and variants, dark mode, prefixes, plugins, container queries, integrations (Vite, PostCSS, CLI, frameworks) and cascade layers.
+- [references/upgrade-from-v3.md](references/upgrade-from-v3.md): using `@tailwindcss/upgrade`, what it changes, what it leaves, and every v3 to v4 breaking change with replacements.
+- [references/patterns-and-tooling.md](references/patterns-and-tooling.md): class composition helpers, Prettier and ESLint setup, accessibility utilities, theming with CSS variables, third-party CSS and markup, debugging missing classes.
+- Official docs: https://tailwindcss.com/docs , https://tailwindcss.com/docs/upgrade-guide , https://tailwindcss.com/docs/theme , https://tailwindcss.com/docs/detecting-classes-in-source-files , https://tailwindcss.com/docs/functions-and-directives , https://github.com/tailwindlabs/tailwindcss
