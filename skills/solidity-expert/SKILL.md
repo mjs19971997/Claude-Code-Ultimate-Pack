@@ -1,713 +1,381 @@
 ---
 name: solidity-expert
-description: >
-  Authors production-grade Solidity 0.8.x smart contracts with built-in overflow checks, custom errors, gas-optimized storage layouts, Foundry-based testing, and reentrancy-proof upgrade patterns.
-  
-  Use this skill when writing smart contracts, designing DeFi/DAO/NFT systems, or operating blockchain tooling such as Hardhat, Foundry, ethers.js, or Web3.js.
+description: >-
+  Writes and reviews production Solidity 0.8.x smart contracts, including OpenZeppelin Contracts 5.x (ERC20, ERC721, ERC1155, ERC4626, AccessControl, AccessManager, Governor, upgradeable proxies): custom errors, pragma and EVM version choice, storage layout and ERC-7201 namespaced storage, UUPS upgrades, gas optimization, and Foundry tests. Use when working with .sol files, pragma solidity, solc settings, Ownable, ReentrancyGuard, SafeERC20, Initializable, UUPSUpgradeable, TimelockController, storage collisions, or contract size and gas problems. Not for exploit and audit methodology (use smart-contract-security-expert), Foundry or Hardhat project tooling (use foundry-expert, hardhat-expert), or off-chain clients (use ethersjs-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# Solidity Expert
 
----
+This skill covers writing Solidity contracts that are small, explicit and safe to upgrade or keep immutable: language features of 0.8.x, compiler and EVM settings, storage layout, access control, token and governance building blocks from OpenZeppelin Contracts 5.x, gas costs, and tests. It absorbs the former openzeppelin-expert skill; OpenZeppelin details live in a dedicated reference file. Audit techniques, DeFi protocol design and tooling configuration are left to neighbouring skills.
 
-## 1. Role
+> Verified against Solidity 0.8.38 (released 2026-10-22, default EVM version osaka), OpenZeppelin Contracts and Contracts Upgradeable 5.7.0, forge-std master (2026-10).
 
-The Solidity Expert authors, audits, and ships production smart contracts on EVM-compatible chains. This role owns the contract architecture: storage layout, access control, upgrade patterns, and gas optimization. They write Solidity 0.8.x with built-in overflow checks (SafeMath removed), custom errors (since 0.8.4) for gas-efficient reverts, `immutable` and `constant` for one-time-set values, and `receive()`/`fallback()` distinctions.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The expert distinguishes between `assert` (invariant violations, post-0.8 uses 0x01 panic), `require` (input validation, 0xfd error), and `revert` with custom errors (0xa9 selector, gas-efficient). They use `unchecked` blocks only where overflow is mathematically impossible and documented. They treat storage layout as the load-bearing wall of upgradeable contracts — adding variables, reordering, or changing types breaks proxies.
+## 1. Scope
 
-The expert owns the testing strategy: Foundry `forge test` with fuzzing, invariant testing, mainnet forking, and gas reporting. They verify contracts on Etherscan with standard JSON input (multi-file, not flattened). They deploy via `forge script` with `--broadcast` and deterministic deployment via CREATE2 where reproducible addresses are required.
+- Covered: Solidity language and compiler settings, custom errors, events, inheritance, libraries, inline assembly basics, storage layout, proxies and upgrade safety, OpenZeppelin Contracts 5.x usage, gas costs, unit, fuzz and invariant tests with Foundry, verification and deployment hygiene.
+- Not covered: attack catalogues and audit process (smart-contract-security-expert); Foundry or Hardhat configuration and scripting (foundry-expert, hardhat-expert); client libraries (ethersjs-expert, web3js-expert); protocol design for DeFi, DAOs and NFTs (defi-expert, dao-expert, nft-expert).
 
-## 2. Mission
+## 2. Core Expertise
 
-Deliver Solidity contracts where every function is gas-optimized for the hot path, every external call is guarded against reentrancy, every upgrade preserves storage layout, every test covers the revert paths, and every contract is verifiable on Etherscan with the exact source that was deployed.
+- **Compiler**: 0.8.x has checked arithmetic by default (`unchecked { }` opts out), custom errors (0.8.4), `abi.encodeCall` (0.8.11), `using ... for ... global` (0.8.13), named mapping parameters (0.8.18), `transient` state variables of value types (0.8.28), `layout at <slot>` custom storage layout (0.8.29), `erc7201("id")` builtin (0.8.35). The default EVM version is `osaka` since 0.8.31; set `evm_version` to what the target chain supports.
+- **Deprecations in 0.8.31**: `address.send` and `address.transfer`, virtual modifiers, ABI coder v1, the `memory-safe-assembly` comment (use `assembly ("memory-safe") { }`). Avoid all of them in new code.
+- **Types and locations**: value types, `bytesN`, `string` and `bytes`, structs, mappings, enums, user-defined value types; `storage`, `memory`, `calldata`, `transient`. Prefer `calldata` for read-only external arguments.
+- **Errors**: `revert CustomError(args)` ABI-encodes a 4-byte selector plus arguments. `require(cond, "text")` reverts with `Error(string)` (selector 0x08c379a0); failed `assert` and arithmetic checks revert with `Panic(uint256)` (selector 0x4e487b71). `require(cond, CustomError(args))` works from 0.8.27 in the legacy pipeline and 0.8.26 with via-IR.
+- **Calls**: `call`, `staticcall`, `delegatecall` return `(bool, bytes)` and must be checked; `try/catch` handles external calls only. Use `Address.sendValue` or a checked `call{value:}` for ETH, never `transfer`.
+- **Storage**: sequential slots by declaration order, packing of adjacent small types, mappings and dynamic arrays located by `keccak256`, ERC-1967 proxy slots, ERC-7201 namespaced layouts. See [storage and upgrades](references/storage-and-upgrades.md).
+- **Opcodes that changed**: `selfdestruct` only deletes the account when called in the creating transaction (EIP-6780); `block.prevrandao` replaced `difficulty`; transient storage `TLOAD`/`TSTORE` (EIP-1153) costs 100 gas each; code size limit 24,576 bytes (EIP-170), initcode limit 49,152 bytes (EIP-3860).
+- **OpenZeppelin Contracts 5.x**: tokens, access control, `AccessManager`, governance, proxies, cryptography and utilities. See [OpenZeppelin](references/openzeppelin.md).
 
-## 3. Core Expertise
+## 3. Workflow
 
-- Solidity 0.8.x features: built-in overflow checks (since 0.8.0), custom errors (since 0.8.4), `unchecked` blocks, `immutable` vs `constant`, `payable` addresses, `address payable` vs `address`, `receive()` vs `fallback()`, function modifiers, events with `indexed` (up to 3), anonymous events, `revert` with reason string (replaced by custom errors).
-- Types: value types (`bool`, `uint`/`int` 8-256 in 8-bit steps, `address` 20 bytes, `bytesN` fixed 1-32, `enum`); reference types (`bytes` dynamic, `string`, arrays fixed/dynamic, `structs`); `mapping` vs array; `memory` vs `storage` vs `calldata` data locations and rules; ABI encoding.
-- Functions: visibility (`public`/`external`/`internal`/`private` — external is cheaper for incoming calls); state mutability (`view`/`pure`/`payable`/`nonpayable`); function selectors (first 4 bytes of `keccak256` of signature); function overloading; named args.
-- Control flow: `if`/`else`, `for`, `while`, `do-while`, `break`, `continue`, `return`, `throw` (deprecated), `revert`, `assert` vs `require` vs `revert` — `assert` for invariants (0x01 panic post-0.8), `require` (0xfd error), `revert` with custom error (0xa9 selector).
-- Inheritance: single, multiple, C3 linearization, `super` keyword, constructor inheritance, function overriding with `virtual`/`override`, abstract contracts, interfaces (all functions external, no state).
-- Libraries: embedded vs linked, `using for`, library functions as external must be linked, deploy library and reference by address.
-- Events and logs: `emit`, `indexed` for search (up to 3 in non-anonymous), anonymous allows 4 indexed but loses signature, log topics, log data, bloom filters for fast log search.
-- Modifiers: `modifier` with `_`, multiple modifiers order of evaluation, modifiers for access control, modifiers with arguments.
-- Error handling: `revert` with custom error vs `require` with string vs `assert` — gas cost differences; custom errors encode just selector + args (much cheaper); `try`/`catch` for external calls only (`catch Error(string)`, `catch Panic(uint)`, `catch bytes` low-level, `catch {}` default).
-- Low-level calls: `call`/`delegatecall`/`staticcall` — security implications; return `(bool, bytes)`; do not revert on failure — must check return value; `call` vs `transfer` vs `send` — `transfer`/`send` have 2300 gas stipend, deprecated in favor of `call`; `selfdestruct` deprecated and behavior change in EIP-6780 (Cancun).
-- Assembly / Yul: inline assembly with `assembly { }`, Yul as intermediate language, evmasm opcodes, when to use (bit manipulation, gas optimization, custom encoding); EVM dialects; IR-based codegen pipeline (`viaIR`).
-- Gas optimization: storage vs memory vs calldata, packing structs and state variables into 32-byte slots, `immutable` and `constant`, custom errors, caching state in memory for repeated reads, `unchecked` where overflow impossible, short-circuit evaluation, `calldata` vs `memory` for function args, libraries to avoid code duplication, internal vs external calls, batch operations, ERC-721 batch minting, assembly for hot paths, avoid dynamic arrays in storage when fixed will do, avoid string concatenation, use events not storage for off-chain data, mint/burn instead of transferring to self.
-- Security patterns: checks-effects-interactions (CEI) pattern to prevent reentrancy, reentrancy guard with mutex, pull over push for payments, circuit breakers/pausable, rate limiting, whitelist with mapping, role-based access with `AccessControl` or `Ownable`, time-locks for admin actions, multi-sig for privileged operations.
-- Upgradeability patterns: proxy storage, EIP-1967 transparent proxy, UUPS, beacon proxy, diamond (EIP-2535).
-- Storage layout: state variable packing, order matters for gas, inherited contracts first, mappings and dynamic arrays always occupy a single slot storing pointer, structs packed internally, layout compatibility for proxies.
-- Testing: Foundry `forge test`, fuzzing with `forge test`, invariant testing, fork testing with mainnet forking, coverage with `forge coverage`, gas reporting with `forge test --gas-report`.
-- Verification: Etherscan verification, Sourcify, multi-file vs flattened, standard JSON input.
-- Deployment: `forge create` for single, `forge script` for complex deployments, broadcast transactions, deterministic deployment with CREATE2/salt.
+1. Pin the toolchain: exact compiler, `evm_version`, optimizer runs, OpenZeppelin version. Record them in `foundry.toml` or `hardhat.config`.
+2. Model the system before coding: actors, privileged roles, funds flows, what must never happen (invariants). Decide upgradeable or immutable now; it changes the storage and constructor rules.
+3. Reuse OpenZeppelin for tokens, access control, pausing, signatures, math and proxies instead of rewriting them.
+4. Write the interface and events first, then storage, then external functions with checks, effects and interactions in that order.
+5. Write unit tests, fuzz tests for arithmetic and accounting, and invariant tests for protocol properties. Run `forge fmt` and a static analyzer (Slither).
+6. Measure gas with `forge test --gas-report` and `forge snapshot`; optimize only measured hot paths.
+7. For upgradeable contracts, diff the storage layout (`forge inspect <Contract> storage-layout`) against the deployed version.
+8. Deploy from a script, verify source on a block explorer or Sourcify, hand roles to a multisig or timelock, and keep deployment addresses and constructor arguments in the repo.
 
-## 4. Responsibilities
+## 4. Decision Rules
 
-- Author Solidity 0.8.x contracts with explicit version pragma (e.g., `pragma solidity ^0.8.20;`) — never use floating pragma `^0.8.0` in production.
-- Design storage layout for upgradeable contracts: pack state variables into 32-byte slots, reserve `__gap` arrays for future additions, never reorder or change types of existing variables.
-- Implement access control via OpenZeppelin `AccessControl` (role-based) or `Ownable` (single admin) — never invent custom access control without audit.
-- Implement reentrancy guards via OpenZeppelin `ReentrancyGuard` for any function that makes external calls after state changes.
-- Use custom errors (since 0.8.4) for all reverts — never `require(condition, "string")` in hot paths.
-- Use `immutable` for constructor-set values, `constant` for compile-time constants — never store either in storage.
-- Emit events for every state mutation that off-chain systems must react to.
-- Write Foundry tests covering: positive path, negative path (revert), access control (unauthorized caller), fuzzing (parameter ranges), invariant (stateful properties).
-- Verify contracts on Etherscan with standard JSON input; never verify flattened source unless standard JSON is unavailable.
-- Deploy via `forge script` with `--broadcast` and `--verify`; document deployment address and salt (if CREATE2).
-- Audit contracts via Slither, Mythril, and manual review before deployment; never deploy unaudited contracts handling user funds.
-- Document every contract with NatSpec (`@dev`, `@param`, `@return`, `@notice`) for all external functions.
+| Question | Choose | Why |
+|---|---|---|
+| Pragma for a deployable contract | Exact: `pragma solidity 0.8.38;` | A caret range is floating: the compiler used can differ from the one tested |
+| Pragma for a library or shared package | Caret or range, such as `^0.8.24` or `>=0.8.24 <0.9.0` | Consumers pick the compiler; test on the lowest and highest supported |
+| Error reporting | Custom errors with parameters | Cheaper deployment and runtime than strings, structured data for clients |
+| Constructor-set value that never changes | `immutable`; literal values `constant` | Stored in code, no SLOAD |
+| Sending ETH | `call` with a checked result, or `Address.sendValue` | `transfer`/`send` forward 2300 gas and are deprecated |
+| Admin model | `Ownable2Step` for one admin; `AccessControl` for several roles; `AccessManager` for many contracts and delays | Match governance needs; see the OpenZeppelin reference |
+| Upgradeability | Immutable unless there is a concrete reason; then UUPS or Transparent | Upgrades add trust and storage risk |
+| Reentrancy defense | Checks-effects-interactions first, `ReentrancyGuard` as backup | The guard does not fix cross-contract or read-only reentrancy |
+| Token transfers | `SafeERC20` | Handles tokens that return no value |
+| Gas vs readability | Readability, unless a profile shows the cost | Unmeasured tricks hide bugs |
+| Compiler pipeline | Legacy by default; `via_ir` when stack-too-deep or optimizer gains justify slower builds | Test with the exact settings you deploy |
 
-## 5. Thinking Process
+## 5. Coding Standards
 
-1. Identify the contract's lifecycle: is it upgradeable? If yes, storage layout becomes a load-bearing constraint from day one.
-2. Identify the access control model: single admin (`Ownable`), role-based (`AccessControl`), or DAO governance (multi-sig + timelock).
-3. Identify external calls: any `call` to untrusted contracts triggers reentrancy concerns — apply CEI and `ReentrancyGuard`.
-4. Identify the hot path: the function called most frequently (e.g., `transfer` in ERC-20) — optimize gas aggressively here.
-5. Identify storage layout: pack structs and state variables; reorder to minimize slots; reserve gaps for upgrades.
-6. Identify error model: define a custom error per logical failure; never reuse `string` messages.
-7. Identify event model: every state mutation emits an event; off-chain indexers depend on events, not state polling.
-8. Identify test coverage: positive, negative, access control, fuzz, invariant; use mainnet fork for integration with existing protocols.
-9. Identify deployment strategy: `forge script` with `--broadcast`; CREATE2 for deterministic addresses if needed; verify on Etherscan.
-10. Identify audit strategy: Slither + Mythril + manual review; third-party audit for contracts handling >$1M TVL.
+- Layout order: SPDX line, pragma, imports, errors, events, types, state variables, modifiers, constructor, external, public, internal, private functions. Functions inside a group go state-changing first, then `view`, then `pure`.
+- Naming: `PascalCase` contracts and structs, `camelCase` functions and variables, `UPPER_SNAKE_CASE` constants and immutables, `_leadingUnderscore` for internal and private functions and variables, trailing underscore for constructor params that shadow state (`asset_`).
+- Use named imports (`import {Ownable} from "..."`), never bare `import "file.sol"`.
+- Use named mapping parameters: `mapping(address account => uint256 amount)`.
+- Explicit visibility and mutability everywhere; `external` for functions not called internally.
+- NatSpec (`@notice`, `@dev`, `@param`, `@return`) on every external function; leave out author tags.
+- Add a SPDX identifier to every file; format with `forge fmt`.
+- Keep inline assembly small, mark it `("memory-safe")` only when it is, and comment the invariant it relies on.
+- Check zero addresses and zero amounts at trust boundaries, not on every internal helper.
 
-## 6. Decision Making Rules
+## 6. Project Structure
 
-- When `revert` with custom error and `require` with string are both viable, choose custom error because it encodes only the selector + args (4 bytes + args) versus `require` string (encoding the full string, ~50+ bytes).
-- When `immutable` and `storage` are both viable for a constructor-set value, choose `immutable` because it costs 1 SLOAD (2600 gas) less per read and is stored in code, not storage.
-- When `transfer` and `call` are both viable for sending ETH, choose `call` because `transfer` is limited to 2300 gas stipend and breaks with gas-consuming recipients (post-Istanbul); `call` lets the recipient use full gas.
-- When UUPS and transparent proxy are both viable for upgradeability, choose UUPS because the upgrade logic lives in the implementation, reducing proxy contract size and gas cost; transparent proxy adds `if (msg.sender == admin)` checks to every call.
-- When `mapping` and `array` are both viable for lookups, choose `mapping` because O(1) access versus O(n) for arrays; arrays are only for ordered iteration.
-- When `unchecked` and checked arithmetic are both viable, choose checked unless overflow is mathematically impossible and the function is on the hot path; the gas saving is ~30-80 gas per op.
-- When `storage` and `memory` are both viable for a local variable, choose `memory` because storage reads cost 2100 gas (cold) or 100 gas (warm) per access, while memory is cheap.
-- When inline assembly and Solidity are both viable for a hot path, choose assembly only when the gas saving exceeds 20% and the logic is well-tested; assembly is harder to audit and breaks readability.
-
-## 7. Architecture Rules
-
-- Every contract must specify an explicit version pragma (`pragma solidity ^0.8.20;`); never use `^0.8.0` because it allows compilation on 0.8.x with breaking changes.
-- Every contract handling user funds must inherit `ReentrancyGuard` from OpenZeppelin; never author a custom reentrancy guard.
-- Every external function that mutates state must emit an event; off-chain systems depend on events.
-- Every upgradeable contract must reserve `uint256[50] __gap;` at the end of each storage layer for future additions; never add variables to the middle of an inherited contract.
-- Every privileged function must be guarded by a role via `AccessControl` or by `onlyOwner`; never expose unguarded admin functions.
-- Every contract deployment must use the same compiler version and settings (optimizer runs, `viaIR`) as the test suite; verify the build metadata on Etherscan.
-- Every contract must use OpenZeppelin's audited implementations for ERC-20, ERC-721, ERC-1155, `Ownable`, `AccessControl`, `ReentrancyGuard`, `Pausable`; never reimplement.
-- Every contract must include a `receive()` function only when ETH transfers are intended; never rely on `fallback()` for ETH acceptance without explicit `receive()`.
-- Every external call to untrusted contracts must use `call` with a checked return value; never use `transfer` or `send` for arbitrary recipients.
-- Every contract must implement the checks-effects-interactions pattern: validate inputs, update state, then make external calls; the order is non-negotiable.
-
-## 8. Coding Standards
-
-- All contracts must start with a NatSpec file header: `@title`, `@dev` describing purpose, `@author`.
-- All functions must have NatSpec: `@notice` (user-facing), `@dev` (developer-facing), `@param`, `@return`.
-- All state variables must be `private` or `internal` with explicit getter functions; never expose state as `public` without considering access control implications.
-- All errors must be custom errors declared at the top of the contract: `error InsufficientBalance(uint256 available, uint256 required);`
-- All events must be declared before functions; event names use PascalCase past tense: `Transfer`, `Approval`, `DepositMade`.
-- All modifiers must be declared before functions; modifier names use `only` prefix for access control: `onlyOwner`, `onlyRole`.
-- All `require` statements must use custom errors: `if (balance < amount) revert InsufficientBalance(balance, amount);`
-- All external calls must check the return value: `(bool success, bytes memory data) = to.call{value: amount}(""); if (!success) revert TransferFailed();`
-- All loops must have an explicit upper bound; never unbounded `for` loops over user-controlled arrays.
-- All contracts must use `uint256` instead of `uint` (alias) for explicitness in production code.
-
-## 9. Naming Conventions
-
-- Contract names: PascalCase — `TokenVault`, `LiquidityPool`, `StakingRewards`. Never camelCase.
-- Interface names: PascalCase with `I` prefix — `IERC20`, `IVault`. Never without prefix.
-- Library names: PascalCase — `SafeTransfer`, `Math`. Never with `I` prefix.
-- State variables: camelCase — `totalSupply`, `owner`, `pendingAdmin`. Never snake_case, never PascalCase.
-- Functions: camelCase — `transfer`, `transferFrom`, `mint`. Never PascalCase for functions.
-- Events: PascalCase, often past tense — `Transfer`, `Approval`, `DepositMade`, `WithdrawalCompleted`.
-- Modifiers: camelCase with `only` prefix for access control — `onlyOwner`, `onlyRole`, `onlyWhenNotPaused`.
-- Custom errors: PascalCase — `InsufficientBalance`, `Unauthorized`, `TransferFailed`.
-- Constants: UPPER_SNAKE_CASE — `MAX_SUPPLY`, `DECIMALS`, `MINIMUM_LIQUIDITY`.
-- Immutables: camelCase — `WETH`, `factory`, `deadline`. (Some teams use UPPER_SNAKE for immutables too; pick one and be consistent.)
-- Enums: PascalCase with camelCase members — `enum Status { Pending, Active, Closed }`.
-- Mappings: camelCase describing key-value — `balanceOf`, `allowance`, `delegatedVotes`.
-- File names: match contract name — `TokenVault.sol` contains `contract TokenVault`.
-- Test files: `Test.t.sol` suffix — `TokenVault.t.sol` for `TokenVault` tests.
-- Script files: `Script.s.sol` suffix — `DeployTokenVault.s.sol` for deployment script.
-
-## 10. Folder Structure
-
-```
-solidity-project/
-├── src/                             # Source contracts
-│   ├── interfaces/
-│   │   ├── IVault.sol
-│   │   └── IStrategy.sol
-│   ├── libraries/
-│   │   ├── SafeTransfer.sol
-│   │   └── MathUtils.sol
-│   ├── tokens/
-│   │   ├── VaultToken.sol
-│   │   └── RewardToken.sol
-│   ├── Vault.sol
-│   └── Strategy.sol
-├── test/                            # Foundry tests
-│   ├── unit/
-│   │   ├── Vault.t.sol
-│   │   └── Strategy.t.sol
-│   ├── fuzz/
-│   │   └── VaultFuzz.t.sol
-│   ├── invariant/
-│   │   └── VaultInvariant.t.sol
-│   └── fork/
-│       └── VaultFork.t.sol
-├── script/                          # Deployment scripts
-│   ├── DeployVault.s.sol
-│   └── UpgradeVault.s.sol
-├── lib/                             # Dependencies (git submodules)
-│   ├── forge-std/
-│   ├── openzeppelin-contracts/
-│   └── solmate/
-├── out/                             # Build artifacts (gitignored)
-├── cache/                           # Compilation cache (gitignored)
-├── broadcast/                       # Deployment logs (gitignored)
-├── .github/workflows/
-│   └── ci.yml
-├── foundry.toml
-├── remappings.txt
-├── .gitignore
-├── README.md
-└── Makefile
+```text
+src/
+  interfaces/        IVault.sol
+  libraries/         Math helpers, pure logic
+  Vault.sol
+  VaultV2.sol        # next upgrade, with @custom:oz-upgrades-from
+test/
+  Vault.t.sol        # unit and fuzz tests
+  invariant/         # handlers and invariants
+  mocks/             # test-only tokens and callers
+script/
+  Deploy.s.sol
+foundry.toml
+remappings.txt       # or rely on lib/ and soldeer; keep one dependency source
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-acme-defi-protocol/
-├── .github/workflows/
-│   ├── ci.yml                       # Build, test, coverage, gas report
-│   ├── slither.yml                  # Static analysis
-│   └── deploy.yml                   # Deployment on tag
-├── src/
-│   ├── access/
-│   │   ├── AccessControlled.sol
-│   │   └── TimelockController.sol
-│   ├── tokens/
-│   │   ├── ACME.sol
-│   │   └── VaultReceipt.sol
-│   ├── vault/
-│   │   ├── Vault.sol
-│   │   ├── VaultStorage.sol
-│   │   └── VaultProxy.sol
-│   ├── strategies/
-│   │   ├── AaveStrategy.sol
-│   │   └── CompoundStrategy.sol
-│   ├── interfaces/
-│   ├── libraries/
-│   └── periphery/
-│       └── ZapDepositor.sol
-├── test/
-│   ├── unit/
-│   ├── fuzz/
-│   ├── invariant/
-│   └── fork/
-├── script/
-│   ├── Deploy.s.sol
-│   ├── Upgrade.s.sol
-│   └── utils/
-│       └── Config.s.sol
-├── lib/
-├── docs/
-│   ├── architecture.md
-│   ├── storage-layout.md
-│   ├── upgrade-path.md
-│   └── audit-reports/
-├── deployments/                     # Deployment records per chain
-│   ├── mainnet.json
-│   ├── base.json
-│   └── sepolia.json
-├── .solhint.json
-├── foundry.toml
-├── remappings.txt
-├── slither.config.json
-├── .gitignore
-├── package.json                     # For some tooling
-├── Makefile
-├── README.md
-└── CONTRIBUTING.md
-```
+- **Checks-effects-interactions**: validate, update storage, then call out. Emit events after state changes.
+- **Pull over push**: record what each account may claim and let it withdraw, instead of looping over recipients.
+- **Pausable with open exits**: pause deposits and risky actions; keep withdrawals available so a pause cannot trap funds.
+- **Two-step ownership**: `Ownable2Step` prevents transferring ownership to a wrong address.
+- **Role separation**: distinct roles for minting, pausing and upgrading, each held by a different account behind a timelock.
+- **Factory with deterministic addresses**: `Create2` or minimal proxies (`Clones`) for many identical instances; initialize in the same transaction.
+- **Namespaced storage (ERC-7201)**: each module keeps its state in a struct at a hashed slot, so inheritance changes do not shift layouts.
+- **Commit-reveal and signatures**: EIP-712 typed data with `EIP712` and `ECDSA`, with a per-signer nonce and a deadline.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Pattern 1: Checks-Effects-Interactions (CEI)
-**When to use**: Any function that makes an external call after state changes.
-**When not to use**: Pure view functions with no external calls.
-**Sketch**: `function withdraw(uint amount) { require(balance[msg.sender] >= amount); balance[msg.sender] -= amount; (bool ok,) = msg.sender.call{value: amount}(""); require(ok); }`
+- Keep contracts small and composable; extract logic into internal functions or libraries and keep external functions thin.
+- Emit an event for every state change that off-chain code needs; index at most three fields.
+- Use interfaces and `IERC20` types in signatures rather than raw `address` where the type is known.
+- Prefer `uint256` for storage and arithmetic unless packing is a measured win; use `SafeCast` when narrowing.
+- Avoid unbounded loops over user-controlled arrays; paginate or use pull payments.
+- Do not rely on `block.timestamp` for sub-minute precision or on `address(this).balance` for accounting (ETH can be forced in).
+- Do not depend on code size or `extcodesize` to detect EOAs; delegated EOAs (EIP-7702) have code.
+- Document trust assumptions: who can pause, upgrade, mint, and with what delay.
+- Prefer battle-tested OpenZeppelin code over copy-pasted snippets; import by package path and pin the version.
 
-### Pattern 2: Pull Over Push
-**When to use**: Functions that distribute ETH/tokens to multiple recipients.
-**When not to use**: Single-recipient transfers.
-**Sketch**: Sender accrues pending balances via state; recipients call `claim()` to pull. Avoids one recipient reverting the whole batch.
+## 9. Performance
 
-### Pattern 3: ReentrancyGuard
-**When to use**: Any function with external calls after state mutation.
-**When not to use**: View functions, functions with no external calls.
-**Sketch**: Inherit `ReentrancyGuard`; use `nonReentrant` modifier on `withdraw`, `claim`, `redeem`.
+- Storage is the dominant cost. Cold `SLOAD` is 2100 gas, warm `SLOAD` 100 (EIP-2929); a cold account access (`CALL`, `BALANCE`, `EXTCODESIZE`) is 2600; writing a zero slot to nonzero costs 20,000 plus the cold surcharge.
+- Cache storage reads in locals when used more than once; write back once.
+- Pack related small fields into one slot only when they are read and written together.
+- Use `immutable`, `constant`, `calldata`, custom errors, and `unchecked` only where bounds are proven in the same function.
+- Use transient storage (`transient` state variables, or `ReentrancyGuardTransient`) for per-transaction flags; it requires an EVM version with Cancun or later.
+- Avoid on-chain enumeration (`ERC721Enumerable`) unless needed; index with events.
+- Optimizer runs trade deployment size against runtime cost; tune by measuring. See [gas optimization](references/gas-optimization.md).
 
-### Pattern 4: UUPS Proxy
-**When to use**: Upgradeable contracts where upgrade logic lives in implementation.
-**When not to use**: Non-upgradeable contracts.
-**Sketch**: Implementation inherits `UUPSUpgradeable`; proxy is `ERC1967Proxy`; `authorizeUpgrade` guarded by role.
+## 10. Security
 
-### Pattern 5: Diamond (EIP-2535)
-**When to use**: Contracts exceeding 24KB contract size limit or needing modular upgrades.
-**When not to use**: Contracts under 24KB with simple upgrade needs.
-**Sketch**: `Diamond.sol` delegates via `fallback` to facet contracts; `DiamondLoupe` enumerates facets; storage in `AppStorage` struct.
+- Apply checks-effects-interactions and `nonReentrant` to every function that moves value or calls untrusted code.
+- Authenticate with `msg.sender`, never `tx.origin`.
+- Treat any external call, token callback (ERC-777, ERC-721 `onERC721Received`, ERC-1155 receivers) and `delegatecall` target as hostile.
+- Validate signatures with `ECDSA` or `SignatureChecker`; include chain id, contract address, nonce and deadline in the signed data (`EIP712` does this).
+- Guard share-based vaults against inflation attacks (virtual offset via `_decimalsOffset()` in `ERC4626`) and read prices from sources that cannot be moved in one transaction.
+- Never put secrets or private data in storage; everything on chain is readable.
+- Initialize every proxy in the deploy transaction; call `_disableInitializers()` in implementation constructors.
+- Use a multisig plus `TimelockController` or `AccessManager` delays for upgrades and parameter changes.
+- Run Slither and fuzz/invariant tests before review; get an external audit before holding user funds. Use smart-contract-security-expert for attack patterns.
 
-### Pattern 6: AccessControl Role-Based
-**When to use**: Multi-role access control (admin, operator, pauser).
-**When not to use**: Single-admin contracts (use `Ownable`).
-**Sketch**: Inherit `AccessControl`; define `bytes32 constant ADMIN_ROLE = keccak256("ADMIN");` `bytes32 constant OPERATOR_ROLE = keccak256("OPERATOR");` grant via `_grantRole`.
+## 11. Testing
 
-## 13. Best Practices
+- Foundry layout: `test/*.t.sol` inheriting `forge-std/Test.sol`; names `test_Thing`, `testFuzz_Thing`, `invariant_Thing`.
+- Expect custom errors with `vm.expectRevert(abi.encodeWithSelector(Err.selector, args))` or `vm.expectRevert(Err.selector)`.
+- Use `bound` for fuzz inputs, `vm.prank`/`vm.startPrank` for callers, `makeAddr` for labelled addresses, `vm.warp`/`vm.roll` for time.
+- Invariant tests: a handler contract exposes bounded actions; assert conservation properties (sum of balances equals total assets).
+- Fork tests (`vm.createSelectFork`) for integrations with real tokens; pin the block number.
+- Upgrade tests: deploy V1 behind a proxy, write state, upgrade to V2, assert state is intact and new logic works.
+- Commands: `forge test -vvv`, `forge test --match-test`, `forge coverage`, `forge test --gas-report`, `forge inspect <Contract> storage-layout`.
 
-- Always use Solidity 0.8.20+ for built-in overflow checks and custom errors.
-- Always use custom errors instead of `require` with string.
-- Always use `immutable` for constructor-set values and `constant` for compile-time constants.
-- Always pack structs and state variables into 32-byte slots for gas optimization.
-- Always emit events for state mutations that off-chain systems must react to.
-- Always use OpenZeppelin audited implementations for standard tokens and access control.
-- Always apply checks-effects-interactions pattern for external calls.
-- Always use `ReentrancyGuard` for functions with external calls.
-- Always reserve `__gap` arrays in upgradeable storage layers.
-- Always verify contracts on Etherscan with standard JSON input.
-- Always write fuzz tests for arithmetic functions.
-- Always write invariant tests for stateful properties.
-- Always run Slither before deployment.
-- Always document storage layout for upgradeable contracts.
+## 12. Review Checklist
 
-## 14. Anti Patterns
+- [ ] Exact pragma and pinned `evm_version` for deployables; dependencies pinned.
+- [ ] No `tx.origin`, `transfer`/`send`, unchecked low-level call results, or unbounded loops.
+- [ ] External calls follow checks-effects-interactions; reentrancy guard where value moves.
+- [ ] Every privileged function has an explicit role and an event.
+- [ ] Custom errors and events cover all state changes and failures.
+- [ ] `SafeERC20` for token transfers; balance-delta accounting if fee-on-transfer tokens are possible.
+- [ ] Upgradeable: `_disableInitializers()`, initializer called at deploy, namespaced storage or preserved layout, `_authorizeUpgrade` restricted.
+- [ ] Unit, fuzz and invariant tests pass; storage layout diff clean; gas report reviewed.
+- [ ] Contract size under 24,576 bytes; constructor arguments and roles verified.
 
-### Anti-Pattern 1: Floating Pragma
-**Why wrong**: `pragma solidity ^0.8.0;` allows compilation on any 0.8.x including future versions with breaking changes; deployment may differ from test.
-**Correct alternative**: `pragma solidity ^0.8.20;` and pin in `foundry.toml` `solc_version = "0.8.20"`.
+## 13. Production Notes
 
-### Anti-Pattern 2: require with String in Hot Path
-**Why wrong**: Strings are expensive (50+ bytes encoded); custom errors are 4 bytes + args.
-**Correct alternative**: `error InsufficientBalance(uint256 available, uint256 required);` and `if (balance < amount) revert InsufficientBalance(balance, amount);`
+- Verify source on the explorer or Sourcify using the exact compiler version, settings and metadata; keep the standard JSON input.
+- Deploy from a script, not by hand; prefer a hardware-wallet or multisig deployer and transfer admin roles in the same script.
+- Confirm `evm_version` against each target chain before deploying; L2s and sidechains can lag mainnet opcodes.
+- Check the Solidity security advisories and bug list for your compiler version (soliditylang.org). Release 0.8.34 fixed an IR-pipeline bug that could clear a regular storage variable instead of a transient one at the same layout position, and 0.8.32 fixed array clearing and copying for arrays that straddle the end of storage; prefer 0.8.34 or later.
+- Keep an emergency plan: pausing, role revocation, and who signs.
+- Use CREATE2 only when the address must be predictable; remember `selfdestruct` no longer enables redeploy patterns.
 
-### Anti-Pattern 3: transfer() for ETH
-**Why wrong**: `transfer` has 2300 gas stipend; post-Istanbul, recipients that consume gas (e.g., contracts with logic in `receive()`) revert.
-**Correct alternative**: `(bool ok,) = to.call{value: amount}(""); if (!ok) revert TransferFailed();`
+## 14. Examples
 
-### Anti-Pattern 4: Unchecked External Call Return
-**Why wrong**: `to.call{value: amount}("");` returns `(bool, bytes)`; ignoring the bool means silent failure.
-**Correct alternative**: Always check `success` and revert with a custom error.
-
-### Anti-Pattern 5: State Variable Reordering in Upgrade
-**Why wrong**: Reordering or changing types of existing state variables breaks proxy storage layout; existing storage becomes corrupted.
-**Correct alternative**: Only append new variables at the end; use `__gap` arrays to reserve space.
-
-### Anti-Pattern 6: Unbounded Loop over User Array
-**Why wrong**: Attacker adds 10000 entries; function runs out of gas; DoS.
-**Correct alternative**: Paginated processing; user pulls their own entry.
-
-## 15. Performance Rules
-
-- Always pack structs: order variables by size (uint128, uint128 fits in one slot; uint256, uint128 wastes a slot).
-- Always use `immutable` and `constant` for one-time-set values.
-- Always use `calldata` for external function args; never `memory` for read-only args.
-- Always cache storage reads in memory for repeated access in a function.
-- Always use `unchecked` where overflow is mathematically impossible (e.g., `for (uint i = 0; i < len; ++i)` where `i` cannot overflow given `len` is bounded).
-- Always use custom errors; never `require` with string.
-- Never store data on-chain that can be off-chain (use events for off-chain data).
-- Always use `mapping` for lookups; reserve `array` for ordered iteration.
-- Always prefer `internal` functions over `public` for functions only called internally (saves gas on entry).
-- Always batch operations (e.g., `mintBatch` for ERC-721) to amortize fixed overhead.
-
-## 16. Security Rules
-
-- Always apply checks-effects-interactions for external calls.
-- Always use `ReentrancyGuard` for functions with external calls.
-- Always validate inputs: `require(amount > 0)`, `require(to != address(0))`.
-- Always use `SafeERC20` for ERC-20 transfers (handles non-standard tokens).
-- Always cap privileged function power with timelocks and multi-sig.
-- Always audit contracts handling user funds; never deploy unaudited.
-- Always use OpenZeppelin audited implementations for standard tokens and access control.
-- Never store private keys in contracts; contracts are public.
-- Never use `tx.origin` for authentication; always `msg.sender`.
-- Never expose `delegatecall` to untrusted contracts; `delegatecall` executes in caller's context.
-- Never use `selfdestruct` for fund recovery post-EIP-6780; behavior changed in Cancun.
-- Always implement `Pausable` for emergency stop capability in production contracts.
-
-## 17. Testing Strategy
-
-- Unit test every external function with positive and negative cases.
-- Fuzz test arithmetic functions with `forge test` and parameters; `testFuzz_` prefix.
-- Invariant test stateful properties: `invariant_totalSupplyEqualsBalances` for tokens.
-- Fork test against mainnet for integration with existing protocols.
-- Gas report via `forge test --gas-report` for every PR.
-- Coverage via `forge coverage`; aim for >90% on core logic.
-- Test access control: every privileged function reverts for unauthorized callers.
-- Test reentrancy: simulate attacker contract calling back into the function.
-- Test upgrade: deploy proxy, upgrade, verify state preserved.
-- Test pause: verify `pause()` blocks state-mutating functions.
-
-## 18. Documentation Standards
-
-- NatSpec on every contract: `@title`, `@dev`, `@author`.
-- NatSpec on every external function: `@notice`, `@dev`, `@param`, `@return`.
-- Document storage layout in `docs/storage-layout.md` for upgradeable contracts.
-- Document upgrade path in `docs/upgrade-path.md` with sequence of changes.
-- Document deployment addresses in `deployments/<chain>.json`.
-- Document audit reports in `docs/audit-reports/`.
-- Document known limitations in `README.md` (e.g., "not suitable for rebasing tokens").
-- Document integration guide for off-chain systems consuming events.
-
-## 19. Code Review Checklist
-
-- [ ] Explicit version pragma (`^0.8.20`), not floating.
-- [ ] Custom errors used; no `require` with string in hot path.
-- [ ] `immutable` and `constant` used for one-time-set values.
-- [ ] Structs packed into 32-byte slots.
-- [ ] `calldata` for external function args; no `memory` for read-only.
-- [ ] Storage reads cached in memory for repeated access.
-- [ ] `unchecked` used only where overflow is mathematically impossible.
-- [ ] Checks-effects-interactions applied for external calls.
-- [ ] `ReentrancyGuard` on functions with external calls.
-- [ ] `SafeERC20` for ERC-20 transfers.
-- [ ] Inputs validated: `> 0`, `!= address(0)`.
-- [ ] Events emitted for state mutations.
-- [ ] `__gap` reserved in upgradeable storage layers.
-- [ ] No `tx.origin` for authentication.
-- [ ] No `delegatecall` to untrusted contracts.
-- [ ] `Pausable` implemented for emergency stop.
-- [ ] OpenZeppelin audited implementations used (no custom ERC-20/721).
-- [ ] Fuzz tests on arithmetic.
-- [ ] Invariant tests on stateful properties.
-- [ ] Gas report reviewed; hot path optimized.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace `require(cond, "string")` with custom error `revert`.
-- [ ] Replace `storage` reads with cached `memory` for repeated access.
-- [ ] Replace `memory` args with `calldata` for external functions.
-- [ ] Replace `public` with `internal` for functions only called internally.
-- [ ] Pack structs and state variables into 32-byte slots.
-- [ ] Replace `transfer()` with `call` with checked return.
-- [ ] Extract repeated logic into `internal` functions or libraries.
-- [ ] Replace floating pragma with explicit version.
-- [ ] Add `__gap` to upgradeable storage layers missing it.
-- [ ] Replace custom ERC-20 with OpenZeppelin `ERC20`.
-
-## 21. Deployment Checklist
-
-- [ ] Foundry configured: `solc_version`, `optimizer`, `optimizer_runs`, `viaIR`.
-- [ ] Test suite passes: `forge test`.
-- [ ] Coverage >90%: `forge coverage`.
-- [ ] Gas report reviewed: `forge test --gas-report`.
-- [ ] Slither clean: `slither src/`.
-- [ ] Script dry-run: `forge script script/Deploy.s.sol --rpc-url <rpc>`.
-- [ ] Broadcast: `forge script script/Deploy.s.sol --rpc-url <rpc> --broadcast --private-key <key>`.
-- [ ] Verify on Etherscan: `forge verify-contract <address> Contract --verifier etherscan`.
-- [ ] Constructor args verified on Etherscan.
-- [ ] Deployment address recorded in `deployments/<chain>.json`.
-- [ ] Multi-sig set as owner/admin if applicable.
-- [ ] Timelock set for privileged operations.
-- [ ] Pause capability tested.
-- [ ] Initial liquidity/parameters set per deployment script.
-- [ ] Post-deployment verification: call `name()`, `symbol()`, `owner()`.
-- [ ] Audit report attached to deployment record.
-
-## 22. Production Checklist
-
-- [ ] Contract verified on Etherscan with standard JSON input.
-- [ ] Source code matches deployed bytecode exactly.
-- [ ] Admin role held by multi-sig (Gnosis Safe).
-- [ ] Timelock configured for privileged operations (24-48 hours).
-- [ ] `Pausable` and pause function accessible to emergency role.
-- [ ] Upgrades (if any) go through timelock + multi-sig.
-- [ ] Events indexed correctly; off-chain indexer consuming events.
-- [ ] Gas costs benchmarked and documented.
-- [ ] Storage layout documented for upgradeable contracts.
-- [ ] Audit report published.
-- [ ] Bug bounty program active (Immunefi).
-- [ ] Monitoring: contract balance, TVL, transaction volume, error rate.
-- [ ] Alerts: large withdrawal, pause triggered, role change.
-- [ ] Incident response runbook documented.
-- [ ] Recovery procedure documented (pause, upgrade, migrate).
-- [ ] Community communication channel for incidents.
-
-## 23. Logging Strategy
-
-- Emit events for every state mutation: `Transfer`, `Approval`, `Deposit`, `Withdrawal`, `RoleGranted`, `Paused`.
-- Include relevant context in events: `from`, `to`, `amount`, `timestamp` (block.timestamp), `reason` for admin actions.
-- Use indexed parameters (up to 3) for fast off-chain filtering: `event Transfer(address indexed from, address indexed to, uint256 value);`
-- Emit admin action events: `RoleGranted`, `RoleRevoked`, `Paused`, `Unpaused`, `Upgraded`.
-- Emit failure events where appropriate (e.g., `LiquidationFailed` for transparency, though the tx reverts anyway).
-- Never emit events with sensitive data (none should exist on-chain anyway).
-- Use `anonymous` events only for gas-critical paths where signature is not needed; document the trade-off.
-- Block number and timestamp available in event context; never duplicate in event data.
-- Log upgrade events: `Upgraded(address indexed implementation)` for UUPS/transparent proxies.
-- Document event taxonomy in `docs/events.md` for off-chain consumers.
-
-## 24. Monitoring Strategy
-
-- Monitor contract balance: alert on >20% drop in 1 hour.
-- Monitor TVL: alert on >10% drop in 1 hour.
-- Monitor transaction volume: alert on >3x baseline (potential attack or migration).
-- Monitor error rate: alert on >1% revert rate.
-- Monitor pause status: alert immediately if `Paused` event emitted.
-- Monitor role changes: alert on `RoleGranted`/`RoleRevoked` events.
-- Monitor upgrade events: alert on `Upgraded` event.
-- Monitor gas usage: alert if average gas per function >120% of benchmark.
-- Monitor large transactions: alert on single transaction >5% of TVL.
-- Monitor oracle updates (if applicable): alert on stale price or deviation.
-
-## 25. Error Handling
-
-- Custom errors for all reverts: `error InsufficientBalance(uint256 available, uint256 required);`
-- `try`/`catch` for external calls: `try IERC20(token).transfer(to, amount) returns (bool ok) { if (!ok) revert TransferFailed(); } catch { revert TransferFailed(); }`
-- Never silently swallow errors; every revert path emits a custom error.
-- `Pausable` for emergency stop: `whenNotPaused` modifier on state-mutating functions.
-- `ReentrancyGuard` for reentrancy: `nonReentrant` modifier on functions with external calls.
-- Slither for static analysis: configure `slither.config.json` to fail CI on high/medium severity.
-- Mythril for symbolic execution: run on critical contracts pre-deployment.
-- Manual review for logic errors: at least 2 reviewers for contracts handling user funds.
-- Third-party audit for contracts handling >$1M TVL: Certora, OpenZeppelin, Trail of Bits, ConsenSys Diligence.
-- Bug bounty post-deployment: Immunefi with tiered rewards.
-
-## 26. Examples
-
-### Example 1: ERC-20 Vault with Custom Errors and ReentrancyGuard
+### Example 1: ERC-20 vault with SafeERC20, custom errors and open exits
 
 ```solidity
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.38;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-error InsufficientBalance(uint256 available, uint256 required);
-error TransferFailed();
-error ZeroAmount();
-error Unauthorized();
-
-contract Vault is ReentrancyGuard, Ownable {
+/// @notice Single-asset vault. Deposits are credited by the amount actually received,
+///         so fee-on-transfer tokens cannot inflate balances.
+contract TokenVault is Ownable2Step, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    IERC20 public immutable asset;
-    mapping(address => uint256) public balances;
-    uint256 public totalDeposits;
+    error ZeroAmount();
+    error InsufficientBalance(uint256 available, uint256 requested);
 
-    event Deposit(address indexed depositor, uint256 amount);
-    event Withdrawal(address indexed withdrawer, uint256 amount);
+    event Deposited(address indexed account, uint256 amount);
+    event Withdrawn(address indexed account, uint256 amount);
 
-    constructor(address _asset) Ownable(msg.sender) {
-        asset = IERC20(_asset);
+    IERC20 public immutable ASSET;
+    mapping(address account => uint256 amount) public balanceOf;
+
+    constructor(IERC20 asset_, address initialOwner) Ownable(initialOwner) {
+        ASSET = asset_;
     }
 
-    function deposit(uint256 amount) external nonReentrant {
+    function deposit(uint256 amount) external whenNotPaused nonReentrant {
         if (amount == 0) revert ZeroAmount();
-        balances[msg.sender] += amount;
-        totalDeposits += amount;
-        asset.safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposit(msg.sender, amount);
+        uint256 before = ASSET.balanceOf(address(this));
+        ASSET.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 received = ASSET.balanceOf(address(this)) - before;
+        balanceOf[msg.sender] += received;
+        emit Deposited(msg.sender, received);
     }
 
+    /// @dev Withdrawals stay open while paused so a pause never traps funds.
     function withdraw(uint256 amount) external nonReentrant {
-        uint256 available = balances[msg.sender];
-        if (available < amount) revert InsufficientBalance(available, amount);
-        balances[msg.sender] = available - amount;
-        totalDeposits -= amount;
-        asset.safeTransfer(msg.sender, amount);
-        emit Withdrawal(msg.sender, amount);
+        if (amount == 0) revert ZeroAmount();
+        uint256 available = balanceOf[msg.sender];
+        if (amount > available) revert InsufficientBalance(available, amount);
+        balanceOf[msg.sender] = available - amount; // effect before interaction
+        ASSET.safeTransfer(msg.sender, amount);
+        emit Withdrawn(msg.sender, amount);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
 ```
 
-### Example 2: Foundry Fuzz Test
+### Example 2: Foundry fuzz and revert tests for the vault
 
 ```solidity
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.38;
 
 import {Test} from "forge-std/Test.sol";
-import {Vault} from "../src/Vault.sol";
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {TokenVault} from "../src/TokenVault.sol";
 
-contract VaultTest is Test {
-    Vault vault;
-    ERC20Mock token;
+contract MockToken is ERC20 {
+    constructor() ERC20("Mock", "MCK") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
+contract TokenVaultTest is Test {
+    TokenVault vault;
+    MockToken token;
+    address owner = makeAddr("owner");
+    address alice = makeAddr("alice");
 
     function setUp() public {
-        token = new ERC20Mock();
-        vault = new Vault(address(token));
+        token = new MockToken();
+        vault = new TokenVault(IERC20(address(token)), owner);
     }
 
-    function testFuzz_Deposit_IncreasesBalance(address depositor, uint256 amount) public {
-        vm.assume(depositor != address(0));
-        vm.assume(amount > 0 && amount < type(uint256).max / 2);
-        token.mint(depositor, amount);
-        vm.startPrank(depositor);
+    function testFuzz_depositThenWithdraw(uint96 amount) public {
+        amount = uint96(bound(amount, 1, type(uint96).max));
+        token.mint(alice, amount);
+
+        vm.startPrank(alice);
         token.approve(address(vault), amount);
         vault.deposit(amount);
-        assertEq(vault.balances(depositor), amount);
-        assertEq(vault.totalDeposits(), amount);
+        assertEq(vault.balanceOf(alice), amount);
+        vault.withdraw(amount);
         vm.stopPrank();
+
+        assertEq(token.balanceOf(alice), amount);
     }
 
-    function testFuzz_Withdraw_RevertsOnInsufficient(uint256 depositAmount, uint256 withdrawAmount) public {
-        vm.assume(depositAmount > 0 && withdrawAmount > depositAmount);
-        token.mint(address(this), depositAmount);
-        token.approve(address(vault), depositAmount);
-        vault.deposit(depositAmount);
-        vm.expectRevert(abi.encodeWithSelector(InsufficientBalance.selector, depositAmount, withdrawAmount));
-        vault.withdraw(withdrawAmount);
+    function test_withdrawMoreThanBalanceReverts() public {
+        vm.expectRevert(abi.encodeWithSelector(TokenVault.InsufficientBalance.selector, 0, 1));
+        vm.prank(alice);
+        vault.withdraw(1);
     }
 
-    function test_RevertWhen_DepositZero() public {
-        vm.expectRevert(ZeroAmount.selector);
-        vault.deposit(0);
+    function test_onlyOwnerCanPause() public {
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
+        vm.prank(alice);
+        vault.pause();
     }
 }
 ```
 
-### Example 3: UUPS Upgradeable Contract
+### Example 3: UUPS upgradeable contract with ERC-7201 namespaced storage
 
 ```solidity
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.38;
 
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract VaultV1 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    uint256 public totalDeposits;
-    mapping(address => uint256) public balances;
-    uint256[49] private __gap;
+contract Registry is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    /// @custom:storage-location erc7201:example.storage.Registry
+    struct RegistryStorage {
+        mapping(bytes32 key => bytes32 value) entries;
+        uint256 count;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("example.storage.Registry")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant REGISTRY_STORAGE_LOCATION =
+        0x9059e8fd9c5070bf26463002743d587936571e76c7911ed0ac60ce4e404c5200;
+
+    event EntrySet(bytes32 indexed key, bytes32 value);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
-
-    function initialize(address admin) external initializer {
-        __Ownable_init(admin);
-        __UUPSUpgradeable_init();
+    constructor() {
+        _disableInitializers();
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function initialize(address initialOwner) external initializer {
+        __Ownable_init(initialOwner);
+    }
+
+    function set(bytes32 key, bytes32 value) external onlyOwner {
+        RegistryStorage storage $ = _getRegistryStorage();
+        if ($.entries[key] == bytes32(0)) ++$.count;
+        $.entries[key] = value;
+        emit EntrySet(key, value);
+    }
+
+    function get(bytes32 key) external view returns (bytes32) {
+        return _getRegistryStorage().entries[key];
+    }
+
+    function _getRegistryStorage() private pure returns (RegistryStorage storage $) {
+        assembly {
+            $.slot := REGISTRY_STORAGE_LOCATION
+        }
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
 ```
 
-```solidity
-// VaultV2 adds a new feature without breaking storage
-contract VaultV2 is VaultV1 {
-    uint256 public withdrawalFeeBps; // new state, appended after __gap
-    uint256[49] private __gapV2;
+Deploy behind `ERC1967Proxy(implementation, abi.encodeCall(Registry.initialize, (owner)))` so initialization happens in the same transaction. `Initializable` and `UUPSUpgradeable` are imported from the main package because the aliases in `contracts-upgradeable` are scheduled for removal.
 
-    function setWithdrawalFee(uint256 bps) external onlyOwner {
-        require(bps <= 100, "fee too high");
-        withdrawalFeeBps = bps;
-    }
-}
-```
+## 15. Common Mistakes
 
-## 27. Common Mistakes
+- **Caret pragma treated as pinned**: `^0.8.20` accepts any 0.8.x at or above 0.8.20, so it floats. Pin deployables to one version; reserve ranges for libraries.
+- **Calling `transfer` or `send` for ETH**: a recipient contract that needs more than 2300 gas reverts. Use a checked `call` or `Address.sendValue`, and keep state updates before it.
+- **Ignoring a low-level call result**: `(bool ok, ) = to.call(...)` without `if (!ok) revert`.
+- **Reordering or inserting state variables in an upgrade**: slots shift and data is read as the wrong variable. Append only, or use ERC-7201 namespaces; check `forge inspect` diffs.
+- **Leaving an implementation uninitialized**: anyone can initialize it and, for UUPS, call `upgradeToAndCall` on it. Call `_disableInitializers()` in the constructor.
+- **Mixing OpenZeppelin v4 and v5 APIs**: `Ownable()` without arguments, `security/ReentrancyGuard.sol`, `Counters`, `SafeMath`, `_beforeTokenTransfer` and `_afterTokenTransfer` do not exist in v5. See the reference for the v5 equivalents.
+- **Fee-on-transfer and rebasing tokens**: crediting the requested amount instead of the received amount.
+- **Using `tx.origin`, `block.timestamp` randomness, or spot DEX prices** as security inputs.
+- **Gas micro-optimizing before measuring**: removing checks or packing slots that are never hot.
+- **Granting `DEFAULT_ADMIN_ROLE` to the deployer EOA permanently**: transfer it to a multisig or timelock and renounce the deployer's role.
+- **Unbounded loops over user-supplied arrays**: a large input makes the function uncallable. Cap the length or paginate.
 
-### Mistake 1: Floating Pragma in Production
-**What**: `pragma solidity ^0.8.0;` in production contracts.
-**Why wrong**: Allows compilation on any 0.8.x; deployed bytecode may differ from test bytecode.
-**How to avoid**: Use explicit `^0.8.20` and pin `solc_version` in `foundry.toml`.
+## 16. References
 
-### Mistake 2: transfer() for ETH to Contracts
-**What**: Using `payable(to).transfer(amount)` to send ETH to a contract.
-**Why wrong**: 2300 gas stipend is insufficient for contracts with logic in `receive()`; post-Istanbul.
-**How to avoid**: Use `call` with checked return value: `(bool ok,) = to.call{value: amount}(""); if (!ok) revert TransferFailed();`
-
-### Mistake 3: Forgetting __gap in Upgradeable Storage
-**What**: Adding a new state variable to an inherited upgradeable contract.
-**Why wrong**: New variable shifts storage of inheriting contracts; state corruption.
-**How to avoid**: Always reserve `uint256[50] __gap;` at the end of each storage layer; append new variables to inheriting contracts, never to inherited ones.
-
-### Mistake 4: Unchecked External Call Return Value
-**What**: `to.call{value: amount}("");` without checking `success`.
-**Why wrong**: Silent failure; transaction succeeds but ETH not transferred.
-**How to avoid**: Always destructure return and check `success`; revert with custom error on failure.
-
-### Mistake 5: require with String in Hot Path
-**What**: `require(balance >= amount, "Insufficient balance");` in `transfer`.
-**Why wrong**: String encoding costs ~50+ bytes; custom errors cost 4 bytes + args.
-**How to avoid**: Declare custom error and use `if (balance < amount) revert InsufficientBalance(balance, amount);`
-
-### Mistake 6: tx.origin for Authentication
-**What**: `require(tx.origin == owner, "not owner");`
-**Why wrong**: `tx.origin` is the EOA that initiated the tx; any intermediary contract can trick the user into calling the contract, bypassing `msg.sender` checks.
-**How to avoid**: Always use `msg.sender`; never `tx.origin` for authentication.
-
-## 28. Professional Workflow
-
-1. Receive requirement: token standard, access control, upgradeability, integrations.
-2. Choose base contracts: OpenZeppelin `ERC20`/`ERC721`/`AccessControl`/`UUPSUpgradeable`.
-3. Design storage layout: pack structs, reserve `__gap` for upgradeable.
-4. Implement functions with checks-effects-interactions pattern.
-5. Add custom errors for all reverts.
-6. Add events for all state mutations.
-7. Add modifiers: `nonReentrant`, `onlyOwner`, `whenNotPaused`.
-8. Write unit tests: positive, negative, access control.
-9. Write fuzz tests: arithmetic, edge cases.
-10. Write invariant tests: stateful properties.
-11. Run Slither; fix all high/medium findings.
-12. Run `forge coverage`; aim for >90%.
-13. Run `forge test --gas-report`; optimize hot path.
-14. Deploy via `forge script` with `--broadcast` and `--verify`.
-15. Document deployment addresses, storage layout, and audit reports.
-
-## 29. Response Style
-
-- Always specify the Solidity version (`0.8.20+`) in code examples.
-- Always use custom errors; never `require` with string.
-- Always use OpenZeppelin audited implementations for standard tokens.
-- Always apply checks-effects-interactions for external calls.
-- Always cite the EIP for standard references (EIP-20, EIP-721, EIP-2535, EIP-1967).
-- Always flag gas implications of suggested patterns.
-- Always provide a fuzz test example when discussing arithmetic functions.
-- Always provide an upgrade-safe storage layout when discussing upgradeability.
-
-## 30. Output Format
-
-- Every contract starts with `// SPDX-License-Identifier: MIT` and explicit `pragma solidity ^0.8.20;`.
-- Every contract includes NatSpec `@title`, `@dev`, `@author`.
-- Every external function includes NatSpec `@notice`, `@dev`, `@param`, `@return`.
-- Every code example is syntactically valid and compiles with the specified pragma.
-- Every deployment example uses `forge script` with `--broadcast` and `--verify`.
-- Every test example uses Foundry `forge-std/Test.sol`.
-- Every config file (`foundry.toml`) includes comments explaining each setting.
-- Every `README.md` includes: build instructions, test instructions, deployment instructions, upgrade path.
-- Every commit message follows conventional commits: `feat(vault):`, `fix(token):`, `docs(storage-layout):`.
-- Every release includes a `CHANGELOG.md` entry with breaking changes, new features, bug fixes, and upgrade notes.
+- [references/openzeppelin.md](references/openzeppelin.md): OpenZeppelin Contracts 5.x import paths, v4 to v5 changes, tokens, access control, AccessManager, Governor, proxies, utilities.
+- [references/storage-and-upgrades.md](references/storage-and-upgrades.md): slot layout rules, ERC-7201, ERC-1967, UUPS vs Transparent vs Beacon, initializers, upgrade safety checks and tooling.
+- [references/gas-optimization.md](references/gas-optimization.md): gas cost table, storage and calldata techniques, transient storage, optimizer settings and measurement.
+- Solidity documentation: https://docs.soliditylang.org
+- Solidity releases and changelog: https://github.com/ethereum/solidity/releases
+- OpenZeppelin Contracts documentation: https://docs.openzeppelin.com/contracts
+- ERC-7201: https://eips.ethereum.org/EIPS/eip-7201
+- Foundry book: https://book.getfoundry.sh
