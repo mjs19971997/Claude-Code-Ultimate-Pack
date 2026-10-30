@@ -1,590 +1,373 @@
 ---
 name: cicd-expert
-description: >
-  Design end-to-end CI/CD pipelines: build, test, scan, package, deploy with progressive delivery, GitOps, environment promotion, observability, and DORA metrics.
-  
-  Use this skill when containerizing, deploying, automating CI/CD, operating clusters, or managing cloud and infrastructure-as-code.
+description: >-
+  Designs secure, fast CI/CD pipelines with GitHub Actions and the GitHub platform: build-once-promote artifacts, caching, test sharding, environments and approvals, blue/green and canary deployments, SLSA provenance and artifact attestations, OIDC federation to cloud providers, least-privilege permissions, script-injection and pull_request_target defenses, action pinning, rulesets and branch protection, CODEOWNERS, Dependabot, secret scanning, CodeQL and the gh CLI. Absorbs the former github-actions-expert and github-expert skills. Use when writing or reviewing workflows, reusable workflows, composite actions, deployment pipelines or GitHub repository security settings. Not for Dockerfile content (use docker-expert), cloud resource design (use aws-expert, terraform-expert) or Git history operations (use git-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# CI/CD Expert
 
----
+This skill covers pipeline design and its implementation on GitHub: workflow structure, runners, caching and sharding, artifact promotion across environments, deployment strategies, supply-chain controls, and the repository settings that enforce them. It absorbs the former github-actions-expert skill (workflow syntax and security, in a dedicated reference) and the former github-expert skill (rulesets, CODEOWNERS, repository security features, gh CLI, in a second reference).
 
-## 1. Role
-The CI/CD Expert owns the end-to-end software delivery system: from commit to production, with progressive delivery, observability, automatic rollback, and verifiable releases. This role designs pipelines as code, chooses deployment strategies per workload, operates the GitOps control plane, and reports DORA metrics to engineering leadership. The expert is the final authority on pipeline topology, environment promotion, artifact immutability, and rollback safety. Every pipeline must be deterministic, observable, and reversible. The expert forbids manual deployments to production, mutable artifacts, and unverified releases. The expert operates the system that ships every change the company makes.
+> Verified against GitHub Actions with actions/checkout v7.0.1, setup-node v7.1.0, cache v6.1.0, upload-artifact v7.0.2, download-artifact v8.0.2, attest v4.2.2, aws-actions/configure-aws-credentials v6.3.0, github/codeql-action v4.39.1, hosted images ubuntu-24.04 (`ubuntu-latest`) and ubuntu-26.04, GitHub CLI 2.103.x, cosign 3.1.x and SLSA specification v1.2 (2026-10).
 
-## 2. Mission
-Deliver a CI/CD platform where every commit produces a verified, signed artifact; every artifact can be promoted through dev → staging → production via a pull request; every deployment is observable and automatically rolled back on SLO breach; and every team ships at least once per day with a change failure rate under 5%. The mission succeeds when deployment frequency, lead time, mean time to restore, and change failure rate all reach elite DORA performance. The mission also includes migrating teams from manual, ticket-driven releases to self-service, GitOps-driven progressive delivery.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-## 3. Core Expertise
-- CI vs CD vs Continuous Deployment: CI integrates frequently; CD delivers automatically; Continuous Deployment deploys every successful build to production.
-- Pipeline anatomy: source → build → test → package → deploy → verify.
-- CI principles: every commit triggers build; build is fast (< 10 min); deterministic; fail fast; fix broken main immediately; never break main.
-- Build stage: compile, lint, type-check, dependency resolution, caching strategy for dependencies and build outputs.
-- Test stage: unit tests first (< 1 min total); integration tests with Testcontainers; E2E smoke subset per push, full suite nightly; parallelization; sharding; coverage gates; mutation testing periodically.
-- Security scanning: SAST (CodeQL, Semgrep) on every PR; SCA (Dependabot, Snyk, Trivy) on every PR and nightly; secret scanning pre-commit and pre-receive; container scanning (Trivy, Grype) on every build; DAST on staging post-deploy; IaC scanning (Checkov, tfsec, kics).
-- Package stage: Docker image, multi-platform binaries, sign with cosign, SBOM with syft, push to registry with semantic version tags, immutable tags.
-- Deployment strategies: rolling update; blue-green; canary; feature flags; A/B testing; ring deployment; shadow deployment; recreate.
-- Progressive delivery: canary + feature flags + observability; automatic rollback on SLO breach; Flagger; Argo Rollouts.
-- GitOps: declarative infra and apps; Git as single source of truth; pull-based vs push-based; Argo CD; Flux.
-- GitOps workflow: developer pushes code; CI builds and tests; CD updates manifest repo with new image tag; GitOps controller detects change, pulls and applies; deployment verified.
-- Environment promotion: build once; promote through environments; environment-specific config via env vars or config management; never rebuild per environment.
-- Artifact management: Docker registry, Helm chart repo, package registry, immutable artifacts, retention policies.
-- Release engineering: semantic versioning, release branches, release candidates, auto-generated release notes, signed releases, pre-release vs stable, beta/RC channels.
-- Database migrations in CD: forward-only migrations; expand-migrate-contract pattern; backward-compatible schema changes; migration as part of deployment; rollback considerations.
-- Configuration management: config as code; environment separation via config files or env vars; secrets in Vault or cloud secret manager; config drift detection.
-- Deployment verification: health checks post-deploy; smoke tests; canary analysis; automatic rollback on anomaly.
-- Observability in CD: deployment annotations in metrics; deploy markers in dashboards; deployment frequency; lead time for changes; mean time to restore; change failure rate; DORA metrics.
-- Rollback: automatic rollback triggers (error rate spike, latency spike, health check failures); manual rollback procedure; database rollback challenges; immutable artifacts enable fast rollback.
-- Pipeline as code: GitHub Actions, GitLab CI, Jenkinsfile, CircleCI, Argo Workflows, Tekton.
-- Cost optimization: cache aggressively; parallelize; self-hosted runners for scale; spot instances for non-critical jobs; kill long-running jobs; schedule cleanup.
-- CI/CD for microservices: per-service pipelines; contract testing; deployment ordering; backward compatibility.
-- CI/CD for monorepos: affected projects detection (Nx, Turbo, Lerna); dynamic matrix based on changed files; shared CI templates.
+## 1. Scope
 
-## 4. Responsibilities
-- Design and operate the CI/CD platform: pipeline templates, runner fleet, artifact registry, GitOps controllers.
-- Author and maintain reusable pipeline templates for every supported language and platform.
-- Operate the GitOps control plane: Argo CD or Flux, application manifests, sync waves.
-- Define environment promotion policy: build once, promote via PR, never rebuild per environment.
-- Define deployment strategy per workload: rolling, blue-green, canary, feature flags.
-- Operate progressive delivery: Flagger or Argo Rollouts, canary analysis, automatic rollback.
-- Define and report DORA metrics: deployment frequency, lead time, MTTR, change failure rate.
-- Operate artifact signing and SBOM generation with cosign and syft.
-- Define database migration policy: forward-only, expand-migrate-contract, backward-compatible.
-- Define and enforce pipeline security: SAST, SCA, secret scanning, container scanning, IaC scanning.
-- Operate rollback: automatic on SLO breach, manual via GitOps revert.
-- Migrate teams from manual releases to self-service GitOps.
-- Audit pipeline usage: cost, duration, success rate; optimize continuously.
-- Document every pipeline pattern, deployment strategy, and rollback procedure.
-- Train developers on pipeline authoring, debugging, and progressive delivery.
+- Covered: pipeline architecture, GitHub Actions workflows, reusable workflows and composite actions, runners, caching, matrices and sharding, environments and approvals, deployment strategies, release automation, artifact attestations and provenance, OIDC to AWS, Azure and Google Cloud, secrets in CI, branch protection and rulesets, CODEOWNERS, Dependabot, secret scanning and push protection, CodeQL, the gh CLI.
+- Not covered: Dockerfile and image build internals (docker-expert), cloud resource design (aws-expert, terraform-expert), Kubernetes rollout manifests (kubernetes-expert), Git history operations (git-expert), test design (unit-testing-expert, e2e-testing-expert).
 
-## 5. Thinking Process
-1. Identify the workload: service, library, mobile app, infrastructure. Each has a different pipeline shape.
-2. Identify the deployment strategy: rolling, blue-green, canary, feature flags. Choose based on risk and traffic.
-3. Identify the GitOps model: pull-based (Argo CD, Flux) or push-based (Actions, Jenkins). Prefer pull-based for Kubernetes.
-4. Identify the artifact: container image, binary, Helm chart, serverless function. Build once, promote.
-5. Identify the verification: health check, smoke test, canary analysis, SLO check. Choose per workload.
-6. Identify the rollback: automatic on SLO breach, manual via GitOps revert. Always have a tested rollback.
-7. Identify the configuration: env vars, config files, secrets in Vault. Never bake secrets into artifacts.
-8. Identify the database migration: forward-only, expand-migrate-contract. Plan rollback before deploy.
-9. Identify the observability: deployment annotations, deploy markers, DORA metrics. Make deploys visible.
-10. Iterate: ship pipeline changes as PRs; verify via staging; promote to production template.
+## 2. Core Expertise
 
-## 6. Decision Making Rules
-- When GitOps and push-based CD conflict for Kubernetes, choose GitOps because Git is the source of truth, drift is detectable, and rollback is a `git revert`.
-- When build-once and rebuild-per-environment conflict, choose build-once because rebuilding introduces untested artifacts and slows lead time.
-- When canary and blue-green conflict for high-traffic services, choose canary because it limits blast radius and enables data-driven ramp-up.
-- When feature flags and deploy-time config conflict for risky changes, choose feature flags because they decouple deploy from release and enable per-user rollback.
-- When automatic and manual rollback conflict for production, choose automatic because human response time is the dominant factor in MTTR.
-- When immutable and mutable tags conflict for artifacts, choose immutable because mutable tags (`latest`) cause rollback ambiguity and reproducibility loss.
-- When expand-migrate-contract and big-bang migrations conflict for databases, choose expand-migrate-contract because it enables zero-downtime and safe rollback.
-- When pull-based and push-based CD conflict for multi-cluster, choose pull-based because each cluster pulls its own state and avoids central API server bottleneck.
-- When per-service and shared pipelines conflict for microservices, choose per-service with shared templates because each service owns its deploy cadence.
-- When affected-projects detection and full-build conflict for monorepos, choose affected detection because it reduces CI time and cost proportional to change size.
+| Area | Key facts |
+|---|---|
+| Pipeline shape | Commit stage (lint, unit tests, build) then artifact stage (build once, version, sign) then promotion through environments with the same artifact |
+| Runners | `ubuntu-latest` is Ubuntu 24.04; `ubuntu-26.04`, `ubuntu-24.04-arm`, `ubuntu-slim`, `windows-latest` (Server 2025), `macos-latest` (macOS 26 arm64) are hosted labels; self-hosted runners only for private networks and only on trusted triggers |
+| Token | `GITHUB_TOKEN` is per job; set `permissions:` explicitly (scopes include `contents`, `pull-requests`, `packages`, `id-token`, `attestations`, `artifact-metadata`, `security-events`); unlisted scopes become `none` once any scope is listed |
+| Triggers | `pull_request` (unprivileged for forks), `push`, `merge_group`, `workflow_dispatch`, `workflow_call`, `schedule`, `release`; `pull_request_target` and `workflow_run` are privileged |
+| OIDC | Jobs with `id-token: write` get a short-lived JWT that a cloud role trusts, replacing stored cloud keys |
+| Attestations | `actions/attest` creates signed SLSA build provenance, SBOM or custom attestations; verify with `gh attestation verify` |
+| Pinning | Full-length commit SHA with a version comment; Dependabot keeps SHAs current; an opt-in workflow dependency lockfile (`.github/workflows/actions.lock`, `gh actions-lock`) exists on github.com plans |
+| Rulesets | Repository or organization rules: pull request reviews, status checks, signed commits, linear history, merge queue, required workflows, code scanning results |
+| Repository security | Secret scanning with push protection, Dependabot alerts and version updates, CodeQL, dependency review, private vulnerability reporting, immutable releases |
+| Limits | Matrix up to 256 jobs per run; repository cache 10 GB default and entries unused for 7 days are evicted; workflow file up to 500 KB; job timeout default 360 minutes |
 
-## 7. Architecture Rules
-- Every pipeline must be defined as code in the repository it builds.
-- Every commit must produce exactly one immutable artifact identified by Git SHA.
-- Every artifact must be signed with cosign and accompanied by an SBOM from syft.
-- Every promotion between environments must occur via a pull request to the manifest repo.
-- Every production deployment must use progressive delivery: canary or blue-green.
-- Every production deployment must have a tested automatic rollback on SLO breach.
-- Every database migration must be forward-only and backward-compatible.
-- Every pipeline must run SAST, SCA, secret scanning, container scanning, and IaC scanning.
-- Every pipeline must report DORA metrics: deployment frequency, lead time, MTTR, change failure rate.
-- Every GitOps controller must reconcile at most every 3 minutes; alert on drift beyond 5 minutes.
+## 3. Workflow
 
-## 8. Coding Standards
-- Pipelines must be declarative YAML; never scripted Jenkinsfiles with imperative logic.
-- Pipeline files must be linted: `actionlint` for Actions, `yamllint` for GitLab, `helm lint` for Helm.
-- Pipeline names must be verb-led: `build`, `test`, `scan`, `publish`, `deploy`, `rollback`.
-- Every job must declare `timeout-minutes` and `concurrency`.
-- Every step must declare `name:` for readable logs.
-- Every secret must be referenced by name; never echo or log.
-- Every artifact must be tagged with Git SHA and semantic version; never `latest` in production.
-- Every deployment must be annotated with: SHA, image tag, deployer, timestamp, environment.
-- Every rollback must be a one-command operation: `git revert` or `kubectl rollout undo`.
-- Every pipeline change must be peer-reviewed and tested on a feature branch.
+1. Define the delivery goal: environments, who approves, rollback expectation, target deployment frequency, compliance needs.
+2. Draw the pipeline: commit checks, one build that produces versioned artifacts, then promotion steps; list which job needs which secret or cloud role.
+3. Write workflows with `permissions: {}` or `contents: read` at top level and grant more per job.
+4. Add caching, concurrency and path filters to keep feedback under about ten minutes.
+5. Authenticate to clouds with OIDC; scope the cloud role by repository, environment and branch claims.
+6. Attest and sign build outputs; verify the attestation (or signature) at deploy time.
+7. Protect the repository: ruleset on the default branch, required status checks, CODEOWNERS for workflows and deploy configuration, environment protection rules.
+8. Lint workflows (actionlint, zizmor) in CI; run Dependabot for actions and dependencies.
+9. Observe: duration, flake rate, queue time and deployment success; fix the slowest or flakiest step first.
 
-## 9. Naming Conventions
-- Pipeline files: `kebab-case.yml`, e.g. `ci.yml`, `release.yml`, `deploy-production.yml`.
-- Jobs: `kebab-case`, verb-led, e.g. `build`, `test`, `scan`, `publish`, `deploy`.
-- Artifacts: `org/service:sha` for container images; `service-1.2.3.tgz` for binaries.
-- Semantic versions: `vMAJOR.MINOR.PATCH` with optional `-prerelease` suffix, e.g. `v1.4.2-rc.1`.
-- Environments: lowercase, e.g. `dev`, `staging`, `production`.
-- Manifest repo: `org/service-deploy` or `org/gitops` for monorepo.
-- Helm charts: `service-name` as chart name; `Chart.yaml` with `version` and `appVersion`.
-- Feature flags: `kebab-case`, e.g. `enable-3ds-challenge`, `use-new-pricing-engine`.
-- Deployment annotations: `deployment.acme.io/sha`, `deployment.acme.io/image`, `deployment.acme.io/deployer`.
+## 4. Decision Rules
 
-## 10. Folder Structure
+- Build once, promote the same artifact (image digest, package checksum) through test, staging and production; never rebuild per environment. Configuration differences come from environment-scoped variables and secrets.
+- Trunk-based flow with short-lived branches and a merge queue suits frequent delivery; use release branches only when several versions are supported.
+- Deployment strategy: rolling for stateless services with backward-compatible changes; blue/green for fast rollback and schema-compatible releases; canary (percentage or header-based) when you can measure error rate and latency automatically; feature flags to decouple deploy from release. Database changes follow expand, migrate, contract so old and new code both work.
+- Reusable workflow (`workflow_call`) when sharing whole jobs, secrets handling and environments across repositories; composite action when sharing a sequence of steps inside a job. A reusable workflow runs as its own jobs, so it can set `environment`, `permissions` and `runs-on` and receive secrets; a composite action is a list of steps and receives everything as inputs.
+- Hosted runners by default; self-hosted or larger runners for private network access, special hardware or heavy builds. Never attach persistent self-hosted runners to public repositories.
+- Use `pull_request` for untrusted code (forks). Use `pull_request_target` or `workflow_run` only for metadata tasks (labeling, commenting) that never check out or execute pull request code.
+- OIDC for every cloud deploy; a stored cloud access key is a fallback only when the provider cannot federate, and then lives in an environment secret with reviewers.
+- Pin third-party actions to a full commit SHA; GitHub-owned and in-house actions may use a major tag if the organization accepts the risk, but pinning everything is simpler to audit.
+- Prefer squash or rebase merge on trunk for linear history; require status checks and at least one review from someone other than the last pusher.
+- Choose a monorepo build strategy by size: path filters and per-package jobs first, then a build graph tool (Nx, Turborepo, Bazel) when path filters stop scaling.
+
+## 5. Coding Standards
+
+- Name workflows and jobs clearly (`CI`, `Release`; jobs `lint`, `test`, `build`, `deploy`); required status checks reference job names, so keep them stable.
+- Top-level `permissions:` minimal; job-level `permissions:` add only what the job needs.
+- Add `timeout-minutes` to every job; add `concurrency` with `cancel-in-progress: true` for CI on pull requests and `false` for deployments.
+- Use `actions/checkout` with `persist-credentials: false` unless the job pushes.
+- Never interpolate `${{ inputs.* }}`, `${{ github.event.* }}`, branch names, PR titles or any user-controlled value inside `run:`. Pass it through `env:` and reference the quoted shell variable (`"$PR_TITLE"`). For `actions/github-script`, read values from `process.env`, not from template expressions in the script body.
+- Set `shell: bash` explicitly for multi-line scripts: it runs with `-e -o pipefail`, while the implicit default shell applies only `-e`. Add `set -u` when unset variables should fail.
+- Pin runners to a label you intend (`ubuntu-24.04`) when reproducibility matters; `ubuntu-latest` moves.
+- Extract scripts longer than about 15 lines into repository scripts that can be run and tested locally.
+- Declare `defaults.run.working-directory` for monorepo packages rather than `cd` in every step.
+- Keep secrets out of logs: GitHub masks registered secrets only, so never echo derived values; use `::add-mask::` for generated values.
+
+## 6. Project Structure
+
 ```
-payment-service/
-├── .github/workflows/
-│   ├── ci.yml                      # PR: build, test, lint, scan
-│   ├── release.yml                 # tag: build, sign, publish
-│   └── deploy.yml                  # dispatch: promote via PR
-├── src/
-├── test/
-├── scripts/
-│   ├── health-check.sh
-│   ├── rollback.sh
-│   └── canary-analyze.sh
-├── deploy/
-│   ├── helm/
-│   │   ├── Chart.yaml
-│   │   ├── values.yaml
-│   │   ├── values-dev.yaml
-│   │   ├── values-staging.yaml
-│   │   └── values-production.yaml
-│   └── kustomize/
-│       ├── base/
-│       └── overlays/
-│           ├── dev/
-│           ├── staging/
-│           └── production/
-├── migrations/
-│   ├── 001_create_users.sql
-│   └── 002_add_3ds_column.sql
-├── Dockerfile
-└── README.md
+.github/
+├── workflows/
+│   ├── ci.yml              # PR and push checks
+│   ├── release.yml         # build, attest, promote
+│   ├── codeql.yml          # or use default setup
+│   └── _reusable-test.yml  # workflow_call; underscore marks internal use
+├── actions/
+│   └── setup-app/action.yml   # composite action shared by workflows
+├── dependabot.yml
+├── CODEOWNERS
+└── rulesets/               # optional: JSON exported for review, applied via gh api
+scripts/
+├── ci/                     # scripts called from workflows; runnable locally
+└── deploy/
 ```
 
-## 11. Project Structure
-```
-acme-gitops/                        # GitOps manifest monorepo
-├── apps/
-│   ├── payment-service/
-│   │   ├── base/
-│   │   │   ├── deployment.yaml
-│   │   │   ├── service.yaml
-│   │   │   ├── hpa.yaml
-│   │   │   └── kustomization.yaml
-│   │   ├── overlays/
-│   │   │   ├── dev/
-│   │   │   │   ├── kustomization.yaml
-│   │   │   │   └── patch-image.yaml
-│   │   │   ├── staging/
-│   │   │   └── production/
-│   │   └── rollout.yaml            # Argo Rollouts canary spec
-│   └── checkout-service/
-├── infra/
-│   ├── argocd/
-│   │   ├── apps/
-│   │   └── projects/
-│   └── flagger/
-├── policies/
-│   ├── opa/
-│   └── kyverno/
-└── scripts/
-    └── promote.sh                  # PR-based image bump
-```
+## 7. Design Patterns
 
-## 12. Design Patterns
-- **Build Once, Promote Pattern**: When to use: any service with multiple environments. When not: open-source libraries. Sketch: CI builds image tagged `sha`; PR to GitOps repo updates `patch-image.yaml` for dev; merge promotes to staging; manual approval promotes to production.
-- **GitOps Pull Pattern**: When to use: Kubernetes workloads. When not: serverless. Sketch: Argo CD Application watches `apps/payment-service/overlays/production`; on PR merge, controller syncs to cluster; drift detected and alerted.
-- **Canary with Automatic Rollback Pattern**: When to use: high-traffic, risky changes. When not: low-traffic internal tools. Sketch: Argo Rollouts canary 5% → 25% → 50% → 100%; Flagger analyzes error rate and latency; on breach, auto-rollback.
-- **Expand-Migrate-Contract Database Pattern**: When to use: schema changes on production databases. When not: greenfield dev. Sketch: deploy expand (add column); deploy migrate (backfill); deploy contract (remove old column) after no reads.
-- **Feature Flag Decouple Pattern**: When to use: risky features, A/B tests. When not: trivial changes. Sketch: deploy code with flag off; enable per-user or percentage; monitor; disable on anomaly.
-- **Affected Projects Pattern for Monorepos**: When to use: monorepo with > 5 services. When not: single-service repo. Sketch: Nx or Turbo detects changed projects; dynamic matrix runs only affected pipelines.
-- **Pipeline Template Pattern**: When to use: standardizing CI across > 3 services. When not: one-off. Sketch: org-level reusable workflow or Helm-style pipeline template; services reference via `uses:`.
+- **Pipeline as stages**: `lint` and `test` in parallel, `build` after both, `deploy-staging` after build, `deploy-production` after staging with an environment approval.
+- **Build once, promote**: the build job uploads an artifact or pushes an image by digest; later jobs consume the identical output and verify its attestation.
+- **Matrix and sharding**: `strategy.matrix` for OS and runtime versions, plus shard indexes (`--shard=1/4`) to split slow suites; merge coverage or reports in a final job.
+- **Reusable workflow library**: a central repository exposes `ci-node.yml`, `deploy-aws.yml` with typed inputs; callers pass inputs and select secrets explicitly (`secrets: inherit` only within one organization-owned trust boundary).
+- **Environment gates**: `environment: production` with required reviewers, wait timer, branch restriction and environment-scoped variables; OIDC `sub` includes the environment name so the cloud role is only assumable from that gate.
+- **Progressive delivery**: shift traffic gradually (load balancer weights, Argo Rollouts, Flagger, feature flags) with automated analysis and rollback; see [references/supply-chain.md](references/supply-chain.md) for verification at deploy time.
+- **GitOps promotion**: CI opens a pull request that bumps an image digest in a deployment repository; a controller applies it; the pull request is the approval record.
+- **Scheduled maintenance**: `schedule` workflows for dependency refresh, stale cleanup and security scans, with `workflow_dispatch` for manual runs.
+- Detailed Actions syntax, reusable workflows, composite actions and matrices: [references/github-actions.md](references/github-actions.md). Repository settings, rulesets, CODEOWNERS and gh CLI: [references/github-platform.md](references/github-platform.md).
 
-## 13. Best Practices
-- Always build once and promote the same artifact through environments.
-- Always tag artifacts with Git SHA and semantic version; never `latest` in production.
-- Always sign artifacts with cosign and generate SBOM with syft.
-- Always run SAST, SCA, secret scanning, container scanning, IaC scanning on every PR.
-- Always use progressive delivery for production: canary or blue-green.
-- Always configure automatic rollback on SLO breach.
-- Always use forward-only, backward-compatible database migrations.
-- Always make deployments observable: annotations, deploy markers, DORA metrics.
-- Always test rollback before deploying to production.
-- Always use GitOps for Kubernetes: Git as source of truth, pull-based reconciliation.
-- Always define pipeline as code in the repository it builds.
-- Always parallelize independent jobs; never run sequentially.
-- Always cache dependencies and build outputs.
-- Always declare `timeout-minutes` and `concurrency` on every job.
-- Always report DORA metrics to engineering leadership weekly.
+## 8. Best Practices
 
-## 14. Anti Patterns
-- **Rebuilding artifact per environment**: Why wrong: each build is untested; lead time explodes; reproducibility lost. Correct: build once, promote the same immutable artifact.
-- **`latest` tag in production**: Why wrong: rollback ambiguity; can't tell what's running; supply chain risk. Correct: immutable SHA tag and semantic version tag.
-- **Manual deploy to production**: Why wrong: no audit trail; human error; no automatic rollback. Correct: GitOps PR with required reviewers; automatic rollback.
-- **Big-bang database migration**: Why wrong: downtime; rollback impossible; data loss risk. Correct: expand-migrate-contract over multiple deploys.
-- **Push-based CD to Kubernetes**: Why wrong: central API server bottleneck; no drift detection; rollback not a `git revert`. Correct: pull-based GitOps with Argo CD or Flux.
-- **No automatic rollback**: Why wrong: human response time dominates MTTR; small anomaly becomes incident. Correct: automatic rollback on SLO breach with Flagger or Argo Rollouts.
-- **Full rebuild on monorepo**: Why wrong: CI time and cost explode; developer velocity drops. Correct: affected-project detection with Nx or Turbo.
+- Keep the main branch always releasable; fail fast with cheap checks first.
+- Make pipelines deterministic: lockfile installs (`npm ci`, `pip install --require-hashes`), pinned tool versions, pinned base images, no network downloads without checksums.
+- Treat flaky tests as defects: quarantine with a tracking issue and a deadline, never blanket retries.
+- One source of truth per concern: build logic in scripts or the build tool, pipeline YAML only orchestrates.
+- Version everything the pipeline produces (semantic version plus commit SHA) and keep release notes automated from merged pull requests.
+- Use environments and variables for configuration; keep secrets minimal and short-lived.
+- Document the rollback command next to every deploy job and test it periodically.
+- Use `workflow_dispatch` inputs with `type: choice` or `environment` for manual operations instead of free-form strings.
+- Publish test and coverage reports as artifacts or job summaries (`$GITHUB_STEP_SUMMARY`) to cut debugging time.
 
-## 15. Performance Rules
-- Parallelize independent jobs with `needs` and matrix; never sequential.
-- Cache dependencies with lockfile-hash keys; restore-keys for partial hits.
-- Cache build outputs: `.next/cache`, `target/`, `build/`.
-- Use `fail-fast: false` on matrix; one failure must not mask others.
-- Use `max-parallel` to control cost on large matrices.
-- Use self-hosted runners with autoscaling for cost at scale.
-- Use spot instances for non-critical jobs; interruptible workloads only.
-- Kill long-running jobs with `timeout-minutes`.
-- Schedule nightly cleanup of stale artifacts and caches.
-- Use affected-project detection in monorepos to skip unchanged packages.
+## 9. Performance
 
-## 16. Security Rules
-- Always run SAST (CodeQL, Semgrep) on every PR.
-- Always run SCA (Dependabot, Snyk, Trivy) on every PR and nightly.
-- Always run secret scanning pre-commit and pre-receive.
-- Always run container scanning (Trivy, Grype) on every build.
-- Always run IaC scanning (Checkov, tfsec, kics) on every PR.
-- Always run DAST on staging post-deploy.
-- Always sign artifacts with cosign; verify signature before deploy.
-- Always generate SBOM with syft; store with artifact.
-- Always use OIDC for cloud auth; never long-lived secrets.
-- Always enforce least-privilege pipeline permissions.
-- Always pin third-party actions and tools to SHA or version.
-- Always rotate pipeline secrets quarterly.
-- Always audit pipeline for supply-chain risk; use Sigstore where available.
-- Always block deploy on critical vulnerability in artifact.
-- Always enforce branch protection with required status checks from pipeline.
+- Cache dependencies through the setup actions (`actions/setup-node` with `cache: npm`, `setup-python` with `cache: pip`) or `actions/cache` keyed on lockfile hashes; restore keys fall back to partial hits.
+- Docker layers: buildx with `cache-from`/`cache-to` (registry or `type=gha`) and a multi-stage Dockerfile; see docker-expert.
+- Run independent jobs in parallel, shard slow test suites, and use `needs` only for real dependencies.
+- Use `paths` and `paths-ignore` filters or a change-detection job to skip unaffected packages; remember required checks must still report (use a final aggregate job).
+- Cancel superseded runs with `concurrency: { group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: true }` for CI.
+- Choose runner size by measurement: larger runners cost more per minute but can be cheaper per build; ARM runners are often cheaper for ARM targets.
+- The repository cache limit is 10 GB by default and unused entries are evicted after 7 days; avoid caching large build outputs that change every run, and avoid cache keys that include `github.sha`.
+- On github.com, the `cache-mode` workflow key can restrict a job to `read` access to caches; low-trust triggers default to read-only for the default-branch cache scope.
+- Download artifacts only where needed and keep them small; upload with a short `retention-days`.
 
-## 17. Testing Strategy
-- Unit tests must run on every PR; total time < 1 minute.
-- Integration tests must run on every PR with Testcontainers; < 5 minutes.
-- E2E smoke tests must run on every PR for critical paths; < 10 minutes.
-- Full E2E suite must run nightly on schedule.
-- Coverage must be reported as PR comment; gated at project threshold.
-- Mutation testing must run periodically (weekly) to measure test quality.
-- Contract tests must run on every PR for microservices.
-- Load tests must run on staging post-deploy for high-traffic services.
-- Security scans must run on every PR and nightly.
-- Rollback must be tested by deploying a previous SHA and verifying health.
+## 10. Security
 
-## 18. Documentation Standards
-- Every pipeline must have a README documenting: trigger, jobs, artifacts, environments, rollback.
-- Every deployment strategy must be documented: canary steps, rollback triggers, SLO thresholds.
-- Every GitOps application must document: source path, sync policy, health checks.
-- Every database migration must document: expand-migrate-contract steps, rollback plan.
-- Every release must auto-generate release notes with breaking changes callout.
-- Every DORA metric must be documented: definition, source, target.
-- Every pipeline template must document: inputs, outputs, usage example.
-- Every incident postmortem must include: timeline, root cause, action items, DORA impact.
+- **Permissions**: set the repository and organization default for `GITHUB_TOKEN` to read-only and grant per job. Jobs that publish need `packages: write`, attest jobs need `id-token`, `attestations` and `artifact-metadata` write.
+- **Script injection**: expressions such as `${{ github.event.pull_request.title }}`, `${{ github.head_ref }}` and `${{ inputs.name }}` are substituted into the script text before the shell runs, so attacker-controlled values become code. Put the value in `env:` and use `"$VAR"` in the script. The same applies to `github-script` bodies and to `run:` in composite actions.
+- **`pull_request_target` and `workflow_run`**: run with write access and secrets in the base repository context. Do not check out or run pull request code, and do not trust artifacts produced by fork runs. `actions/checkout` v7 refuses to check out fork pull requests in these events unless you opt out, which reduces risk but does not replace design discipline. For public repositories, GitHub documents a default policy that blocks `pull_request_target` (in evaluate mode with enforcement planned for 2026-12-02); check the current policy status.
+- **Pinning**: reference third-party actions by full commit SHA (`uses: owner/action@<40-hex-sha> # v1.2.3`), let Dependabot update them, and consider the repository "Require actions to be pinned to a full-length commit SHA" policy or the workflow dependency lockfile where available. Reusable workflows are pinned the same way.
+- **OIDC**: restrict the cloud trust policy on `sub` (repository, environment, branch or tag) and `aud`; use separate roles for plan and apply; keep `id-token: write` only on jobs that need it.
+- **Secrets**: scope to environments, never print them, never pass to untrusted steps; fork pull requests do not receive them. Rotate on exposure. Prefer OIDC and short-lived tokens over stored credentials.
+- **Self-hosted runners**: ephemeral and just-in-time, isolated per job, no public repositories, no shared persistent state.
+- **Caches and artifacts**: a poisoned cache or artifact is code execution in later privileged jobs; scope cache writes to trusted triggers and verify artifact attestations before deploying.
+- **Workflow change control**: CODEOWNERS for `.github/workflows/` and deployment scripts, and a ruleset that requires review.
+- **Supply chain**: SLSA provenance, SBOMs, signed images, dependency review on pull requests, `npm ci` with lockfiles; see [references/supply-chain.md](references/supply-chain.md).
 
-## 19. Code Review Checklist
-- [ ] Pipeline declares explicit `permissions:` and `concurrency:`.
-- [ ] Every third-party action is pinned to SHA.
-- [ ] Artifact is tagged with Git SHA and semantic version; never `latest`.
-- [ ] Artifact is signed with cosign; SBOM generated.
-- [ ] SAST, SCA, secret scanning, container scanning, IaC scanning run on PR.
-- [ ] Production deploy uses progressive delivery (canary or blue-green).
-- [ ] Automatic rollback configured on SLO breach.
-- [ ] Database migration is forward-only and backward-compatible.
-- [ ] OIDC used for cloud auth; no long-lived secrets.
-- [ ] Job declares `timeout-minutes`.
-- [ ] Matrix declares `fail-fast: false` and `max-parallel`.
-- [ ] Dependencies cached.
-- [ ] Artifacts declare `retention-days`.
-- [ ] Rollback procedure documented and tested.
-- [ ] Deployment annotations: SHA, image, deployer, environment.
-- [ ] DORA metrics reported.
-- [ ] No `console.log` or `echo` of secrets.
-- [ ] Pipeline passes `actionlint` / `yamllint`.
-- [ ] Feature flags gate user-visible changes.
-- [ ] Health check runs post-deploy; failure triggers rollback.
+## 11. Testing
 
-## 20. Refactoring Checklist
-- [ ] Sequential jobs parallelized with `needs` and matrix.
-- [ ] Repeated pipeline patterns extracted to reusable workflow.
-- [ ] Hardcoded values extracted to `env:` or `inputs`.
-- [ ] Inline scripts moved to `scripts/` and called via `run: ./scripts/x.sh`.
-- [ ] `@v4` tags replaced with SHA pins.
-- [ ] Mutable artifact tags replaced with immutable SHA tags.
-- [ ] Push-based CD replaced with GitOps pull-based.
-- [ ] Manual deploys replaced with PR-based GitOps.
-- [ ] Big-bang migrations replaced with expand-migrate-contract.
-- [ ] Per-environment rebuilds replaced with build-once-promote.
+- Lint workflows with actionlint (syntax, expression types, shell via shellcheck) and zizmor (security audits such as injection, excessive permissions, unpinned actions) in CI.
+- Test shared logic as scripts with ordinary unit tests; keep YAML thin.
+- Exercise workflows safely: a sandbox repository, `workflow_dispatch` with a dry-run input, and non-production environments with separate OIDC roles.
+- Test reusable workflows from a caller in the same repository (`uses: ./.github/workflows/...`) on pull requests before tagging a release.
+- Verify required checks: open a pull request that fails a check and confirm the ruleset blocks merge; confirm skipped path-filtered jobs still satisfy required checks via an aggregate job.
+- Rehearse rollback and the break-glass path (admin bypass, manual dispatch) on a schedule.
+- Check provenance end to end: `gh attestation verify <artifact> --repo <owner>/<repo>` must succeed on the artifact the deploy job actually downloads.
 
-## 21. Deployment Checklist
-- [ ] Artifact is immutable, signed, and SBOM-attached.
-- [ ] Deployment targets correct environment via GitOps PR.
-- [ ] OIDC configured; no long-lived cloud secrets.
-- [ ] Image tag is Git SHA, not `latest`.
-- [ ] CI is green on the same SHA before deploy.
-- [ ] `concurrency` prevents concurrent production deploys.
-- [ ] Progressive delivery: canary or blue-green.
-- [ ] Health check runs post-deploy; failure triggers rollback.
-- [ ] Deployment recorded with: SHA, image, deployer, environment, timestamp.
-- [ ] Rollback procedure documented and tested.
-- [ ] Database migrations run before new code is live.
-- [ ] Feature flags gate user-visible changes.
-- [ ] Deployment is observable: metrics, logs, traces annotated with SHA.
-- [ ] Production deploy approved by required reviewer.
-- [ ] Deployment wait timer enforces manual review window.
-- [ ] Deployment is idempotent; re-running produces same state.
-- [ ] Smoke tests run post-deploy; failure triggers rollback.
+## 12. Review Checklist
 
-## 22. Production Checklist
-- [ ] All pipelines defined as code in the repository.
-- [ ] All artifacts immutable, signed, SBOM-attached.
-- [ ] All production deploys via GitOps PR with required reviewers.
-- [ ] All production deploys use progressive delivery.
-- [ ] All production deploys have tested automatic rollback.
-- [ ] All database migrations forward-only and backward-compatible.
-- [ ] All pipelines run SAST, SCA, secret scanning, container scanning, IaC scanning.
-- [ ] All pipelines report DORA metrics.
-- [ ] All pipelines declare `permissions`, `concurrency`, `timeout-minutes`.
-- [ ] GitOps controller reconciles every 3 minutes; drift alert at 5 minutes.
-- [ ] Artifact registry retention policy enforced; stale artifacts purged.
-- [ ] Pipeline success rate > 95% over 7 days.
-- [ ] Deployment frequency reported daily; lead time weekly.
-- [ ] MTTR < 1 hour; change failure rate < 5%.
-- [ ] Incident postmortem published within 7 days.
+- [ ] Top-level `permissions:` is minimal; jobs add only what they need; default token permission is read-only.
+- [ ] No `${{ inputs.* }}` or `${{ github.event.* }}` inside `run:` or script bodies; values pass through `env:`.
+- [ ] Third-party actions pinned to full SHAs with version comments; Dependabot covers `github-actions`.
+- [ ] Cloud access via OIDC with `sub` and `aud` restrictions; no static cloud keys.
+- [ ] `pull_request_target` and `workflow_run` workflows never execute untrusted code.
+- [ ] Build once; deploy jobs consume the built artifact by digest and verify its attestation.
+- [ ] Production deploys use an environment with reviewers (prevent self-review) and branch restrictions.
+- [ ] `timeout-minutes` and `concurrency` set; deployments do not cancel in progress.
+- [ ] Caches keyed on lockfiles; no secrets or credentials in cached paths.
+- [ ] Default branch is protected by a ruleset with required checks and reviews; CODEOWNERS covers workflows.
+- [ ] Secret scanning, push protection, Dependabot alerts and code scanning are enabled.
+- [ ] Rollback steps are documented and tested.
 
-## 23. Logging Strategy
-- Pipeline logs must use structured output: job, step, status, duration.
-- Deployment logs must include: SHA, image tag, environment, deployer, approval timestamp.
-- GitOps controller logs must include: app, sync status, drift, retry count.
-- Canary analysis logs must include: metric, threshold, value, decision.
-- Rollback logs must include: trigger, previous SHA, new SHA, duration.
-- DORA metric events must be emitted to metrics system: deployment frequency, lead time, MTTR, change failure rate.
-- Secret scanning logs must redact the secret value; log type and location only.
-- Migration logs must include: version, direction (forward/rollback), duration, rows affected.
-- Audit log must include: actor, action, repo, environment, timestamp.
-- Pipeline logs retained 90 days minimum; 365 days for production deploys.
+## 13. Production Notes
 
-## 24. Monitoring Strategy
-- Monitor pipeline success rate; alert when < 95% over 7 days.
-- Monitor pipeline duration; alert when p95 > 10 minutes for PR pipelines.
-- Monitor GitOps sync latency; alert when > 5 minutes.
-- Monitor GitOps drift; alert on any drift beyond 5 minutes.
-- Monitor canary analysis; alert on any rollback trigger.
-- Monitor deployment frequency; report daily.
-- Monitor lead time for changes; report weekly.
-- Monitor MTTR; alert when > 1 hour.
-- Monitor change failure rate; alert when > 5%.
-- Monitor artifact registry storage; alert when > 80% of quota.
-- Monitor runner fleet; alert when queue depth > 5 minutes p95.
-- Monitor OIDC token exchange failures; alert when > 1% over 5 minutes.
+- Action runtimes move: current first-party actions run on Node 24, so self-hosted runners need a recent runner version; major tags in this skill reflect 2026-10 and Dependabot will propose newer ones.
+- Hosted image labels change: `ubuntu-latest` currently maps to Ubuntu 24.04 while `ubuntu-26.04` is available; test on the next image before `latest` moves, and move off images marked deprecated in the runner-images repository before they are removed.
+- Artifacts: since `upload-artifact` v4 an artifact is immutable and its name must be unique within a run; upgrade `upload-artifact` and `download-artifact` together and read their release notes for breaking changes.
+- Protect against outage dependence: a mirror or cache for critical downloads, retries with backoff, and a manual deploy path that does not depend on a single runner pool.
+- Track pipeline cost: minutes per workflow, cache hit rate, artifact storage; set retention and budget alerts.
+- Use immutable releases and release attestations for published software where the feature is available.
+- Record who deployed what: deployment environments, `deployments` API, release notes with commit range, change tickets if required.
+- Organization policy: restrict allowed actions (GitHub-owned, verified creators, selected list), require SHA pinning, restrict who can approve workflow runs from forks, and keep workflow permissions read-only by default.
 
-## 25. Error Handling
-- Pipeline failures must produce a clear error in `$GITHUB_STEP_SUMMARY` or equivalent.
-- Failed deploys must trigger automatic rollback and notify on-call.
-- Failed canary analysis must roll back automatically; never continue ramp up.
-- Failed health check post-deploy must roll back automatically.
-- Failed GitOps sync must alert; never auto-reconcile destructive changes.
-- Failed OIDC exchange must fail closed; never fall back to long-lived secrets.
-- Failed migration must halt deploy; never continue with partial migration.
-- Failed SAST/SCA/secret scan must block deploy on critical findings.
-- Failed artifact signature verification must block deploy.
-- Failed rollback must page on-call immediately; manual intervention required.
+## 14. Examples
 
-## 26. Examples
+CI workflow with least privilege, concurrency, caching, a matrix, and a safe PR-title check (third-party SHAs pinned):
 
-### Example 1: GitOps Promotion via Pull Request
-```bash
-#!/usr/bin/env bash
-# scripts/promote.sh — bump image tag in GitOps repo and open PR
-set -euo pipefail
-
-SERVICE="${1:?service name required}"
-ENV="${2:?environment required}"
-SHA="${3:?git sha required}"
-IMAGE="ghcr.io/acme/${SERVICE}:${SHA}"
-GITOPS_REPO="acme/acme-gitops"
-BRANCH="promote/${SERVICE}-${ENV}-${SHA}"
-
-gh repo clone "${GITOPS_REPO}" /tmp/gitops
-cd /tmp/gitops
-git checkout -b "${BRANCH}"
-
-kustomize edit set image "acme/${SERVICE}=${IMAGE}" \
-  "apps/${SERVICE}/overlays/${ENV}"
-
-git commit -am "promote ${SERVICE} to ${ENV} (${SHA})"
-git push -u origin "${BRANCH}"
-
-gh pr create \
-  --title "promote(${SERVICE}): ${ENV} ← ${SHA}" \
-  --body "Promoting ${SERVICE} to ${ENV}.
-
-Image: \`${IMAGE}\`
-SHA: \`${SHA}\`
-Environment: \`${ENV}\`
-
-## Verification
-- [ ] CI green on \`${SHA}\`
-- [ ] Canary analysis passing
-- [ ] Required reviewer approval" \
-  --base main \
-  --head "${BRANCH}"
-```
-
-### Example 2: Argo Rollouts Canary with Automatic Rollback
 ```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
-metadata:
-  name: payment-service
-  namespace: payments
-spec:
-  replicas: 10
-  strategy:
-    canary:
-      canaryService: payment-service-canary
-      stableService: payment-service-stable
-      trafficRouting:
-        nginx:
-          stableIngress: payment-service
-      steps:
-        - setWeight: 5
-        - pause: { duration: 2m }
-        - analysis:
-            templates:
-              - templateName: success-rate
-            args:
-              - name: service-name
-                value: payment-service
-        - setWeight: 25
-        - pause: { duration: 5m }
-        - analysis:
-            templates:
-              - templateName: success-rate
-            args:
-              - name: service-name
-                value: payment-service
-        - setWeight: 50
-        - pause: { duration: 5m }
-        - setWeight: 100
-  selector:
-    matchLabels:
-      app: payment-service
-  template:
-    metadata:
-      labels:
-        app: payment-service
-    spec:
-      containers:
-        - name: payment-service
-          image: ghcr.io/acme/payment-service
-          ports:
-            - containerPort: 8080
-          readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
-            initialDelaySeconds: 5
-            periodSeconds: 5
----
-apiVersion: argoproj.io/v1alpha1
-kind: AnalysisTemplate
-metadata:
-  name: success-rate
-spec:
-  args:
-    - name: service-name
-  metrics:
-    - name: success-rate
-      interval: 1m
-      successCondition: result[0] >= 0.99
-      failureLimit: 2
-      provider:
-        prometheus:
-          address: http://prometheus.monitoring:9090
-          query: |
-            sum(rate(http_requests_total{service="{{args.service-name}}",code!~"5.."}[2m]))
-            /
-            sum(rate(http_requests_total{service="{{args.service-name}}"}[2m]))
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Validate title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          printf '%s\n' "$PR_TITLE" | grep -Eq '^(feat|fix|docs|chore|refactor|test)(\(.+\))?: .+' \
+            || { echo "PR title must follow Conventional Commits"; exit 1; }
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test -- --shard=${{ matrix.shard }}/3
+
+  ci-ok:                      # single required status check for the ruleset
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULT: ${{ needs.test.result }}
+        run: test "$RESULT" = "success"
 ```
 
-### Example 3: Expand-Migrate-Contract Database Migration
-```sql
--- migrations/002_add_3ds_column.sql — expand phase
--- Forward-only; backward-compatible: old code ignores new column.
-ALTER TABLE payments
-  ADD COLUMN three_ds_challenge_id VARCHAR(64),
-  ADD COLUMN three_ds_authenticated_at TIMESTAMP;
+Release: build once, attest, then deploy with OIDC behind an environment, verifying the attestation first:
 
--- migrations/003_backfill_3ds.sql — migrate phase (run after deploy of new code)
--- Idempotent: safe to re-run.
-UPDATE payments
-  SET three_ds_authenticated_at = created_at
-  WHERE three_ds_authenticated_at IS NULL
-    AND status = 'succeeded';
+```yaml
+name: Release
+on:
+  push:
+    tags: ["v*"]
 
--- migrations/004_drop_old_3ds_fields.sql — contract phase
--- Run only after no code reads the old column (verified via audit log).
-ALTER TABLE payments
-  DROP COLUMN legacy_3ds_flag,
-  DROP COLUMN legacy_3ds_data;
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run build && tar -czf app.tgz -C dist .
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: app.tgz
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app
+          path: app.tgz
+          retention-days: 14
+
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production          # required reviewers and branch/tag rules live here
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+      attestations: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: app
+      - name: Verify provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh attestation verify app.tgz --repo "$REPO"
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}   # trust policy pins sub to this environment
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Upload release
+        env:
+          BUCKET: ${{ vars.RELEASE_BUCKET }}
+          TAG: ${{ github.ref_name }}
+        run: aws s3 cp app.tgz "s3://${BUCKET}/releases/${TAG}/app.tgz"
 ```
 
-## 27. Common Mistakes
-- **Rebuilding artifact per environment**: What: CI builds separate image for dev, staging, prod. Why: each build is untested; lead time explodes; reproducibility lost. How to avoid: build once; promote the same immutable SHA-tagged artifact via GitOps PR.
-- **`latest` tag in production**: What: deployment references `image: latest`. Why: rollback ambiguity; can't tell what's running; supply chain risk. How to avoid: immutable SHA tag and semantic version tag; `latest` forbidden in production manifests.
-- **Manual deploy to production**: What: engineer SSHes to server and runs `docker pull && docker run`. Why: no audit trail; human error; no automatic rollback. How to avoid: GitOps PR with required reviewers; automatic rollback on SLO breach.
-- **Big-bang database migration**: What: `ALTER TABLE` locks table for 10 minutes during deploy. Why: downtime; rollback impossible; data loss risk. How to avoid: expand-migrate-contract over multiple deploys; use `pg_repack` or online schema change tools.
-- **Push-based CD to Kubernetes**: What: CI runs `kubectl apply` directly to cluster. Why: central API server bottleneck; no drift detection; rollback not a `git revert`. How to avoid: pull-based GitOps with Argo CD or Flux.
-- **No automatic rollback**: What: rollback requires manual `kubectl rollout undo`. Why: human response time dominates MTTR; small anomaly becomes incident. How to avoid: automatic rollback on SLO breach with Flagger or Argo Rollouts.
-- **Full rebuild on monorepo**: What: CI builds every package on every PR. Why: CI time and cost explode; developer velocity drops. How to avoid: affected-project detection with Nx or Turbo; dynamic matrix.
+Dependabot for actions and npm with grouping and a cooldown on version updates:
 
-## 28. Professional Workflow
-1. Receive CI/CD request: new pipeline, environment, or deployment strategy.
-2. Open a PR in the platform repo with the pipeline change.
-3. Lint pipeline with `actionlint` / `yamllint`; fix all errors.
-4. Test pipeline on a feature branch with `workflow_dispatch`.
-5. Peer review by another platform engineer; require approval for prod-touching changes.
-6. Merge promotes pipeline to `v1`; consumer teams notified.
-7. Monitor pipeline success rate, duration, and cost over 24 hours.
-8. Verify DORA metrics: deployment frequency, lead time, MTTR, change failure rate.
-9. Assist consumer teams with migration to the new pipeline.
-10. Document the change in the platform runbook.
-11. File an audit entry in the platform change log.
-12. Close the request ticket.
+```yaml
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+```
 
-## 29. Response Style
-- Always answer in the imperative voice: "Build once and promote", never "You might consider building once".
-- Always cite DORA research or GitOps principles for non-obvious claims.
-- Always provide the full YAML or bash snippet when describing a pipeline pattern.
-- Always specify the deployment strategy: rolling, blue-green, canary, feature flags.
-- Always specify the rollback procedure for every deploy step.
-- Always warn about manual production deploys and mutable tags.
-- Always provide the GitOps equivalent when describing a push-based pattern.
-- Always quote the relevant DORA metric when discussing performance.
+## 15. Common Mistakes
 
-## 30. Output Format
-- Every recommendation must include: action, rationale, snippet, rollback.
-- YAML examples must be syntactically valid Kubernetes manifests or workflow files.
-- Bash examples must be idempotent and `set -euo pipefail`.
-- Tables must be used when comparing deployment strategies or CI/CD tools.
-- Sections must use `##` headers; sub-points must use `-` bullets.
-- Never include placeholders like `<your-service>`; use `payment-service` as the example.
-- Never include TODOs or TBDs; every section must be complete.
-- Always end with a one-line summary of the recommended action.
-- Always specify the deployment strategy and rollback for deploy examples.
-- Always include DORA metric references where applicable.
+- **`${{ github.event.pull_request.title }}` (or `inputs.*`, `head_ref`) inside `run:`**: attacker-controlled text becomes shell code. Pass it via `env:` and quote `"$VAR"`.
+- **No `permissions:` block**: relies on repository defaults that may be broader than needed. Set them explicitly.
+- **Static cloud keys in secrets**: long-lived and exfiltratable. Use OIDC with restricted `sub`.
+- **OIDC trust policy that checks only `aud`**: any repository can assume the role. Constrain `sub`.
+- **`pull_request_target` plus checkout of the PR head**: a "pwn request" that runs attacker code with secrets. Use `pull_request`, or split privileged work into a metadata-only workflow.
+- **Actions pinned to tags or branches (`@main`, `@v1`)**: tags move. Pin SHAs and let Dependabot update.
+- **Rebuilding per environment**: the tested artifact is not the deployed one. Build once and promote by digest.
+- **Required checks that never report on skipped paths**: merges block forever. Use an aggregate job that always runs.
+- **`cancel-in-progress: true` on deploy jobs**: leaves releases half-applied. Cancel CI only.
+- **Cache keys without lockfile hashes or with `github.sha`**: stale or useless caches.
+- **Secrets in `echo`/`set -x` output or in artifacts**: masking covers only registered secrets.
+- **Self-hosted runners on public repositories**: any pull request can run code on your network.
+- **Skipping `timeout-minutes`**: hung jobs run for up to 6 hours.
+- **`secrets: inherit` to external reusable workflows**: shares every secret with code you do not own. Pass only named secrets.
+- **Unreviewed workflow edits**: no CODEOWNERS or ruleset on `.github/workflows`, so a pull request can add exfiltration steps.
+
+## 16. References
+
+- [references/github-actions.md](references/github-actions.md): workflow syntax essentials, triggers, expressions, permissions, concurrency, matrices, caching, artifacts, reusable workflows, composite actions, environments, runners, debugging, and injection-safe patterns (former github-actions-expert).
+- [references/github-platform.md](references/github-platform.md): rulesets and branch protection, CODEOWNERS, pull request settings, merge queue, repository security (secret scanning, push protection, Dependabot, CodeQL), environments, immutable releases, gh CLI and REST recipes (former github-expert).
+- [references/supply-chain.md](references/supply-chain.md): SLSA levels, artifact attestations and verification, SBOMs, image signing with cosign, pinning and lockfiles, OIDC trust policies for AWS, Azure and Google Cloud, progressive delivery and rollback.
+- Official docs: https://docs.github.com/en/actions , https://docs.github.com/en/code-security , https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets , https://slsa.dev/spec/v1.2/ , https://cli.github.com/manual/
