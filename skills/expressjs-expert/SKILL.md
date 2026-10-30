@@ -179,7 +179,8 @@ export interface Deps {
 export function createApp(deps: Deps): Express {
   const app = express();
   app.set('trust proxy', 1);            // exactly one proxy (the load balancer) in front
-  app.use(helmet());                    // script-src 'self'; no unsafe-inline for scripts
+  // helmet's default style-src allows 'unsafe-inline'; tighten it so the CSP has no unsafe-inline at all
+  app.use(helmet({ contentSecurityPolicy: { directives: { 'style-src': ["'self'"] } } }));
   app.use(rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: 'draft-8', legacyHeaders: false }));
   app.use(express.json({ limit: '100kb' }));
 

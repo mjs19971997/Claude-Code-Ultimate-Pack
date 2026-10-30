@@ -30,7 +30,7 @@ frame-ancestors 'self'; img-src 'self' data:; object-src 'none'; script-src 'sel
 script-src-attr 'none'; style-src 'self' https: 'unsafe-inline'; upgrade-insecure-requests
 ```
 
-`script-src` has no `'unsafe-inline'`; only `style-src` allows inline styles. For a JSON API the CSP is mostly irrelevant, but the other headers still apply. For pages that load a CDN script or call another origin, extend the specific directive:
+`script-src` has no `'unsafe-inline'`, but the default `style-src` does; override it with `'style-src': ["'self'"]` (plus nonces or hashes if inline styles are truly needed). For a JSON API the CSP is mostly irrelevant, but the other headers still apply. For pages that load a CDN script or call another origin, extend the specific directive:
 
 ```typescript
 app.use(helmet({
@@ -38,6 +38,7 @@ app.use(helmet({
     directives: {                       // merged with the defaults (useDefaults is true)
       'script-src': ["'self'", 'https://cdn.example.com'],
       'connect-src': ["'self'", 'https://api.example.com'],
+      'style-src': ["'self'"],         // drop the default 'unsafe-inline' for styles
     },
   },
   hsts: { maxAge: 31_536_000, includeSubDomains: true },
