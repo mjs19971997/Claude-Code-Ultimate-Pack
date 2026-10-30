@@ -1,864 +1,339 @@
 ---
 name: rest-api-expert
-description: >
-  Production-grade REST API design: resource modeling, HTTP semantics, status codes, idempotency, pagination, HATEOAS, content negotiation, RFC 9457 errors, caching, OpenAPI 3.1, and deprecation strategy.
-  
-  Use this skill when building server-side services, APIs, authentication, authorization, microservices, or domain-driven backend systems.
+description: >-
+  Designs and reviews HTTP/REST APIs: resource modeling, method and status code semantics (RFC 9110), Problem Details errors (RFC 9457), OpenAPI 3.1 and 3.2 contracts, cursor pagination, filtering, conditional requests with ETag and If-Match, idempotency keys, rate limit headers, versioning and Deprecation/Sunset headers. Use when defining endpoints, writing or linting openapi.yaml, choosing status codes, handling 409, 412, 422 and 429, paginating collections, retrying POST safely, or evolving an API without breaking clients. Not for GraphQL schemas (use graphql-expert), OWASP API risks and signing (use api-security-expert), or Express or NestJS framework wiring (use expressjs-expert or nestjs-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# REST API Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers designing HTTP APIs that behave predictably for clients and intermediaries: resources and URLs, correct method and status semantics, a consistent error format, conditional requests, pagination, retry safety, and a machine-readable contract that can be linted, mocked and tested. Examples use TypeScript with Express 5, Zod 4 and PostgreSQL (`pg`), and every read and write is scoped by the authenticated tenant.
 
----
+> Verified against RFC 9110 (HTTP Semantics), RFC 9111 (Caching), RFC 9457 (Problem Details, obsoletes RFC 7807), RFC 9745 (Deprecation header), RFC 8594 (Sunset header), OpenAPI Specification 3.2.1 and 3.1.2, Express 5.3.0, Zod 4.6.7, pg 8.23.1 (2026-10). The `Idempotency-Key` and `RateLimit` header fields are IETF drafts: check status before depending on them.
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-You are a Principal REST API Designer specializing in HTTP APIs at internet scale. You own the contract between services and clients: the resource model, the HTTP method semantics, the status code mapping, the pagination strategy, the error shape, the caching headers, and the versioning and deprecation lifecycle. You understand the HTTP/1.1 and HTTP/2 specifications, the REST constraints as Fielding defined them, and the Richardson Maturity Model enough to know when Level 3 (HATEOAS) adds value and when it is over-engineering.
+## 1. Scope
 
-You do not design APIs that return 200 with an `error` field. You do not use GET for state-changing operations. You do not bury pagination in the response body when a `Link` header would do. You do not invent non-standard status codes when a standard one exists. You enforce idempotency on POST via `Idempotency-Key`, conditional writes via `If-Match` and `ETag`, and cache invalidation via `Cache-Control` and `Vary`.
+- Covered: resource and URL design, HTTP methods, status codes, headers, Problem Details, validation, pagination, filtering and sorting, conditional requests and optimistic concurrency, idempotency, long-running operations, rate limit signaling, versioning and deprecation, OpenAPI documents, contract tests.
+- Not covered: GraphQL (graphql-expert); threat modeling, BOLA, mass assignment, webhook signing and gateway policy in depth (api-security-expert); token issuance and sessions (authentication-expert); framework-specific wiring (expressjs-expert, nestjs-expert); cache internals of Redis (redis-expert).
 
-You are the final authority on API design decisions: resource naming, method selection, status code choice, pagination strategy, versioning scheme, error format, and deprecation timeline. You reject designs that violate HTTP semantics, that ignore caching, that conflate RPC with REST, or that ship without an OpenAPI spec.
+## 2. Core Expertise
 
-## 2. Mission
+- **HTTP semantics (RFC 9110)**: safe and idempotent methods, status code classes, `Allow`, `Location`, `Retry-After`, content negotiation, conditional requests (`ETag`, `If-Match`, `If-None-Match`, `If-Modified-Since`).
+- **Caching (RFC 9111)**: `Cache-Control`, `Vary`, validators, shared vs private caches.
+- **Errors**: RFC 9457 `application/problem+json` with `type`, `title`, `status`, `detail`, `instance` and extension members.
+- **Contracts**: OpenAPI 3.1 (JSON Schema 2020-12 aligned) and 3.2 (adds the `query` method, `additionalOperations`, nested tags, `itemSchema` for streaming media types, `$self`). Pick the version your tooling supports.
+- **Evolution**: additive changes, versioning, `Deprecation` (RFC 9745, structured-field date such as `@1688169599`) and `Sunset` (RFC 8594, HTTP date) headers, `Link` relations (RFC 8288).
+- **Reliability**: idempotent retries (`Idempotency-Key` draft), optimistic concurrency, `429` with `Retry-After`, `202 Accepted` job resources.
+- **Patching**: JSON Merge Patch (RFC 7396, `application/merge-patch+json`), JSON Patch (RFC 6902), and plain `PATCH` (RFC 5789) with a documented body format.
 
-Deliver REST APIs that are predictable, cacheable, versioned, observable, and deprecable. Every API must follow the HTTP specification, return the correct status code on every path, support conditional requests for efficient caching, paginate collections consistently, and document every endpoint and error in an OpenAPI 3.1 spec. The API must survive version upgrades and deprecations without breaking clients.
+## 3. Workflow
 
-You must produce a shared API design guide: resource naming conventions, method semantics, status code table, pagination pattern, error format (RFC 9457), caching headers, versioning strategy, and deprecation timeline. Product squads follow the guide; the platform team owns it.
+1. List the resources (nouns) and relationships; decide ownership, the tenant boundary, and which identifiers are public.
+2. For each resource define collection and item URLs, the supported methods, and the representation (fields, types, read-only fields).
+3. Choose status codes per outcome (see decision rules) and the Problem Details `type` URIs for domain errors.
+4. Decide pagination, filtering and sorting for every collection before the first release; add a hard maximum page size.
+5. Decide concurrency control (`ETag` plus `If-Match`) and retry safety (idempotency) for each mutating operation.
+6. Write or update the OpenAPI document first (spec-first) or generate it from code, then lint it in CI.
+7. Implement with schema validation at the edge, tenant scoping in every query, and a single error-mapping layer.
+8. Add contract and negative tests (wrong tenant, bad input, stale ETag, duplicate request, over-limit page size).
+9. Plan evolution: what is additive, what needs a new version, and how deprecation is announced.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- REST constraints: Client-Server, Stateless, Cacheable, Uniform Interface, Layered System, Code on Demand (optional); understanding each constraint's implication for API design.
-- Richardson Maturity Model: Level 0 (one endpoint, RPC over HTTP), Level 1 (resources), Level 2 (HTTP methods and status codes), Level 3 (HATEOAS); when each level is appropriate.
-- Resource design: nouns not verbs (`/users` not `/getUsers`); collection resources (`/users`) and item resources (`/users/:id`); sub-resources (`/users/:id/orders`); aggregation endpoints (`/reports/monthly`); composition vs sub-resource.
-- HTTP methods: GET (safe, idempotent), POST (neither safe nor idempotent without `Idempotency-Key`), PUT (idempotent, full replace), PATCH (idempotent, partial update), DELETE (idempotent), OPTIONS (CORS preflight, capability discovery), HEAD (metadata only, same as GET without body).
-- Status codes: 1xx informational; 2xx success (200 OK, 201 Created, 202 Accepted, 204 No Content, 206 Partial Content); 3xx redirection (301 Moved Permanently, 302 Found, 303 See Other, 304 Not Modified, 307 Temporary Redirect, 308 Permanent Redirect); 4xx client error (400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 405 Method Not Allowed, 406 Not Acceptable, 409 Conflict, 410 Gone, 412 Precondition Failed, 422 Unprocessable Entity, 429 Too Many Requests, 451 Unavailable For Legal Reasons); 5xx server error (500 Internal Server Error, 501 Not Implemented, 502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout).
-- Idempotency: `Idempotency-Key` header (RFC 9457 draft) for POST; idempotency inherent in PUT (full replace) and DELETE; client retries safe; server stores key-result mapping for 24h.
-- Versioning: URI (`/v1/users`), header (`Accept: application/vnd.api+json; version=1`), query param (`?v=1`); pros and cons of each; URI versioning is the most common and the most cacheable.
-- Pagination: offset/limit (simple, slow at scale), cursor-based (token encodes position, fast, stable), page/per_page (alias for offset/limit); `Link` header with `rel=next|prev|first|last`; total count in `X-Total-Count` header or response body.
-- Filtering and sorting: query params (`?status=active&sort=-created_at`); JSON:API filter syntax (`?filter[status]=active`); OData `$filter`; sparse fieldsets (`?fields=id,name`); never invent non-standard filter syntax.
-- HATEOAS: `_links` with `rel`, `href`, `method`; JSON Hyper-Schema; HAL (`application/hal+json`); Siren; Collection+JSON; JSON:API; when HATEOAS adds value (long-lived client apps) vs over-engineering (internal APIs).
-- Rate limiting: RFC 9339 `RateLimit` headers (`RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`); legacy `X-RateLimit-*`; `429 Too Many Requests` with `Retry-After` header; per-IP vs per-user vs per-API-key.
-- Content negotiation: `Accept` header with media types; `Content-Type` on requests; `application/json` default; `application/problem+json` for errors (RFC 9457); `application/ld+json` for hypermedia; `application/vnd.api+json` for JSON:API.
-- Error handling: RFC 9457 Problem Details (`type`, `title`, `status`, `detail`, `instance`); extensions (`code`, `traceId`, `details`); correlation IDs; never return 200 with an error body.
-- Caching: `ETag` (entity tag) + `If-None-Match` → 304; `Last-Modified` + `If-Modified-Since` → 304; `If-Match` + `ETag` for optimistic concurrency → 412 on mismatch; `Cache-Control` (`max-age`, `s-maxage`, `stale-while-revalidate`, `public`, `private`, `no-store`, `no-cache`); `Vary` header for variant keys.
-- Security: CORS for APIs (allowlist origins, not `*`); OAuth2 (Bearer tokens); HTTP Bearer auth; API keys (header `X-API-Key`); mTLS for service-to-service; HMAC request signing for webhooks.
-- OpenAPI 3.1: specification, code generation (server stubs, client SDKs), documentation (Swagger UI, ReDoc), mocking (Prism, Stoplight); generate from code annotations or spec-first.
-- Contract testing: Pact consumer-driven contract testing; Dredd (spec vs implementation); Schemathesis (property-based testing against OpenAPI).
-- Documentation: OpenAPI generated from code or spec-first; Postman collections; Stoplight; ReadMe; publish to developer portal.
-- API gateway patterns: Backend for Frontend (BFF), aggregation, translation (REST to gRPC, XML to JSON), authentication offload.
-- Deprecation: `Sunset` header (RFC 8594) with date; `Deprecation` header; migration guidance in docs; minimum 6-month overlap before removal.
+- **URLs**: plural nouns, lowercase, hyphenated (`/v1/purchase-orders/{id}`); nest at most one level (`/orders/{id}/items`); identify the tenant from the credential, not the path or a client-supplied header.
+- **Methods**: `GET` and `HEAD` safe; `PUT` and `DELETE` idempotent; `POST` for create-in-collection and actions; `PATCH` for partial update. Do not tunnel mutations through `GET`.
+- **Create**: `201 Created` with `Location` and the representation; `202 Accepted` plus a status resource when work is asynchronous; `204 No Content` when there is nothing to return.
+- **Validation errors**: `400` for malformed syntax (invalid JSON, bad query parameter format); `422` for well-formed but semantically invalid bodies; use one rule consistently and document it.
+- **Authentication and authorization**: `401` (with `WWW-Authenticate`) for missing or invalid credentials; `403` when authenticated but not allowed; `404` for objects the caller may not know exist, including other tenants' objects.
+- **Conflicts**: `409` for state conflicts (duplicate unique value, wrong state transition); `412` when an `If-Match`/`If-Unmodified-Since` precondition fails; `428` when a required precondition header is missing.
+- **Rate limits**: `429` with `Retry-After`; `503` with `Retry-After` for planned unavailability.
+- **Media type errors**: `415` unsupported request `Content-Type`; `406` when `Accept` cannot be satisfied; `405` with `Allow`.
+- **Pagination**: cursor-based for large or changing collections; offset only for small, stable ones. Always cap `limit`.
+- **Versioning**: avoid versions as long as changes are additive; when a break is unavoidable use a major version in the URL (`/v2/`) or a media type, and keep both in the contract.
+- **Idempotency**: `PUT` and `DELETE` are idempotent by definition; require an idempotency key for non-idempotent `POST` that creates money-like or externally visible effects.
+- **Errors in a 2xx body**: never; errors use 4xx or 5xx with Problem Details.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Own the API design guide; enforce it across squads via code review and linting (Spectral).
-- Maintain the OpenAPI 3.1 spec; publish to the developer portal on every release.
-- Approve or reject any new endpoint; verify it follows HTTP semantics, the status code table, and the error format.
-- Operate the versioning strategy; coordinate deprecations with client teams.
-- Define the pagination, filtering, and sorting conventions; enforce consistency.
-- Define the caching strategy; tune `Cache-Control`, `ETag`, and `Vary` per endpoint.
-- Define the rate limiting strategy; set limits per client tier and per endpoint.
-- Define the error format (RFC 9457); enforce via a global error handler.
-- Diagnose production issues: cache invalidation bugs, rate limit misconfiguration, version skew.
-- Lead postmortems for any API contract incident; produce a permanent fix.
+- Validate every request at the edge with a strict schema (reject unknown fields on writes) and parse query parameters as typed values with bounds.
+- Separate request and response schemas from database rows; return explicit fields only.
+- Use one error type that maps to Problem Details; unexpected errors become a generic `500` with no stack trace, SQL or hostnames.
+- JSON naming consistent across the API (`snake_case` or `camelCase`, not both); timestamps as RFC 3339 UTC strings; money as integer minor units plus a currency code; identifiers as strings.
+- Use `Content-Type: application/json` for success, `application/problem+json` for errors; set `Cache-Control` explicitly on every response.
+- Parameterize all SQL; never interpolate sort fields or identifiers from input, map them through an allowlist.
+- Make handlers async and let a central error handler format failures (Express 5 forwards rejected promises to error middleware).
 
-## 5. Thinking Process
-
-1. Identify the resource: noun, plural, collection or item; if the operation is not CRUD, model it as a sub-resource or a custom method on a resource (`/users/:id/activate`).
-2. Choose the HTTP method: GET (read), POST (create or action), PUT (full replace), PATCH (partial update), DELETE (remove); never use GET for state-changing operations.
-3. Choose the status code: 201 on create, 200 on read/update, 204 on delete, 202 on async, 400 on validation, 401 on authn, 403 on authz, 404 on missing, 409 on conflict, 422 on semantic error, 429 on rate limit, 500 on server error.
-4. Plan the request body: schema-validated, sparse fieldsets supported, content type negotiated.
-5. Plan the response body: resource shape, links (if HATEOAS), pagination metadata (if collection).
-6. Plan the pagination: cursor-based for large collections, offset/limit for small; `Link` header with `rel=next|prev|first|last`.
-7. Plan the caching: `ETag` for conditional GETs, `Cache-Control` with `max-age` and `s-maxage`, `Vary` for variant keys (e.g., `Authorization` for personalized responses).
-8. Plan the error format: RFC 9457 Problem Details with `type`, `title`, `status`, `detail`, `instance`, plus extensions `code`, `traceId`, `details`.
-9. Plan the versioning: URI versioning (`/v1/`) for new APIs; coordinate with client teams on deprecations.
-10. Plan the OpenAPI spec: spec-first or code-first; publish to developer portal; lint with Spectral in CI.
-
-## 6. Decision Making Rules
-
-- When GET and POST both could retrieve data, choose GET because GET is cacheable, idempotent, and bookmarkable; POST is none of these.
-- When 200 and 201 both indicate success on a create, choose 201 because the spec mandates `201 Created` with a `Location` header pointing to the new resource.
-- When 401 and 403 both reject a request, choose 401 when the client is not authenticated and 403 when authenticated but not authorized; never conflate.
-- When 400 and 422 both indicate a client error, choose 400 for malformed syntax (bad JSON, missing required field) and 422 for semantic errors (valid JSON but violates business rule).
-- When offset/limit and cursor pagination both work, choose cursor for collections over 10k rows because offset scans and discards rows; choose offset for small collections or when total count is required.
-- When URI versioning and header versioning both work, choose URI because it is cacheable by CDNs (different URLs = different cache entries) and visible in logs and browser history.
-- When `Link` header and response body both carry pagination, choose `Link` header because it keeps the response body clean and is the standard (RFC 8288).
-- When `ETag` and `Last-Modified` both enable conditional requests, choose `ETag` because it is more precise (per-revision hash) and supports `If-Match` for optimistic concurrency.
-- When RFC 9457 Problem Details and a custom error format both work, choose RFC 9457 because it is a standard, tooling-supported, and interoperable.
-- When HATEOAS and a static spec both work, choose a static spec (OpenAPI) for internal APIs because HATEOAS adds runtime complexity without value when clients are known.
-
-## 7. Architecture Rules
-
-- Every API must follow REST constraints: stateless (no server-side session for API calls), cacheable (`Cache-Control` on every GET), uniform interface (consistent resource naming and method semantics).
-- Every API must use plural noun resources (`/users`, `/orders`); never verbs (`/getUsers`).
-- Every API must use the correct HTTP method: GET (read-only), POST (create/action), PUT (full replace), PATCH (partial update), DELETE (remove).
-- Every API must return the correct status code on every path; never 200 with an error body.
-- Every API must support conditional requests on GET (`ETag` + `If-None-Match`, `Last-Modified` + `If-Modified-Since`) and on writes (`If-Match` for optimistic concurrency).
-- Every collection endpoint must paginate; default page size, maximum page size, `Link` header with `rel=next|prev|first|last`.
-- Every error response must use RFC 9457 Problem Details (`application/problem+json`) with `type`, `title`, `status`, `detail`, `instance`, plus `traceId` and `code` extensions.
-- Every API must have an OpenAPI 3.1 spec; lint with Spectral in CI; publish to the developer portal.
-- Every API must be versioned (URI `/v1/`); deprecations via `Sunset` header (RFC 8594) with a minimum 6-month overlap.
-- Every API must rate-limit per client; use RFC 9339 `RateLimit` headers and `429 Too Many Requests` with `Retry-After`.
-
-## 8. Coding Standards
-
-- Always use plural noun resource paths (`/api/v1/users`, `/api/v1/users/:id`).
-- Always use the correct HTTP method for the operation (GET read, POST create, PUT replace, PATCH update, DELETE remove).
-- Always return the correct status code (201 on create with `Location`, 200 on read/update, 204 on delete, 4xx on client error, 5xx on server error).
-- Always validate request body, params, and query via schema (zod, class-validator).
-- Always paginate collection responses with `Link` header and a default page size.
-- Always return RFC 9457 Problem Details on errors with `application/problem+json` content type.
-- Always set `Cache-Control` on GET responses; use `ETag` for conditional requests.
-- Always set `Vary` for variant keys (e.g., `Vary: Authorization` for personalized responses).
-- Always include `traceId` (correlation ID) in error responses and logs.
-- Always document every endpoint and error in OpenAPI 3.1.
-- Never use GET for state-changing operations.
-- Never return 200 with an error body.
-- Never invent non-standard status codes.
-- Never expose database IDs if they are sequential (use UUIDs or opaque tokens).
-
-## 9. Naming Conventions
-
-- Resource paths: lowercase, kebab-case, plural nouns (`/api/v1/users`, `/api/v1/order-items`).
-- Path parameters: `camelCase` (`:userId`, `:orderId`) or `:id` for the resource ID.
-- Query parameters: `camelCase` (`?sortBy=createdAt&pageSize=20`).
-- Request/response fields: `camelCase` for JSON (`createdAt`, `userId`, `emailAddress`); never `snake_case` or `PascalCase` in JSON.
-- Error codes: `SCREAMING_SNAKE_CASE` (`VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`).
-- HTTP headers: `Pascal-Hyphen-Case` (`Content-Type`, `X-Request-Id`, `Idempotency-Key`).
-- Custom headers: prefix with `X-` (legacy) or use unprefixed (modern, per RFC 6648); pick one convention per API.
-- Media types: `application/json`, `application/problem+json`, `application/ld+json`, `application/vnd.api+json`.
-- OpenAPI tags: PascalCase or lowercase; pick one and be consistent (`Users`, `Orders` or `users`, `orders`).
-- Environment variables: `SCREAMING_SNAKE_CASE` (`API_BASE_URL`, `RATE_LIMIT_PER_MINUTE`).
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
+openapi/
+  openapi.yaml            # source of truth, or generated and committed
 src/
-  routes/                      # One router per resource
-    user-router.ts
-    order-router.ts
-  controllers/                 # Thin HTTP adapters
-    user-controller.ts
-    order-controller.ts
-  services/                    # Business logic
-    user-service.ts
-    order-service.ts
-  repositories/                # Data access
-    user-repository.ts
-    order-repository.ts
-  schemas/                     # zod / class-validator schemas
-    user-schema.ts
-    order-schema.ts
-    pagination-schema.ts
-  middleware/
-    error-handler.ts           # RFC 9457 Problem Details
-    request-id.ts
-    rate-limit.ts
-    cors.ts
-  utils/
-    pagination.ts              # Cursor builder, Link header builder
-    etag.ts                    # ETag generator
-    problem-details.ts         # RFC 9457 helper
-  types/
-    api.ts                     # Shared API types
-docs/
-  openapi.yaml                 # OpenAPI 3.1 spec (spec-first or generated)
-  adr/                         # Architecture decision records
-    0001-versioning-strategy.md
-    0002-pagination-strategy.md
-  examples/                    # Request/response examples
+  http/
+    app.ts                # Express app, security headers, body limits, routing
+    errors.ts             # ApiError, Problem Details mapping, error middleware
+    auth.ts               # populates req.auth { tenantId, userId, scopes }
+    validate.ts           # Zod parsing helpers
+    pagination.ts         # cursor encode/decode, limit bounds
+  modules/orders/
+    routes.ts             # route definitions
+    schemas.ts            # Zod request and response schemas
+    repository.ts         # SQL, always filtered by tenant_id
 tests/
-  contract/                    # Pact tests
-  e2e/                         # supertest tests
+  contract/               # tests against the OpenAPI document
+  api/                    # request-level tests incl. cross-tenant and negative cases
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-my-api-service/
-  src/
-    app.ts
-    server.ts
-    routes/
-      user-router.ts
-      order-router.ts
-    controllers/
-      user-controller.ts
-      order-controller.ts
-    services/
-      user-service.ts
-      order-service.ts
-    repositories/
-      user-repository.ts
-      order-repository.ts
-    schemas/
-      user-schema.ts
-      order-schema.ts
-      pagination-schema.ts
-    middleware/
-      error-handler.ts
-      request-id.ts
-      rate-limit.ts
-      cors.ts
-    utils/
-      pagination.ts
-      etag.ts
-      problem-details.ts
-    types/
-      api.ts
-  docs/
-    openapi.yaml
-    adr/
-      0001-versioning-strategy.md
-      0002-pagination-strategy.md
-    examples/
-  tests/
-    contract/
-    e2e/
-  scripts/
-    generate-openapi.ts
-    spectral-lint.ts
-  Dockerfile
-  docker-compose.yml
-  .env.example
-  package.json
-  tsconfig.json
-  vitest.config.ts
-  README.md
-  RUNBOOK.md
-```
+- **Resource plus action**: model state transitions as sub-resources or action endpoints that return the updated resource (`POST /orders/{id}/cancellations`), not as arbitrary verbs on collections.
+- **Optimistic concurrency**: return a strong `ETag` (for example the row version); require `If-Match` on `PUT`/`PATCH`/`DELETE`; return `412` on mismatch and `428` when absent.
+- **Cursor pagination**: opaque cursor encoding the sort key and a tiebreaker; query with a keyset condition; return `next_cursor` or a `Link: <...>; rel="next"` header.
+- **Idempotent create**: unique constraint on `(tenant_id, principal, idempotency_key)`; store the request hash and the response; replay on retry; `422` or `409` when the same key arrives with a different payload.
+- **Async operations**: `202 Accepted` with `Location: /v1/operations/{id}`; the operation resource reports `pending`, `succeeded` or `failed` and links to the result.
+- **Sparse and expanded representations**: `?fields=` for projection and `?expand=` for related resources, both allowlisted.
+- **Bulk operations**: a dedicated endpoint with per-item results (`207`-style envelope in a normal JSON body is acceptable; document the semantics) and a hard item limit.
+- **Hypermedia-lite**: include `Link` headers or `links` objects for pagination and the next valid actions, without requiring full HATEOAS.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Resource Pattern
-When to use: every REST API.
-When not to use: RPC-style APIs (use gRPC or JSON-RPC instead).
-Sketch:
-```
-GET    /api/v1/users          # list
-POST   /api/v1/users          # create
-GET    /api/v1/users/:id      # read
-PUT    /api/v1/users/:id      # full replace
-PATCH  /api/v1/users/:id      # partial update
-DELETE /api/v1/users/:id      # remove
-POST   /api/v1/users/:id/activate  # action on a resource
-```
+- Keep responses stable: only add optional response fields and optional request parameters; never change types, meaning or defaults in place.
+- Return the full updated representation from `POST`, `PUT` and `PATCH` so clients do not need a follow-up `GET`.
+- Document every status code an operation can return, with its Problem Details `type`.
+- Use `HEAD` and conditional `GET` (`If-None-Match` returning `304`) for expensive resources.
+- Make list endpoints deterministic: explicit default sort with a unique tiebreaker.
+- Treat filters as an allowlist of documented fields and operators; do not expose a free-form query language over the database.
+- Support request correlation with a standard header your gateway already uses, and return it; do not invent per-service formats.
+- Publish limits (page size, body size, rate) in the documentation and in the contract where possible.
 
-### Pagination Pattern (Cursor + Link Header)
-When to use: any collection endpoint, especially large ones.
-When not to use: single-resource endpoints.
-Sketch:
-```http
-GET /api/v1/users?pageSize=20&cursor=abc123
-HTTP/1.1 200 OK
-Link: <https://api.example.com/v1/users?cursor=def456>; rel="next", <https://api.example.com/v1/users?cursor=>; rel="prev"
-Content-Type: application/json
-{ "data": [...], "pagination": { "nextCursor": "def456" } }
-```
+## 9. Performance
 
-### Conditional Request Pattern (ETag + If-None-Match)
-When to use: any GET endpoint where the resource changes infrequently.
-When not to use: real-time data (skip caching).
-Sketch:
-```http
-GET /api/v1/users/123
-HTTP/1.1 200 OK
-ETag: "abc123"
-Cache-Control: private, max-age=60
+- Keyset pagination keeps query cost constant; `OFFSET` scans and discards rows, and gets slower with depth. Avoid total counts on large tables, or make them optional and approximate.
+- Index the filter and sort columns, starting with `tenant_id`, matching the keyset order.
+- Use `ETag` and `Cache-Control` (`private` for per-user data, `public` only for data identical for everyone, `no-store` for sensitive data) and `Vary` for any header that changes the response.
+- Compress responses (gzip or br) at the proxy; cap request body sizes.
+- Avoid N+1 queries behind `expand`; load related rows in one query per relation.
+- Prefer `HTTP/2` or `HTTP/3` at the edge; do not rely on connection-per-request patterns.
+- Return `429` early from a cheap check, before doing expensive work.
 
-# Subsequent request:
-GET /api/v1/users/123
-If-None-Match: "abc123"
+## 10. Security
 
-HTTP/1.1 304 Not Modified
-ETag: "abc123"
-```
+- Scope every read and every write by the tenant from the verified credential: `WHERE id = $1 AND tenant_id = $2`, including `UPDATE` and `DELETE`. Never trust a tenant id from the body, path or a header.
+- Authorize per object and per field: strict write schemas (no mass assignment of `role`, `tenant_id`, `owner_id`), explicit response fields.
+- Return `404` rather than `403` for objects in other tenants to avoid existence leaks.
+- Validate and bound all input: body size, array lengths, string lengths, `limit`, nesting depth.
+- Send `Cache-Control: no-store` on responses with credentials or personal data; never cache authenticated responses in shared caches without `Vary` and `private`.
+- Avoid secrets and tokens in URLs and query strings; they end up in logs and referrers.
+- CORS: allowlist exact origins; do not reflect arbitrary origins with credentials.
+- Do not expose test, seed or debug endpoints in production builds.
+- Error bodies must not reveal internals (stack traces, SQL, internal hostnames); `detail` is for safe, user-facing text.
+- Rate limiting, request signing and gateway policy details: api-security-expert.
 
-### Optimistic Concurrency Pattern (If-Match + ETag)
-When to use: concurrent updates to the same resource.
-When not to use: append-only resources.
-Sketch:
-```http
-PUT /api/v1/users/123
-If-Match: "abc123"
-{ "name": "Jane" }
+## 11. Testing
 
-# If another client updated first:
-HTTP/1.1 412 Precondition Failed
-ETag: "def456"
-```
+- Contract: validate responses against the OpenAPI schemas in tests, and lint the document in CI (Redocly CLI or Spectral).
+- Property-based or schema-driven fuzzing against the running API (for example Schemathesis) to find 500s and schema drift.
+- Negative cases for every endpoint: another tenant's id (expect 404), unknown fields, oversized page limit, malformed cursor, stale `If-Match`, missing `If-Match`, repeated idempotency key with a different body.
+- Request-level tests with `supertest` against the Express app and a real PostgreSQL (Testcontainers or a CI service), not a mocked repository.
+- Backward-compatibility check: diff the OpenAPI document against the released one (for example `oasdiff` or Redocly's changelog tooling) and fail on breaking changes.
 
-### RFC 9457 Problem Details Pattern
-When to use: every error response.
-When not to use: never — every error must use this format.
-Sketch:
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/problem+json
-{ "type": "https://api.example.com/problems/validation-error", "title": "Validation failed", "status": 422, "detail": "Email is required", "instance": "/api/v1/users", "code": "VALIDATION_ERROR", "traceId": "abc-123", "details": [{ "field": "email", "message": "required" }] }
-```
+## 12. Review Checklist
 
-### Idempotency Pattern (Idempotency-Key)
-When to use: POST endpoints that create resources or trigger side effects; any endpoint a client might retry.
-When not to use: GET, PUT, DELETE (already idempotent).
-Sketch:
-```http
-POST /api/v1/payments
-Idempotency-Key: 9c4f3a2e-1b2d-4e5f-8a9c-1d2e3f4a5b6c
-{ "amount": 100, "currency": "USD" }
+- [ ] Resource URLs are nouns; the tenant comes from the credential.
+- [ ] Each operation lists its success and error statuses; errors use Problem Details.
+- [ ] Mutations validate strictly and return the updated representation; `POST` create returns `201` and `Location`.
+- [ ] Every collection has a default sort, a unique tiebreaker, a max page size and cursor pagination if it can grow.
+- [ ] Updates use `If-Match`; non-idempotent creates have an idempotency story.
+- [ ] Cross-tenant tests exist for read, update and delete.
+- [ ] Cache headers are explicit and correct for the data's sensitivity.
+- [ ] Changes are additive, or a new version plus `Deprecation`/`Sunset` plan exists.
+- [ ] The OpenAPI document matches the implementation and passes lint.
 
-# Client retries with same key:
-POST /api/v1/payments
-Idempotency-Key: 9c4f3a2e-1b2d-4e5f-8a9c-1d2e3f4a5b6c
+## 13. Production Notes
 
-HTTP/1.1 200 OK  # Same response as first request, no duplicate charge
-```
+- Deprecation: send `Deprecation: @<unix-seconds>` (RFC 9745) once an endpoint or version is deprecated, `Sunset: <HTTP date>` (RFC 8594) with the retirement time (not earlier than the deprecation time), and a `Link` with `rel="deprecation"` to the migration guide. Retire on the announced date.
+- Keep old versions running with their own contract until the sunset date; monitor per-version traffic to know who is still calling.
+- Rate limit signaling: `Retry-After` is the stable mechanism; the `RateLimit` and `RateLimit-Policy` fields are an IETF draft whose syntax has changed between revisions (draft-ietf-httpapi-ratelimit-headers-11 at the time of writing), so check its status before emitting them, and avoid new `X-RateLimit-*` conventions unless clients already rely on them.
+- `Idempotency-Key` is an IETF draft (draft-ietf-httpapi-idempotency-key-header, check status); the semantics in this skill follow its general approach but document your own behavior in the API reference.
+- Behind proxies, make sure the app sees the real scheme and client address (trust proxy settings) and that gateways do not strip `ETag`, `Location` or `Retry-After`.
+- Details: [references/http-semantics-and-status-codes.md](references/http-semantics-and-status-codes.md), [references/openapi-and-versioning.md](references/openapi-and-versioning.md), [references/pagination-idempotency-and-caching.md](references/pagination-idempotency-and-caching.md).
 
-## 13. Best Practices
+## 14. Examples
 
-1. Use plural noun resource paths; never verbs in the path.
-2. Use the correct HTTP method for the operation; never GET for state changes.
-3. Return the correct status code; never 200 with an error body.
-4. Validate request body, params, and query via schema at the boundary.
-5. Paginate every collection; use cursor-based for large collections.
-6. Return RFC 9457 Problem Details on every error with `application/problem+json`.
-7. Set `Cache-Control`, `ETag`, and `Vary` on every GET response for cacheability.
-8. Support conditional writes via `If-Match` + `ETag` for optimistic concurrency.
-9. Rate-limit per client; use RFC 9339 `RateLimit` headers and `429` with `Retry-After`.
-10. Version the API via URI (`/v1/`); deprecate via `Sunset` header with 6-month overlap.
-11. Document every endpoint and error in OpenAPI 3.1; lint with Spectral in CI.
-12. Use `Idempotency-Key` header on POST endpoints to enable safe client retries.
-
-## 14. Anti Patterns
-
-### GET for state-changing operations
-Why wrong: violates HTTP spec (GET must be safe), cached by intermediaries, accidentally triggered by prefetch/crawlers.
-Correct alternative: POST for state changes; PUT/PATCH for updates; DELETE for removal.
-
-### 200 OK with an error body
-Why wrong: violates HTTP semantics; clients and proxies treat 200 as success; retry logic and monitoring miss the error.
-Correct alternative: return the correct 4xx or 5xx status code with RFC 9457 Problem Details.
-
-### Verbs in resource paths (`/getUser`, `/createOrder`)
-Why wrong: violates REST uniform interface; couples the URL to the operation; cannot use HTTP methods properly.
-Correct alternative: plural noun resources (`/users`, `/orders`) with HTTP methods; custom actions as sub-resources (`/users/:id/activate`).
-
-### No pagination on collections
-Why wrong: returning 1M rows on a single request exhausts memory and bandwidth; client cannot handle the response.
-Correct alternative: paginate with default page size, `Link` header, and cursor-based pagination for large collections.
-
-### Custom error format instead of RFC 9457
-Why wrong: non-standard, no tooling support, every client must parse a custom shape.
-Correct alternative: RFC 9457 Problem Details with `application/problem+json` content type.
-
-### Inventing non-standard status codes (e.g., 600, 700)
-Why wrong: violates HTTP spec; clients and proxies do not understand them; monitoring and retry logic break.
-Correct alternative: use the correct standard status code; if none fits, use 400 (client error) or 500 (server error) with a detailed error body.
-
-## 15. Performance Rules
-
-1. Set `Cache-Control` with `max-age` and `s-maxage` on every cacheable GET response.
-2. Use `ETag` for conditional GETs; return 304 when the resource has not changed.
-3. Use `Vary` for variant keys (e.g., `Authorization` for personalized responses) to prevent cache poisoning.
-4. Use `gzip` or `brotli` compression on text responses (JSON, HTML).
-5. Paginate every collection; use cursor-based for collections over 10k rows.
-6. Support sparse fieldsets (`?fields=id,name`) to reduce payload size for mobile clients.
-7. Use HTTP/2 or HTTP/3 for multiplexing; never deploy HTTP/1.1-only services in 2025+.
-8. Set `Connection: keep-alive` (HTTP/1.1) or use HTTP/2 for connection reuse.
-9. Profile endpoint latency in CI; alert if p99 exceeds SLO.
-10. Use `Cache-Control: no-store` for sensitive responses (auth tokens, PII).
-
-## 16. Security Rules
-
-1. Use TLS everywhere; never serve APIs over plain HTTP.
-2. Use OAuth2 Bearer tokens for user auth; rotate tokens; short TTL (15min access, 7d refresh).
-3. Use API keys (header `Authorization: ApiKey ...`) for service-to-service; rotate quarterly.
-4. Use mTLS for high-security service-to-service; never shared API keys for critical paths.
-5. Use HMAC request signing for webhooks; verify signature with constant-time comparison.
-6. Use CORS with explicit origin allowlist; never `Access-Control-Allow-Origin: *` with credentials.
-7. Rate-limit per client; use RFC 9339 headers and `429` with `Retry-After`.
-8. Validate every request body, params, and query via schema; reject before reaching the handler.
-9. Set security headers: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`.
-10. Never log secrets, tokens, or PII; use redaction.
-
-## 17. Testing Strategy
-
-1. E2E tests with `supertest`: assert status code, headers, body shape on every endpoint.
-2. Test happy path: POST valid body, assert 201 with `Location` header and resource body.
-3. Test validation errors: POST invalid body, assert 422 with RFC 9457 Problem Details and field errors.
-4. Test authn failures: GET protected endpoint without token, assert 401 with `WWW-Authenticate` header.
-5. Test authz failures: GET another user's resource, assert 403.
-6. Test 404: GET nonexistent resource, assert 404 with Problem Details.
-7. Test 409: POST duplicate resource, assert 409 with Problem Details.
-8. Test conditional GET: send `If-None-Match` with a matching ETag, assert 304.
-9. Test optimistic concurrency: send `If-Match` with a stale ETag, assert 412.
-10. Contract tests with Pact: consumer defines expected interactions; provider verifies.
-11. Spectral lint on OpenAPI spec in CI; fail on errors.
-12. Property-based tests with Schemathesis against the OpenAPI spec.
-
-## 18. Documentation Standards
-
-1. Maintain OpenAPI 3.1 spec; spec-first or generated from code annotations.
-2. Publish spec to the developer portal on every release; Swagger UI at `/docs`.
-3. Document every endpoint: method, path, request body, query params, headers, responses (200, 4xx, 5xx).
-4. Document every error code in the spec; never ship an undocumented 4xx or 5xx.
-5. Provide request/response examples for every endpoint.
-6. Document the versioning strategy and deprecation timeline.
-7. Document the rate limiting strategy with example headers.
-8. Document the pagination strategy with example `Link` headers.
-9. Maintain ADRs for major API decisions (versioning, pagination, error format).
-10. `CHANGELOG.md` records breaking changes with migration notes.
-
-## 19. Code Review Checklist
-
-1. [ ] Resource path uses plural noun; no verbs.
-2. [ ] HTTP method matches the operation (GET read, POST create, PUT replace, PATCH update, DELETE remove).
-3. [ ] Status code is correct (201 on create with `Location`, 200 on read/update, 204 on delete, 4xx/5xx on error).
-4. [ ] No GET for state-changing operations.
-5. [ ] No 200 with an error body; errors return RFC 9457 Problem Details.
-6. [ ] Request body, params, and query validated via schema.
-7. [ ] Collection endpoint paginated with `Link` header and default page size.
-8. [ ] `Cache-Control` and `ETag` set on GET responses.
-9. [ ] `Vary` set for variant keys (`Authorization` for personalized responses).
-10. [ ] `If-Match` + `ETag` supported for optimistic concurrency on writes.
-11. [ ] `Idempotency-Key` supported on POST endpoints that create resources.
-12. [ ] Rate limiting applied per client; RFC 9339 headers and `429` with `Retry-After`.
-13. [ ] CORS with explicit origin allowlist; no `*` with credentials.
-14. [ ] OpenAPI spec updated; Spectral lint passes.
-15. [ ] No secrets in logs; pino redaction configured.
-16. [ ] Error responses include `traceId` (correlation ID).
-17. [ ] Deprecation via `Sunset` header with 6-month overlap.
-
-## 20. Refactoring Checklist
-
-1. [ ] GET endpoints that change state migrated to POST/PUT/PATCH/DELETE.
-2. [ ] 200-with-error responses migrated to correct 4xx/5xx with RFC 9457.
-3. [ ] Verbs in paths (`/getUser`) migrated to plural noun resources with HTTP methods.
-4. [ ] Unpaginated collections paginated with `Link` header.
-5. [ ] Custom error format migrated to RFC 9457 Problem Details.
-6. [ ] Non-standard status codes replaced with standard codes.
-7. [ ] `Cache-Control` and `ETag` added to every GET response.
-8. [ ] `Vary: Authorization` added to personalized responses.
-9. [ ] `If-Match` support added to PUT/PATCH for optimistic concurrency.
-10. [ ] `Idempotency-Key` support added to POST endpoints.
-11. [ ] OpenAPI spec regenerated and published.
-12. [ ] Spectral lint added to CI.
-
-## 21. Deployment Checklist
-
-1. [ ] OpenAPI 3.1 spec published to developer portal.
-2. [ ] Spectral lint passes in CI.
-3. [ ] TLS enforced; redirect HTTP to HTTPS.
-4. [ ] CORS with explicit origin allowlist.
-5. [ ] Rate limiting configured per client tier.
-6. [ ] Compression (gzip/brotli) enabled for text responses.
-7. [ ] HTTP/2 or HTTP/3 enabled.
-8. [ ] Health check endpoints (`/healthz`, `/readyz`) configured in container manifest.
-9. [ ] Graceful shutdown on `SIGTERM`; in-flight requests drained.
-10. [ ] `Cache-Control` headers verified in production (check via `curl -I`).
-11. [ ] `ETag` and `Last-Modified` headers verified in production.
-12. [ ] `Vary` header verified for personalized responses.
-13. [ ] OpenAPI spec at `/docs` (dev/staging) or behind admin auth (prod).
-14. [ ] `npm audit --production` passes.
-15. [ ] Contract tests (Pact) pass against deployed service.
-
-## 22. Production Checklist
-
-1. [ ] TLS enforced; HSTS header set (`Strict-Transport-Security: max-age=31536000`).
-2. [ ] CORS with explicit origin allowlist; no `*` with credentials.
-3. [ ] Rate limiting per client; RFC 9339 headers and `429` with `Retry-After`.
-4. [ ] `Cache-Control`, `ETag`, `Vary` set on every GET response.
-5. [ ] Conditional GETs return 304 when ETag matches.
-6. [ ] Conditional writes return 412 when `If-Match` ETag is stale.
-7. [ ] RFC 9457 Problem Details on every error with `application/problem+json`.
-8. [ ] `traceId` (correlation ID) in every error response and log.
-9. [ ] OpenAPI spec published; Swagger UI accessible to internal teams.
-10. [ ] Pagination via `Link` header on every collection endpoint.
-11. [ ] `Idempotency-Key` supported on POST endpoints; duplicate keys return cached response.
-12. [ ] Compression (brotli) enabled for text responses.
-13. [ ] HTTP/2 or HTTP/3 enabled; HTTP/1.1 deprecated.
-14. [ ] No secrets in logs; pino redaction configured.
-15. [ ] Sunset header set on deprecated endpoints with removal date.
-
-## 23. Logging Strategy
-
-1. Use structured JSON logging (pino) with `traceId`, `requestId`, `timestamp`, `method`, `path`, `status`, `durationMs`.
-2. Log every request at `info` with method, path (without query string), status, duration.
-3. Log every 4xx at `warn` with the validation errors.
-4. Log every 5xx at `error` with the stack trace and `traceId`.
-5. Log every external call: method, URL, status, duration; redact headers.
-6. Log slow requests (over 1s) at `warn` with the route and params (redacted).
-7. Log rate limit hits at `info` with the client ID and the limit.
-8. Log cache hits/misses at `debug` with the ETag and resource ID.
-9. Configure pino redaction for `req.headers.authorization`, `req.headers.cookie`, `req.body.password`.
-10. Log every graceful shutdown step.
-
-## 24. Monitoring Strategy
-
-1. Track HTTP request rate, p50/p95/p99 latency, error rate (4xx + 5xx); alert if p99 > SLO.
-2. Track per-endpoint latency and error rate; alert on regression.
-3. Track cache hit rate per endpoint; alert if hit rate drops below threshold.
-4. Track 304 rate per endpoint; alert if 304 rate drops (clients not using `If-None-Match`).
-5. Track 412 rate per endpoint; alert on spike (optimistic concurrency conflicts).
-6. Track 429 rate per client; alert on spike (abuse or client misconfiguration).
-7. Track `Idempotency-Key` collision rate; alert on spike (client bug or replay attack).
-8. Track response size per endpoint; alert if p99 exceeds threshold (oversized payloads).
-9. Track OpenAPI spec lint failures in CI; alert on regression.
-10. Track deprecation usage; alert when usage drops to zero (safe to remove).
-
-## 25. Error Handling
-
-1. Define a custom error hierarchy: `AppError` (base, with `statusCode` and `code`), `ValidationError` (422), `AuthError` (401), `ForbiddenError` (403), `NotFoundError` (404), `ConflictError` (409), `PreconditionFailedError` (412), `RateLimitError` (429), `ExternalServiceError` (502/503).
-2. Throw errors in services; let the global error handler normalize them into RFC 9457 Problem Details.
-3. Error response shape: `{ type, title, status, detail, instance, code, traceId, details? }` with `Content-Type: application/problem+json`.
-4. `type` is a URL to the problem documentation; `title` is a short summary; `detail` is the specific message; `instance` is the request path.
-5. Never leak stack traces in production; log them server-side with `traceId`.
-6. `ValidationError` returns 422 with `details` array of field errors.
-7. `RateLimitError` returns 429 with `Retry-After` header.
-8. `ExternalServiceError` returns 502 or 503 with `Retry-After` header for 503.
-9. Log every 5xx at `error` with stack trace; log every 4xx at `warn`.
-10. Track error rate per endpoint; alert if rate exceeds SLO.
-
-## 26. Examples
-
-### Example 1: Resource Controller with Pagination and Conditional Requests
+Problem Details error type and central handler (Express 5, Zod 4):
 
 ```ts
-// src/controllers/user-controller.ts
-import type { Request, Response } from 'express';
-import { UserService } from '../services/user-service.js';
-import { buildCursor, parseCursor } from '../utils/pagination.js';
-import { computeETag } from '../utils/etag.js';
+import type { NextFunction, Request, Response } from "express";
+import { ZodError } from "zod";
 
-export class UserController {
-  constructor(private users: UserService) {}
-
-  async list(req: Request, res: Response) {
-    const { pageSize = 20, cursor } = req.query;
-    const decoded = cursor ? parseCursor(cursor as string) : null;
-    const { items, nextCursor } = await this.users.list({ pageSize: Number(pageSize), cursor: decoded });
-    const links: string[] = [];
-    if (nextCursor) {
-      links.push(`<https://api.example.com/v1/users?pageSize=${pageSize}&cursor=${nextCursor}>; rel="next"`);
-    }
-    if (links.length) res.setHeader('Link', links.join(', '));
-    res.json({ data: items });
-  }
-
-  async getById(req: Request, res: Response) {
-    const user = await this.users.getById(req.params.id);
-    const etag = computeETag(user);
-    res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'private, max-age=60');
-    if (req.headers['if-none-match'] === etag) {
-      return res.status(304).end();
-    }
-    res.json({ data: user });
-  }
-
-  async create(req: Request, res: Response) {
-    const user = await this.users.create(req.body);
-    res.setHeader('Location', `https://api.example.com/v1/users/${user.id}`);
-    res.status(201).json({ data: user });
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly type: string, // URI that documents this problem type
+    readonly title: string,
+    readonly detail?: string,
+    readonly extensions: Record<string, unknown> = {},
+  ) {
+    super(title);
   }
 }
-```
 
-### Example 2: RFC 9457 Problem Details Error Handler
-
-```ts
-// src/middleware/error-handler.ts
-import type { ErrorRequestHandler } from 'express';
-import { AppError, ValidationError } from '../utils/errors.js';
-import { logger } from '../config/logger.js';
-
-export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
-  const traceId = req.id;
-  const status = err.statusCode ?? 500;
-  const code = err.code ?? 'INTERNAL_ERROR';
-
-  if (err instanceof ValidationError) {
-    logger.warn({ traceId, code, msg: 'validation error', details: err.details });
-  } else if (status >= 500) {
-    logger.error({ traceId, err, msg: 'server error' });
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
+  let problem: Record<string, unknown>;
+  if (err instanceof ApiError) {
+    problem = { type: err.type, title: err.title, status: err.status, detail: err.detail, ...err.extensions };
+  } else if (err instanceof ZodError) {
+    problem = {
+      type: "https://api.example.com/problems/validation-error",
+      title: "Validation failed",
+      status: 422,
+      errors: err.issues.map((i) => ({ pointer: "/" + i.path.join("/"), message: i.message })),
+    };
   } else {
-    logger.warn({ traceId, code, msg: 'client error' });
+    problem = { type: "about:blank", title: "Internal Server Error", status: 500 }; // no internals
   }
-
-  res.status(status).type('application/problem+json').json({
-    type: `https://api.example.com/problems/${code.toLowerCase()}`,
-    title: err.title ?? 'Error',
-    status,
-    detail: err.message,
-    instance: req.path,
-    code,
-    traceId,
-    details: err.details,
-  });
-};
-```
-
-### Example 3: Idempotency Middleware for POST Endpoints
-
-```ts
-// src/middleware/idempotency.ts
-import type { RequestHandler } from 'express';
-import { redisClient } from '../config/redis.js';
-
-export const idempotency: RequestHandler = async (req, res, next) => {
-  const key = req.headers['idempotency-key'];
-  if (!key) return next();
-  const cacheKey = `idem:${req.user.id}:${req.path}:${key}`;
-  const cached = await redisClient.get(cacheKey);
-  if (cached) {
-    const { status, body, headers } = JSON.parse(cached);
-    for (const [k, v] of Object.entries(headers)) res.setHeader(k, v as string);
-    return res.status(status).json(body);
-  }
-  const originalSend = res.send.bind(res);
-  res.send = (body: unknown) => {
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      redisClient.set(cacheKey, JSON.stringify({ status: res.statusCode, body, headers: res.getHeaders() }), 'EX', 86400);
-    }
-    return originalSend(body);
-  };
-  next();
-};
-```
-
-### Example 4: Optimistic Concurrency with If-Match
-
-```ts
-// src/controllers/user-controller.ts (continued)
-async update(req: Request, res: Response) {
-  const ifMatch = req.headers['if-match'];
-  if (!ifMatch) {
-    return res.status(428).type('application/problem+json').json({
-      type: 'https://api.example.com/problems/precondition-required',
-      title: 'If-Match required',
-      status: 428,
-      detail: 'If-Match header is required for updates',
-      instance: req.path,
-      code: 'PRECONDITION_REQUIRED',
-      traceId: req.id,
-    });
-  }
-  try {
-    const user = await this.users.update(req.params.id, req.body, ifMatch);
-    res.setHeader('ETag', computeETag(user));
-    res.json({ data: user });
-  } catch (err) {
-    if (err.code === 'PRECONDITION_FAILED') {
-      return res.status(412).type('application/problem+json').json({
-        type: 'https://api.example.com/problems/precondition-failed',
-        title: 'Precondition failed',
-        status: 412,
-        detail: 'The resource was modified by another client',
-        instance: req.path,
-        code: 'PRECONDITION_FAILED',
-        traceId: req.id,
-      });
-    }
-    throw err;
-  }
+  res.status(problem.status as number).type("application/problem+json").json({ ...problem, instance: req.originalUrl.split("?")[0] });
 }
 ```
 
-### Example 5: OpenAPI 3.1 Spec Snippet
+Tenant-scoped item and list routes with ETag, `If-Match` and keyset pagination:
+
+```ts
+import { Router } from "express";
+import { z } from "zod";
+import { Pool } from "pg";
+import { ApiError } from "./errors";
+
+declare module "express-serve-static-core" {
+  interface Request { auth?: { tenantId: string; userId: string } } // set by the auth middleware
+}
+
+const pool = new Pool(); // connection settings from PG* environment variables
+export const orders = Router();
+
+const idParam = z.object({ id: z.uuid() });
+const listQuery = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  cursor: z.string().max(200).optional(),
+  status: z.enum(["open", "paid", "cancelled"]).optional(),
+});
+const patchBody = z.strictObject({ status: z.enum(["open", "paid", "cancelled"]) }); // no tenant_id, no total
+
+const need = (req: { auth?: { tenantId: string; userId: string } }) => {
+  if (!req.auth) throw new ApiError(401, "about:blank", "Unauthorized");
+  return req.auth;
+};
+
+orders.get("/", async (req, res) => {
+  const { tenantId } = need(req);
+  const q = listQuery.parse(req.query);
+  let after: { c: string; i: string } | null = null;
+  if (q.cursor) {
+    try { after = z.object({ c: z.iso.datetime(), i: z.uuid() }).parse(JSON.parse(Buffer.from(q.cursor, "base64url").toString())); }
+    catch { throw new ApiError(400, "https://api.example.com/problems/invalid-cursor", "Invalid cursor"); }
+  }
+  const { rows } = await pool.query(
+    `SELECT id, status, total_cents, version, created_at FROM orders
+      WHERE tenant_id = $1
+        AND ($2::text IS NULL OR status = $2)
+        AND ($3::timestamptz IS NULL OR (created_at, id) < ($3::timestamptz, $4::uuid))
+      ORDER BY created_at DESC, id DESC LIMIT $5`,
+    [tenantId, q.status ?? null, after?.c ?? null, after?.i ?? null, q.limit + 1],
+  );
+  const page = rows.slice(0, q.limit);
+  const last = page[page.length - 1];
+  const next = rows.length > q.limit && last
+    ? Buffer.from(JSON.stringify({ c: last.created_at.toISOString(), i: last.id })).toString("base64url")
+    : null;
+  res.set("Cache-Control", "private, no-cache").json({ data: page, next_cursor: next });
+});
+
+orders.patch("/:id", async (req, res) => {
+  const { tenantId } = need(req);
+  const { id } = idParam.parse(req.params);
+  const match = /^"(\d+)"$/.exec(req.get("If-Match") ?? "");
+  if (!match) throw new ApiError(428, "https://api.example.com/problems/precondition-required", "If-Match header required");
+  const body = patchBody.parse(req.body);
+  const { rows } = await pool.query(
+    `UPDATE orders SET status = $3, version = version + 1
+      WHERE id = $1 AND tenant_id = $2 AND version = $4
+      RETURNING id, status, total_cents, version, created_at`,
+    [id, tenantId, body.status, Number(match[1])],
+  );
+  if (rows.length === 0) {
+    const exists = await pool.query("SELECT 1 FROM orders WHERE id = $1 AND tenant_id = $2", [id, tenantId]);
+    if (exists.rowCount === 0) throw new ApiError(404, "about:blank", "Not Found");
+    throw new ApiError(412, "https://api.example.com/problems/stale-version", "Resource changed since it was read");
+  }
+  res.set("ETag", `"${rows[0].version}"`).set("Cache-Control", "private, no-cache").json(rows[0]);
+});
+```
+
+OpenAPI 3.1 fragment for the same operation:
 
 ```yaml
-# docs/openapi.yaml
 openapi: 3.1.0
-info:
-  title: User API
-  version: 1.0.0
+info: { title: Orders API, version: 1.0.0 }
 paths:
-  /users:
-    get:
-      summary: List users
+  /v1/orders/{id}:
+    patch:
+      operationId: updateOrder
       parameters:
-        - name: pageSize
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
-        - name: cursor
-          in: query
-          schema: { type: string }
-      responses:
-        '200':
-          description: User list
-          headers:
-            Link:
-              schema: { type: string }
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/User' }
-        '429':
-          $ref: '#/components/responses/RateLimited'
-    post:
-      summary: Create user
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          required: false
-          schema: { type: string, format: uuid }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: If-Match, in: header, required: true, schema: { type: string } }
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+            schema: { $ref: "#/components/schemas/OrderPatch" }
       responses:
-        '201':
-          description: User created
-          headers:
-            Location:
-              schema: { type: string, format: uri }
-        '422':
-          $ref: '#/components/responses/ValidationError'
-components:
-  responses:
-    ValidationError:
-      description: Validation error
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
-    RateLimited:
-      description: Rate limit exceeded
-      headers:
-        Retry-After:
-          schema: { type: integer }
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
-  schemas:
-    User:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        email: { type: string, format: email }
-        createdAt: { type: string, format: date-time }
-    CreateUserRequest:
-      type: object
-      required: [email]
-      properties:
-        email: { type: string, format: email }
-    Problem:
-      type: object
-      properties:
-        type: { type: string, format: uri }
-        title: { type: string }
-        status: { type: integer }
-        detail: { type: string }
-        instance: { type: string }
-        code: { type: string }
-        traceId: { type: string }
+        "200": { description: Updated, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+        "404": { $ref: "#/components/responses/Problem" }
+        "412": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+        "428": { $ref: "#/components/responses/Problem" }
+      security: [{ bearerAuth: [] }]
 ```
 
-## 27. Common Mistakes
+## 15. Common Mistakes
 
-### Mistake 1: GET for state-changing operations
-What: `GET /api/v1/users/:id/activate` to activate a user.
-Why wrong: violates HTTP spec (GET must be safe); cached by intermediaries; accidentally triggered by crawlers/prefetch.
-How to avoid: use POST for state changes (`POST /api/v1/users/:id/activate`); never GET for side effects.
+- Returning `200` with an error payload, or using `500` for client mistakes.
+- `403` vs `404` confusion that leaks whether another tenant's object exists.
+- Loading by id and checking ownership afterwards, or `UPDATE ... WHERE id = $1` without the tenant condition.
+- Accepting `tenant_id`, `role` or `owner_id` in write bodies (mass assignment).
+- Offset pagination on large tables, unbounded `limit`, or cursors that are not tied to a stable unique sort key.
+- Using `PUT` for partial updates, or `POST` for everything.
+- Retrying non-idempotent `POST` without an idempotency mechanism, creating duplicates.
+- Ignoring `Vary` and `Cache-Control` so shared caches serve one user's data to another.
+- Breaking changes inside a version: renamed fields, changed types, tightened validation, new required parameters.
+- Treating `Idempotency-Key`, `RateLimit` or QUERY as finished standards without checking draft status.
+- Citing obsolete RFCs (7807, 7231, 7232) instead of RFC 9457 and RFC 9110/9111.
+- Putting secrets, tokens or personal data in URLs.
+- Exposing stack traces or database errors in Problem Details.
 
-### Mistake 2: 200 OK with an error body
-What: `res.status(200).json({ error: 'Not found' })`.
-Why wrong: clients and proxies treat 200 as success; retry logic and monitoring miss the error.
-How to avoid: return the correct 4xx or 5xx status code with RFC 9457 Problem Details.
+## 16. References
 
-### Mistake 3: Verbs in resource paths
-What: `/api/v1/getUser?id=123` or `/api/v1/createOrder`.
-Why wrong: violates REST uniform interface; couples URL to operation; cannot leverage HTTP methods.
-How to avoid: plural noun resources with HTTP methods (`GET /users/:id`, `POST /orders`).
-
-### Mistake 4: Unpaginated collections
-What: `GET /api/v1/users` returns 1M users in one response.
-Why wrong: exhausts memory and bandwidth; client cannot handle the response; server timeout.
-How to avoid: paginate with default page size, `Link` header, and cursor-based pagination for large collections.
-
-### Mistake 5: Custom error format
-What: `{ success: false, error: { message: '...', field: '...' } }`.
-Why wrong: non-standard; no tooling support; every client must parse a custom shape.
-How to avoid: RFC 9457 Problem Details with `application/problem+json` content type.
-
-### Mistake 6: Missing `Cache-Control` and `ETag` on GET responses
-What: `GET /api/v1/users/:id` returns no caching headers.
-Why wrong: clients and CDNs cannot cache; every request hits the server; p99 latency and load higher than necessary.
-How to avoid: set `Cache-Control: private, max-age=60` and `ETag` on every GET; return 304 on conditional requests.
-
-## 28. Professional Workflow
-
-1. Read the API requirement; identify the resource, the operations, and the clients.
-2. Draft the resource paths (`/api/v1/users`, `/api/v1/users/:id`); choose HTTP methods.
-3. Draft the OpenAPI 3.1 spec; lint with Spectral; review with client teams.
-4. Draft the pagination, filtering, and sorting conventions; document in the spec.
-5. Draft the error format (RFC 9457); document every error code in the spec.
-6. Implement controllers as thin HTTP adapters; validate input via schema.
-7. Implement services with business logic; inject repositories.
-8. Add `Cache-Control`, `ETag`, `Vary` on every GET response; support conditional requests.
-9. Add `Idempotency-Key` support on POST endpoints; cache in Redis for 24h.
-10. Add rate limiting per client; use RFC 9339 headers and `429` with `Retry-After`.
-11. Write E2E tests with `supertest`; cover happy path, validation, auth, 404, 409, 412, 429, 500.
-12. Write contract tests with Pact; verify against the deployed service.
-13. Publish OpenAPI spec to developer portal; ship SDK stubs.
-14. Deploy canary; monitor p99 latency, error rate, cache hit rate for 30 minutes; promote.
-
-## 29. Response Style
-
-1. Always cite the relevant RFC (7231 for HTTP semantics, 9457 for Problem Details, 8594 for Sunset, 9339 for RateLimit).
-2. Always recommend plural noun resources and correct HTTP methods.
-3. Always recommend the correct status code; never 200 with an error body.
-4. Always recommend RFC 9457 Problem Details for errors.
-5. Always recommend `Cache-Control`, `ETag`, `Vary` on GET responses.
-6. Always recommend `Link` header for pagination.
-7. Always recommend URI versioning (`/v1/`) with `Sunset` header for deprecations.
-8. Never use "you might consider", "perhaps", or "it depends" — specify exact conditions and a single recommendation.
-
-## 30. Output Format
-
-1. Every code block must include the file path as a comment on the first line.
-2. Every code block must be syntactically valid TypeScript or YAML.
-3. Every controller example must show the correct status code and headers.
-4. Every error example must use RFC 9457 Problem Details with `application/problem+json`.
-5. Every pagination example must include the `Link` header.
-6. Every OpenAPI snippet must be valid 3.1.
-7. Every response must cite the relevant RFC by number.
-8. Every response must include a security note (CORS, rate limiting, auth).
-9. Every response must end with a one-line summary of the resource model and method mapping.
-10. Every response must reference the OpenAPI spec and the developer portal.
+- [references/http-semantics-and-status-codes.md](references/http-semantics-and-status-codes.md): method properties, status code decision table, headers, conditional requests, caching, Problem Details.
+- [references/openapi-and-versioning.md](references/openapi-and-versioning.md): OpenAPI 3.1 and 3.2, document skeleton, linting and diffing, versioning strategies, deprecation and sunset.
+- [references/pagination-idempotency-and-caching.md](references/pagination-idempotency-and-caching.md): keyset pagination and filtering, idempotency record design, rate limit signaling, ETag and caching recipes, async operations.
+- Official specs: https://www.rfc-editor.org/rfc/rfc9110 , https://www.rfc-editor.org/rfc/rfc9457 , https://spec.openapis.org/oas/latest.html , https://www.rfc-editor.org/rfc/rfc9745

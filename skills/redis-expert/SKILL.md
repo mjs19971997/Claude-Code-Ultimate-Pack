@@ -1,702 +1,296 @@
 ---
 name: redis-expert
-description: >
-  Design, shard, and operate Redis 7 clusters with optimal data structures, caching patterns, persistence, and high availability at any scale.
-  
-  Use this skill when designing schemas, queries, indexing, replication, or operating datastores such as PostgreSQL, MongoDB, Redis, ElasticSearch, or Prisma.
+description: >-
+  Designs and operates Redis and Valkey: data structure choice, key design, caching, rate limiting, distributed locks, Streams consumer groups, Lua scripts and Functions, persistence, replication, Sentinel, Cluster, eviction, ACLs and TLS, with node-redis and ioredis. Use when working with redis.conf, redis-cli, SET NX PX, EVAL, XREADGROUP, HEXPIRE, SCAN, hash tags, memory or latency problems, or Redis JSON, Query Engine, time series and probabilistic types. Not for relational schemas (use postgresql-expert), document stores (use mongodb-expert), search clusters (use elasticsearch-expert), or HTTP caching headers (use rest-api-expert).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+# Redis Expert
 
----
+This skill covers using Redis (and the Valkey fork) as a cache, a data structure server, a coordination layer and a stream broker: choosing types and key layouts, bounding memory, keeping multi-step operations atomic, and running it safely with persistence, replication and access control. Examples use TypeScript with node-redis, with ioredis noted where the API differs.
 
-## 1. Role
+> Verified against Redis Open Source 8.10.3 (latest 8.x; 8.12 RC1 pre-release), Valkey 9.1.3, node-redis 6.3.1 (`redis` and `@redis/client`, Node.js 20+), ioredis 6.0.0 (Node.js 20+, RESP3 default) (2026-10).
 
-The Redis Expert is the principal authority on the design, deployment, optimization, and operation of Redis 7 clusters. This role owns data structure selection (strings, lists, hashes, sets, sorted sets, streams, HyperLogLog, bitmaps, geospatial), caching pattern architecture (cache-aside, write-through, write-behind, refresh-ahead), eviction policy tuning (noeviction, allkeys-lru, allkeys-lfu, volatile-ttl), persistence strategy (RDB, AOF, hybrid), replication topology, Sentinel high availability, Redis Cluster sharding across 16384 hash slots, pub/sub messaging, streams with consumer groups, Lua scripting for atomicity, modules (RediSearch, RedisJSON, RedisTimeSeries, RedisBloom), transactions via MULTI/EXEC, pipelining, ACL and TLS hardening, monitoring, and memory optimization. The expert makes irreversible topology decisions under load and must always reason from `INFO` and `LATENCY` evidence, never from intuition.
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-## 2. Mission
+## 1. Scope
 
-Deliver a Redis platform that satisfies the following contract: p99 latency under 1 ms for single-key operations, p99 latency under 5 ms for pipelined batch operations, 99.99% availability for cluster topologies with automated failover, RPO ≤ 1 second for AOF `appendfsync everysec`, RTO ≤ 30 seconds for Sentinel/Cluster failover, memory efficiency ≥ 60% useful payload, and zero data loss on confirmed writes for streams and AOF-persisted keys. Every cache miss must be intentional and documented, every eviction must be observable, and every production cluster must be recoverable without human memorization.
+- Covered: data types and key design, TTLs and eviction, cache-aside and stampede control, rate limiters, locks, idempotency keys, Streams and Pub/Sub, Lua and Functions, pipelines and transactions, RDB/AOF, replication, Sentinel, Cluster, ACL and TLS, memory and latency diagnosis, Valkey differences.
+- Not covered: relational modeling (postgresql-expert), document databases (mongodb-expert), full-text search clusters (elasticsearch-expert), HTTP cache headers and ETags (rest-api-expert), rate limiting policy at the API level (api-security-expert).
 
-## 3. Core Expertise
+## 2. Core Expertise
 
-- **Data structures**: strings (caching, counters, rate limiting), lists (queues), hashes (object properties), sets (unique collections, tag indexing), sorted sets (leaderboards, priority queues), streams (event logs, consumer groups), HyperLogLog (cardinality estimation), bitmaps (feature flags, active-user tracking), and geospatial (`GEOADD`, `GEORADIUSBYMEMBER`).
-- **Caching patterns**: cache-aside (lazy load), write-through (synchronous dual write), write-behind (async writeback with persistence), refresh-ahead (proactive refresh), and cache-aside with singleflight to prevent thundering herd.
-- **Eviction policies**: `noeviction` (default), `allkeys-lru`, `allkeys-lfu`, `volatile-lru`, `volatile-lfu`, `volatile-ttl`, `volatile-random`, `allkeys-random`; selection based on workload semantics.
-- **Persistence**: RDB point-in-time snapshots (`save` directive), AOF append-only log (`appendfsync always/everysec/no`), hybrid RDB+AOF (`aof-use-rdb-preamble`), and `BGSAVE`/`BGREWRITEAOF` background operations.
-- **Replication**: full sync (RDB transfer + backlog replay), partial sync (via replication offset and backlog), read scaling via replicas, and `MIN-REPLICAS-TO-WRITE` write quorum.
-- **Sentinel**: standalone Sentinel quorum for HA, leader election, automatic failover, and client notification via Pub/Sub.
-- **Redis Cluster**: 16384 hash slots, `CLUSTER SLOTS`, hash tags (`{tag}`) for multi-key operations, resharding, `MOVED`/`ASK` redirection, and cross-slot command restrictions.
-- **Pub/Sub**: `PUBLISH`, `SUBSCRIBE`, `PSUBSCRIBE` pattern matching, fire-and-forget semantics (no persistence), and trade-offs vs streams.
-- **Streams**: `XADD` with `MAXLEN` trimming, `XREAD` for consumers, `XREADGROUP` for consumer groups, `XPENDING` for unacked messages, `XCLAIM` for stale message recovery, and `XAUTOCLAIM` for automation.
-- **Lua scripting**: `EVAL`/`EVALSHA` for atomic multi-step operations, deterministic execution requirement, `redis.call` vs `redis.pcall`, and script cache via `SCRIPT LOAD`.
-- **Modules**: RediSearch (full-text + secondary indexes), RedisJSON (native JSON), RedisTimeSeries (time-series), RedisBloom (probabilistic), RedisGraph (graph), and RedisAI (ML inference).
-- **Transactions**: `MULTI/EXEC/DISCARD`, `WATCH` for optimistic locking, and the difference between Redis transactions (no rollback) and Lua atomicity.
-- **Pipelining**: batch commands to reduce RTT, `pipeline()` in node-redis, and trade-offs vs Lua for atomicity.
-- **ACL**: `ACL SETUSER` with password, command categories (`+@read`, `-@dangerous`), key-pattern restrictions (`~user:*`), and TLS client cert auth.
-- **TLS**: `tls-port`, certificate rotation, mTLS for client identity, and `requirepass` fallback.
-- **Monitoring**: `INFO memory`, `INFO stats`, `INFO replication`, `LATENCY HISTORY`, `LATENCY DOCTOR`, `SLOWLOG GET`, `CLIENT LIST`, and `MEMORY USAGE`.
-- **Memory optimization**: `ziplist`/`listpack` encoding for small hashes/lists/sets, `OBJECT ENCODING`, `MEMORY USAGE`, shared integers, and `activedefrag` for online defragmentation.
+- **Types**: string, hash, list, set, sorted set, stream, bitmap, HyperLogLog, geo. Redis Open Source 8 also ships JSON, the Query Engine (full-text, secondary index, vector, geo), time series, probabilistic types (Bloom, cuckoo, count-min, top-k, t-digest) and vector sets (beta) in the default build, so Redis Stack is no longer a separate package.
+- **Hash field expiration**: `HEXPIRE`, `HPEXPIRE`, `HTTL`, `HPERSIST` (since 7.4); `HGETEX`, `HSETEX`, `HGETDEL` arrived in 8.0. Use them for per-field TTLs (sessions, tokens) instead of splitting one hash into many keys.
+- **Atomicity tools**: single commands, `MULTI/EXEC` (queued, no rollback, `WATCH` for optimistic checks), Lua `EVAL`/`EVALSHA`, and Functions (`FUNCTION LOAD`, `FCALL`; named libraries that persist and replicate with the data set).
+- **Streams**: `XADD`, `XGROUP CREATE`, `XREADGROUP`, `XACK`, `XPENDING`, `XAUTOCLAIM` (and `XCLAIM`), trimming with `MAXLEN`/`MINID`. Delivery is at-least-once; consumers must be idempotent.
+- **Persistence**: RDB snapshots, AOF with `appendfsync everysec`, and the default RDB-preamble AOF. Replication is asynchronous; `WAIT` narrows but does not remove the loss window.
+- **Topologies**: standalone, primary plus replicas with Sentinel, Redis Cluster (16384 slots, hash tags, `MOVED`/`ASK`).
+- **Licensing and forks**: Redis 7.2 and earlier are BSD-3; 7.4 to 7.8 are RSALv2 or SSPLv1; 8.0 and later are RSALv2, SSPLv1 or AGPLv3 at your option. Valkey (Linux Foundation fork of Redis 7.2.4) is BSD-3 and versions independently (9.x). Check license fit before choosing a version.
 
-## 4. Responsibilities
+## 3. Workflow
 
-- Design and review key schema for new features, enforcing namespacing, TTL presence, and data structure choice.
-- Author and review Lua scripts for atomic multi-step operations; never deploy scripts without `SCRIPT LOAD` + `EVALSHA` optimization.
-- Tune `redis.conf` parameters (`maxmemory`, `maxmemory-policy`, `save`, `appendonly`, `appendfsync`, `hash-max-listpack-entries`) based on workload.
-- Diagnose production incidents: memory exhaustion, replication backlog overflow, slow scripts, big keys, and cluster resharding failures.
-- Maintain cluster topology: shard count, replica count, hash slot distribution, and resharding plan.
-- Define and operate backup verification: weekly RDB restore drills, monthly AOF replay drills, quarterly disaster recovery exercises.
-- Audit ACL users for least privilege; verify no application user has `+@dangerous` or `FLUSHALL` privilege.
-- Maintain module lifecycle: install, upgrade, and security-patch RediSearch, RedisJSON, RedisTimeSeries, RedisBloom across environments.
-- Operate failover drills quarterly: Sentinel failover, Cluster failover, and cross-region replication verification.
-- Author runbooks for every operational procedure: `BGREWRITEAOF`, `CLUSTER FAILOVER`, replica rebuild, module upgrade, and major version upgrade.
+1. State the access pattern first: read/write ratio, value size, cardinality, whether the data can be regenerated, and what happens on loss.
+2. Pick the type that makes the dominant operation a single command (see decision rules), then design the key: `<app>:<tenant>:<entity>:<id>`.
+3. Decide lifetime: every cache key gets a TTL with jitter; durable data gets a documented persistence and replication setting.
+4. Decide the atomicity boundary: single command, `MULTI`, script/Function, or a pipeline when atomicity is not needed.
+5. Decide the topology and key placement (hash tags for multi-key operations in Cluster) before writing scripts.
+6. Create least-privilege ACL users and TLS config before the first deploy.
+7. Measure: `OBJECT ENCODING`, `MEMORY USAGE`, `SLOWLOG`, `LATENCY DOCTOR`, `INFO` sections; compare against a baseline after each change.
+8. Write failure-path tests: eviction, failover, reconnect, duplicate delivery, expired lock.
 
-## 5. Thinking Process
+## 4. Decision Rules
 
-1. **Read the access pattern first** — never choose a data structure without knowing the read/write ratio, cardinality, and atomicity requirements.
-2. **Identify the dominant operation** — single-key GET/SET, batch MGET, range query (ZRANGEBYSCORE), or multi-key aggregation.
-3. **Verify memory efficiency** — `OBJECT ENCODING` and `MEMORY USAGE` per key; `listpack` (compact) vs `hashtable` (sparse) reveals tuning opportunity.
-4. **Confirm eviction strategy** — for cache workloads, `allkeys-lru` or `allkeys-lfu`; for persistent data, `noeviction` and alert on `used_memory` approaching `maxmemory`.
-5. **Check persistence configuration** — AOF `appendfsync everysec` balances durability and throughput; `always` is too slow; `no` risks data loss on power failure.
-6. **Quantify replication lag** — `INFO replication` `master_repl_offset` vs `slave_repl_offset`; lag > 1 second triggers investigation.
-7. **Decide atomicity boundary** — Lua script for multi-step atomicity; `MULTI/EXEC` for command grouping without rollback; pipeline for RTT reduction without atomicity.
-8. **Confirm topology** — single instance for dev, Sentinel for HA without sharding, Cluster for sharding and HA; never Sentinel+Cluster together.
-9. **Plan rollback** — every schema change (key format, encoding) must support old and new application versions simultaneously; never deploy a breaking key format without expand-contract.
-10. **Capture metrics before and after** — baseline `INFO stats`, `LATENCY HISTORY`, and p99 latency for affected operations; re-measure post-change to prove impact.
+- **Cache vs store**: if Redis loses the key and the app can rebuild it, use cache settings (`maxmemory` plus an eviction policy, TTLs, optional no persistence). If not, treat Redis as a primary store: AOF, replicas, backups, `noeviction`.
+- **Hash vs string**: hash for objects whose fields are read or updated separately and are bounded; string (JSON text) when the whole value is always read and written together. Redis JSON when you need partial updates or indexing of nested documents.
+- **Sorted set vs list**: sorted set for ranking, ranges by score, and scheduling (score = timestamp); list for plain FIFO.
+- **Streams vs Pub/Sub vs list**: Streams for durable work with consumer groups and replay; Pub/Sub only when losing messages for disconnected subscribers is acceptable; avoid list-as-queue when you need acknowledgement.
+- **Lua vs `MULTI/EXEC`**: scripts when later commands depend on earlier replies; `MULTI` for fixed command batches; pipeline when only round trips matter.
+- **Scripts vs Functions**: Functions for logic that is deployed with the data set and versioned; `EVAL` for small, self-contained scripts shipped with the client.
+- **Sentinel vs Cluster**: Sentinel (HA, one shard) while the data set and write rate fit one primary; Cluster to scale memory or writes. Do not combine them.
+- **Eviction**: `allkeys-lru` or `allkeys-lfu` for pure caches; `volatile-*` only when some keys (without TTL) must never be evicted; `noeviction` for primary data, with alerts before `maxmemory`.
+- **Locks**: a single-instance lock is fine for efficiency (avoid duplicate work); use a consensus system or fencing tokens when correctness depends on mutual exclusion.
+- **Redis vs Valkey**: both speak the same core protocol for 7.2-era commands; Redis 8 modules (JSON, Query Engine, time series) are Redis features, and Valkey ships its own module projects. Check feature parity for each command before assuming it exists on both.
 
-## 6. Decision Making Rules
+## 5. Coding Standards
 
-- When **cache-aside** and **write-through** both apply, choose cache-aside because it tolerates cache failure gracefully and avoids write amplification; reserve write-through for read-your-writes consistency requirements.
-- When **hash** and **string** keys both model the object, choose hash when fields are accessed independently and the field count is bounded; choose strings when the whole object is always fetched together.
-- When **sorted set** and **list** both model a ranked collection, choose sorted set for dynamic reordering and rank queries; choose list for strict insertion order with no ranking.
-- When **streams** and **pub/sub** both deliver events, choose streams for durability, consumer groups, and replay; choose pub/sub only for fire-and-forget notifications where loss is acceptable.
-- When **Sentinel** and **Cluster** both provide HA, choose Sentinel for workloads under single-instance capacity; choose Cluster for workloads requiring sharding or exceeding ~50 GB memory.
-- When **AOF** and **RDB** both persist, choose hybrid (`aof-use-rdb-preamble yes`) because RDB provides fast restart and AOF provides durability; never use RDB-only for data that cannot be regenerated.
-- When **Lua** and **MULTI/EXEC** both achieve atomicity, choose Lua for conditional logic and complex multi-step operations; choose `MULTI/EXEC` only for simple command grouping without conditional branching.
-- When **`allkeys-lru`** and **`volatile-lru`** both evict, choose `allkeys-lru` for pure cache workloads; choose `volatile-lru` for mixed workloads with persistent keys (no TTL) that must never be evicted.
+- One shared client per process (node-redis multiplexes one connection); never create a client per request. Use `duplicate()` for blocking commands (`XREADGROUP ... BLOCK`, `BLPOP`) and for subscribers.
+- Register an `error` listener on every client; without one an error event crashes the Node process.
+- Build keys only through helper functions in one module; include the tenant id in every tenant-scoped key.
+- Namespace with `:`; use `{...}` hash tags only where several keys must share a slot, and keep the tagged group small.
+- Set expiry in the same command that creates the value (`SET key v NX PX 30000`), never as a separate `EXPIRE` that can be skipped by a crash.
+- Use `SCAN`-family iterators (`scanIterator`, `hScanIterator`) with `MATCH` and `COUNT`; never `KEYS` in production.
+- Use `UNLINK` instead of `DEL` for large values.
+- Pass user data as arguments (`KEYS[]`/`ARGV[]` in scripts), never concatenate it into Lua source; declare every key a script touches in `KEYS`.
+- Serialize with JSON and a version field, or use Redis JSON; keep values small (a few KB) and avoid single keys holding millions of members.
 
-## 7. Architecture Rules
-
-- Every production deployment must run as Sentinel or Redis Cluster with at least 1 replica; single-instance production is forbidden.
-- Every write that cannot be regenerated must enable AOF with `appendfsync everysec`; RDB-only is reserved for regeneratable cache.
-- Every cache key must have a TTL; permanent cache keys are forbidden because they cause unbounded memory growth.
-- Every Redis Cluster multi-key operation must use hash tags (`{user:1000}:cart`, `{user:1000}:profile`) for cross-key atomicity; cross-slot operations are rejected.
-- Every Lua script must be loaded via `SCRIPT LOAD` and invoked via `EVALSHA`; `EVAL` re-sending the script body on every call wastes bandwidth.
-- Every connection must flow through a connection pool configured with `maxConnections` tuned to the instance; unbounded pools cause connection exhaustion.
-- Every module (RediSearch, RedisJSON) must be installed on every cluster node; partial module installation breaks query routing.
-- Every Sentinel deployment must have at least 3 Sentinels across 3 availability zones; 2 Sentinels cannot form a quorum on a network partition.
-- Every Redis Cluster must have at least 3 master nodes and 3 replica nodes (1 replica per master minimum); 2-master clusters cannot survive a node failure with quorum.
-- Every password must be stored in a secret manager (Vault, AWS Secrets Manager); `requirepass` in `redis.conf` is forbidden in production.
-
-## 8. Coding Standards
-
-- Every key must follow the namespace convention `<service>:<entity>:<id>:<field>` (`user:1000:profile`, `cart:abc:items`); flat keys are forbidden.
-- Every cache key must have a TTL; never `SET key value` without `EX` or `PX` in production cache code.
-- Every `GET` miss must be logged at debug level; never silently swallow cache misses on hot paths.
-- Every pipeline must be bounded in size (< 1000 commands); unbounded pipelines cause memory pressure on client and server.
-- Every Lua script must use `redis.call` and handle nil returns explicitly; `redis.pcall` is for fallback logic only.
-- Every stream consumer must use `XREADGROUP` with `>` (new messages) or `0` (pending messages); never `XREAD` for consumer group workloads.
-- Every `WATCH` must wrap in `MULTI/EXEC`; the watched key must be re-read inside the transaction for visibility.
-- Every `EXPIRE` must be set atomically with the value via `SET key value EX seconds`; separate `SET` then `EXPIRE` is a race condition.
-- Every bulk `MGET`/`MSET` must use pipeline or `MGET`/`MSET` directly; never loop with individual `GET`/`SET`.
-- Every cluster-aware client must use `redisc`/`ioredis.Cluster` with `MOVED`/`ASK` redirection handling; never use a single-node client against a cluster.
-- Every module query must specify the index name explicitly; default index is forbidden in production.
-- Every TLS connection must verify the server certificate (`rejectUnauthorized: true`); `false` is forbidden in production.
-- Every script must be deterministic; `TIME`, `RANDOMKEY`, and side effects on the database are forbidden inside Lua scripts.
-
-## 9. Naming Conventions
-
-- **Keys**: colon-separated namespace `<service>:<entity>:<id>:<field>` (`user:1000:profile`, `cart:abc:items`, `session:xyz`).
-- **Hash tags**: `{user:1000}` for cluster multi-key locality (`{user:1000}:cart`, `{user:1000}:profile`).
-- **Lua scripts**: named `script_<purpose>` (`script_rate_limit`, `script_atomic_decrement`); loaded via `SCRIPT LOAD` and stored SHA in code.
-- **Stream keys**: `<service>:<entity>:<event>` (`order:events`, `user:activity`); never generic `events` to avoid collision.
-- **Consumer group names**: `<service>-<consumer>` (`order-processor`, `email-sender`); never `group1` or default.
-- **Pub/Sub channels**: `<service>:<event>` (`user:created`, `order:cancelled`); pattern channels `<service>:*` for fan-out.
-- **Indexes (RediSearch)**: `idx_<entity>` (`idx_users`, `idx_products`); never `myindex`.
-- **Time series keys**: `<metric>:<source>:<aggregation>` (`cpu:host1:avg`, `orders:tenant1:count`).
-- **Files**: `<purpose>.lua` for Lua scripts, `<purpose>.conf` for config; migration scripts `V<n>__<description>.js`.
-- **Directories**: `lua/`, `config/`, `seeds/`, `indexes/`, `tests/`.
-- **ACL users**: `<service>-<env>` (`api-prod`, `worker-staging`); never `admin` or `default` in production.
-- **Tests**: `*.lua.test.lua` or `*.spec.ts` for driver-level tests.
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-redis/
-├── lua/                         # Lua scripts, loaded via SCRIPT LOAD
-│   ├── rate_limit.lua
-│   ├── atomic_decrement.lua
-│   └── stock_reserve.lua
-├── config/
-│   ├── redis.conf               # Base configuration template
-│   ├── sentinel.conf            # Sentinel configuration
-│   └── cluster.conf             # Cluster node configuration
-├── migrations/                  # Schema migrations (key format changes)
-│   ├── V0001__initial_keys.js
-│   └── V0002__add_user_index.js
-├── seeds/                       # Reference data scripts
-│   └── countries.js
-├── indexes/                     # RediSearch index definitions
-│   ├── idx_users.js
-│   └── idx_products.js
-├── tests/                       # Test suites
-│   ├── lua.test.ts
-│   └── cache.test.ts
-├── scripts/                     # Operational scripts
-│   ├── benchmark.sh
-│   ├── reshard.sh
-│   └── restore_drill.sh
-└── README.md                    # Redis ops runbook index
+src/
+  infra/redis/
+    client.ts        # createClient, TLS and ACL credentials from config, error handler, shutdown
+    keys.ts          # key builders, tenant prefix, TTL constants
+    scripts.ts       # Lua sources and defineScript wrappers (lock release, limiter)
+  cache/
+    user-cache.ts    # cache-aside with jitter and single-flight
+  locks/lock.ts      # single-instance lock helper
+  jobs/
+    stream-consumer.ts   # XREADGROUP loop, XAUTOCLAIM sweep, XACK
+tests/
+  redis/             # integration tests against a real server (Testcontainers or CI service)
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-redis-project/
-├── redis/                       # Redis artifacts (see folder structure)
-├── app/                         # Application layer connecting to Redis
-│   ├── src/
-│   │   ├── config/
-│   │   │   └── redis.ts         # Connection pool configuration
-│   │   ├── cache/               # Cache layer (cache-aside, write-through)
-│   │   │   ├── user.cache.ts
-│   │   │   └── product.cache.ts
-│   │   ├── queues/              # Stream consumers and producers
-│   │   │   ├── order.consumer.ts
-│   │   │   └── email.producer.ts
-│   │   ├── ratelimit/           # Rate limiters using Lua
-│   │   │   └── sliding.window.ts
-│   │   ├── pubsub/              # Pub/Sub handlers
-│   │   │   └── user.events.ts
-│   │   ├── domain/              # Business logic, framework-free
-│   │   ├── services/            # Use cases orchestrating cache + DB
-│   │   └── api/                 # HTTP/gRPC entry points
-│   └── tests/
-├── infra/                       # Infrastructure as code
-│   ├── terraform/               # Redis Cloud / ElastiCache provisioning
-│   ├── ansible/                 # Bare-metal/VM bootstrap
-│   └── docker/                  # Local dev compose stack
-├── observability/
-│   ├── grafana/                 # Dashboards as JSON
-│   ├── prometheus/              # redis_exporter rules
-│   └── alerts/                  # AlertManager rules
-├── ci/                          # CI pipelines
-│   ├── lua-lint.yml
-│   ├── migration-check.yml
-│   └── load-test.yml
-├── docs/
-│   ├── runbooks/                # Operational procedures
-│   ├── adr/                     # Architecture Decision Records
-│   └── data-model/              # Key schema docs
-├── scripts/                     # Operational Bash scripts
-├── docker-compose.yml           # Local dev environment
-├── Makefile                     # Common commands
-└── README.md
-```
+- **Cache-aside**: read cache, on miss load from the source of truth, write with TTL plus jitter. Single-flight (in-process promise map, or a short `SET NX` lease) stops a stampede on hot keys.
+- **Write invalidation**: delete (`UNLINK`) on write, or bump a per-entity version key and embed the version in cache keys; avoid wildcard deletes.
+- **Negative caching**: cache "not found" briefly so missing ids do not hit the database.
+- **Rate limiting**: fixed window (`INCR` + `PEXPIRE` in a script), sliding window (sorted set), token bucket (hash + script). All state transitions in one script.
+- **Lock with lease**: `SET key token NX PX ttl`; release with a compare-and-delete script; extend only while holding the token; pair with a fencing token for writes to shared resources.
+- **Idempotency record**: `SET idem:<tenant>:<key> in_progress NX PX ttl`, store the result under the same key when done, replay the stored result on retry.
+- **Work queue**: Stream plus consumer group; periodic `XAUTOCLAIM` to reclaim entries idle past a threshold; dead-letter stream after N deliveries (read the delivery count from `XPENDING`).
+- **Leaderboard and scheduling**: sorted set with `ZADD`, `ZRANGE ... REV`, `ZRANGEBYSCORE`; delayed jobs with score = due time.
+- **Approximate counting**: HyperLogLog for unique counts, Bloom filter for membership pre-checks, top-k for heavy hitters.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### 12.1 Cache-Aside (Lazy Load)
-**When to use**: Default cache pattern; tolerates cache failure; minimizes write amplification.
-**When not to use**: Read-your-writes consistency required; use write-through.
-**Sketch**: `GET key` → on miss, fetch from DB → `SET key value EX 300` → return value. Use singleflight to prevent thundering herd.
+- Keep keys human-readable and short enough that billions of copies do not dominate memory, but never encode secrets in them.
+- Prefer many small hashes over one huge hash; small hashes, sets and sorted sets use compact listpack encoding.
+- Batch with pipelines (node-redis auto-pipelines commands issued in the same tick; use `Promise.all`) and `MGET`/`HMGET`.
+- Cap stream length at write time (`XADD ... MAXLEN ~ N` or `MINID ~`) so a stalled consumer cannot fill memory.
+- Keep one logical operation within one slot in Cluster; design keys for that up front.
+- Make consumers idempotent and acknowledge only after the side effect is durable.
+- Version key formats and values so old and new application versions can coexist during rollout.
+- Pin the server image to an exact version and read release notes before upgrading across minor versions.
 
-### 12.2 Write-Through
-**When to use**: Read-your-writes consistency; cache is the source of truth on read.
-**When not to use**: Write-heavy workloads; cache miss is rare; cost of dual write is high.
-**Sketch**: `SET key value EX 300` synchronously with DB write; never return success until both succeed.
+## 9. Performance
 
-### 12.3 Write-Behind (Writeback)
-**When to use**: Write-heavy workloads tolerant of eventual consistency; absorb bursts.
-**When not to use**: Strong consistency required; cannot tolerate data loss on cache failure.
-**Sketch**: Write to cache, queue to stream, worker drains stream to DB with deduplication.
+- Redis executes commands on one main thread: one slow command blocks everyone. Avoid O(N) commands on large collections (`SMEMBERS`, `HGETALL`, `LRANGE 0 -1`, `SORT`) and long scripts.
+- Round trips dominate: pipeline, use multi-key commands, or move logic server-side.
+- Find big keys and hot keys (`redis-cli --bigkeys`, `--memkeys`, `MEMORY USAGE key`), and split them.
+- Inspect `SLOWLOG GET`, `LATENCY DOCTOR`, `INFO commandstats`; investigate fork latency (`latest_fork_usec`) when RDB or AOF rewrites run.
+- Set `maxmemory` below host memory to leave room for fork copy-on-write and buffers; watch `mem_fragmentation_ratio` and `evicted_keys`.
+- Use `activedefrag` only after measuring fragmentation.
+- RESP3 (default in ioredis 6, optional in node-redis) gives richer reply types and enables client-side caching; test your type mappings before switching.
+- Client-side caching (node-redis `clientSideCache` with `RESP: 3`) suits read-heavy, rarely changing keys; the server invalidates entries.
 
-### 12.4 Refresh-Ahead
-**When to use**: Proactive refresh of hot keys to prevent expiry misses.
-**When not to use**: Cold keys; large objects where refresh cost is high.
-**Sketch**: Scheduled job refreshes top-N keys before TTL expiry; uses `EXPIRE` to extend.
+## 10. Security
 
-### 12.5 Rate Limiter (Sliding Window)
-**When to use**: API rate limiting with precise sliding window semantics.
-**When not to use**: Fixed-window suffices and Lua complexity is not warranted.
-**Sketch**: Sorted set per user with timestamps; `ZREMRANGEBYSCORE` old entries; `ZADD` current; `ZCARD` count.
+- Never expose Redis to the internet. Bind to private interfaces, keep `protected-mode yes`, firewall the port, and use TLS (`tls-port`, `tls-cert-file`, `tls-key-file`, `tls-ca-cert-file`; `tls-auth-clients yes` for mutual TLS) for any traffic leaving the host.
+- Disable passwordless access: set `ACL SETUSER default off` (or give it a strong secret) and create one ACL user per application with only the commands and key patterns it needs. Manage users in an `aclfile` with hashed passwords (`#<sha256>`).
+- Deny dangerous categories to application users (`-@dangerous`; this includes `FLUSHALL`, `CONFIG`, `KEYS`, `DEBUG`) and grant `+eval`/`+evalsha`/`+fcall` only to users that run scripts.
+- Restrict pub/sub channels with `&pattern` rules and keys with `~pattern`, or read/write-specific `%R~` and `%W~` patterns.
+- Keep credentials in a secret manager and inject through environment or mounted files; never commit them or put them in logs, URLs in error messages, or client bundles.
+- Tenant isolation in a shared instance: key prefix per tenant plus an ACL key pattern per service, or separate instances for strong isolation. Do not rely on numbered databases (not available in Cluster, not an access boundary).
+- Lua is sandboxed but has had serious vulnerabilities; keep Redis on patched releases and limit script rights.
+- Treat cached data as untrusted on read: validate shape after `JSON.parse`; do not cache secrets or personal data longer than their source allows.
+- `rename-command` is deprecated; use ACLs.
 
-### 12.6 Distributed Lock (Redlock)
-**When to use**: Cross-process mutual exclusion with failure tolerance.
-**When not to use**: Single-instance lock suffices; correctness is hard, prefer single-instance Lua.
-**Sketch**: `SET lock:<resource> <token> NX PX 30000`; release via Lua comparing token; Redlock across N independent instances for quorum.
+## 11. Testing
 
-## 13. Best Practices
+- Run integration tests against a real Redis or Valkey (Testcontainers or a CI service container), not a mock; scripts, expiry and Cluster slot rules cannot be mocked faithfully.
+- Test TTL behavior with short real TTLs (for example `PEXPIRE` with a few hundred milliseconds), not fake timers around the client.
+- Test failure paths: server restart (client reconnects), `maxmemory` eviction of cache keys, duplicate stream delivery, `XAUTOCLAIM` after a consumer crash, lock expiry mid-work.
+- Test Cluster behavior with a real cluster (3 primaries) when using multi-key commands or scripts.
+- Load-test with `redis-benchmark` or your app's traffic shape and look at latency percentiles, not averages.
 
-- Always set TTL on every cache key; unbounded keys cause memory exhaustion.
-- Always use `SET key value EX seconds` atomically; separate `SET` then `EXPIRE` is a race.
-- Always use pipelining for batch operations > 10 commands; reduces RTT.
-- Always use `EVALSHA` after `SCRIPT LOAD`; `EVAL` re-sends script body.
-- Always use `XREADGROUP` for stream consumers; never `XREAD` for consumer group workloads.
-- Always use hash tags for cluster multi-key operations; cross-slot operations are rejected.
-- Always configure `maxmemory` and `maxmemory-policy` in production; defaults are dangerous.
-- Always use `appendfsync everysec` for AOF; `always` is too slow; `no` risks data loss.
-- Always use TLS 1.3 and ACL in production; `requirepass` alone is insufficient.
-- Always monitor `used_memory` vs `maxmemory`; alert at 80%.
-- Always monitor replication lag; alert at > 1 second.
-- Always benchmark Lua scripts with `redis-benchmark` before production; scripts block the event loop.
-- Always use `MEMORY USAGE` to size large keys; refactor big keys into hashes.
-- Always rotate TLS certificates and ACL passwords quarterly.
-- Always run `BGREWRITEAOF` during low-traffic periods to compact AOF.
+## 12. Review Checklist
 
-## 14. Anti Patterns
+- [ ] Every key has an owner module, a tenant segment where applicable, and a TTL or a stated reason for none.
+- [ ] No `KEYS`, `FLUSHALL`, unbounded `SMEMBERS`/`HGETALL`/`LRANGE` on user-growth data.
+- [ ] Scripts take keys via `KEYS[]`, are small, and are slot-safe in Cluster.
+- [ ] Locks use a token and compare-and-delete release; the caveats are documented where correctness matters.
+- [ ] Stream consumers ack after success, reclaim stuck entries, and cap delivery attempts.
+- [ ] Application ACL user has the minimum commands and key patterns; TLS enabled; no secret in code.
+- [ ] `maxmemory` and the eviction policy match the cache-or-store decision.
+- [ ] Client has an `error` handler, reconnect strategy, timeouts and graceful shutdown.
 
-### 14.1 Keys Without TTL
-**Why wrong**: Unbounded memory growth; eventual OOM and eviction storm.
-**Correct alternative**: Set TTL on every cache key; use `volatile-*` eviction as a safety net.
+## 13. Production Notes
 
-### 14.2 Big Keys (Multi-MB Strings/Hashes)
-**Why wrong**: Block event loop on read/write; replication backlog overflow; eviction complexity.
-**Correct alternative**: Split into smaller hashes; use `HSCAN` for iteration; monitor via `MEMORY USAGE`.
+- Primary data: at least one replica, AOF `everysec`, Sentinel or Cluster, and tested restores of RDB or AOF files. Replication is asynchronous, so failover can lose recent writes.
+- `min-replicas-to-write` and `min-replicas-max-lag` trade availability for a smaller loss window.
+- Sentinel needs at least three Sentinels in separate failure domains; Cluster needs at least three primaries, each with a replica.
+- Clients must follow redirects and topology changes (node-redis and ioredis cluster modes do); connect through the Sentinel or cluster seed list, not a single node.
+- Upgrade replicas first, then fail over; read the release notes for command and config changes. Redis 8.x and Valkey 9.x have separate release lines and different config additions.
+- Backups: copy RDB snapshots (or use AOF archives) off-host and restore them regularly.
+- Persistence and replication details: [references/persistence-replication-cluster.md](references/persistence-replication-cluster.md).
 
-### 14.3 `KEYS *` in Production
-**Why wrong**: Blocks event loop for seconds to minutes on large keyspaces; production freeze.
-**Correct alternative**: Use `SCAN` with cursor; never `KEYS` in production code.
+## 14. Examples
 
-### 14.4 `FLUSHALL` in Production
-**Why wrong**: Destroys all data; no confirmation; irreversible.
-**Correct alternative**: Never expose `FLUSHALL` to applications; use `SCAN` + `DEL` with key pattern; require explicit ADR for any flush.
+Client with ACL user and TLS, credentials from the environment:
 
-### 14.5 Long-Running Lua Scripts
-**Why wrong**: Blocks event loop; all other commands queue; latency spike.
-**Correct alternative**: Keep Lua scripts under 1 ms; split long operations into multiple scripts with stream coordination.
+```ts
+import { createClient } from "redis";
 
-### 14.6 Separate `SET` Then `EXPIRE`
-**Why wrong**: Race condition; crash between commands leaves permanent key.
-**Correct alternative**: Use `SET key value EX seconds` atomic; or `SET` with `KEEPTTL` for refresh.
+export type Redis = ReturnType<typeof createClient>;
 
-## 15. Performance Rules
-
-- Single-key operations must have p99 < 1 ms; if slower, investigate slowlog and big keys.
-- Pipelined batches must have p99 < 5 ms for up to 1000 commands; larger batches split.
-- Lua scripts must execute in < 1 ms; longer scripts block the event loop.
-- `maxmemory` must be set to 70-80% of system RAM; leave headroom for OS and AOF rewrite buffer.
-- `hash-max-listpack-entries` and `list-max-listpack-size` must be tuned to keep small hashes/lists in compact encoding.
-- `client-output-buffer-limit` must be set to prevent slow clients from consuming unbounded memory.
-- `repl-backlog-size` must be sized to hold 60 seconds of writes; too small triggers full sync on replica reconnect.
-- `appendfsync everysec` is the production default; `always` for financial data with low write rate; `no` for regeneratable cache.
-- `io-threads` and `io-threads-do-reads` enabled on multi-core machines for high-throughput workloads.
-- `lazyfree-lazy-expire`, `lazyfree-lazy-eviction`, `lazyfree-lazy-server-del` must be enabled to avoid blocking on big key deletion.
-
-## 16. Security Rules
-
-- TLS 1.3 must be enforced for all client connections; `tls-port` configured, `port 0` to disable plain.
-- ACL must restrict each application user to specific commands and key patterns; `+@all` is forbidden.
-- `FLUSHALL`, `FLUSHDB`, `CONFIG`, `DEBUG`, `SHUTDOWN` must be denied to application users; admin-only.
-- Passwords must be stored in a secret manager; `requirepass` in `redis.conf` is forbidden in production.
-- Redis must bind to private network only; `bind 0.0.0.0` is forbidden.
-- `protected-mode yes` must be enabled; prevents external access without auth.
-- TLS certificates must be rotated quarterly; mTLS for client identity in regulated environments.
-- AOF and RDB files must be encrypted at rest (LUKS, EBS encryption); Redis does not encrypt natively.
-- Audit log must capture ACL changes, `CONFIG SET`, `FLUSHALL`, `DEBUG` via `monitor` or module.
-- Redis must never be exposed to the public internet; Bastion host or VPN for admin access.
-
-## 17. Testing Strategy
-
-- Every Lua script must have unit tests covering happy path, edge cases (nil inputs, type errors), and concurrent execution.
-- Every cache pattern must have integration tests verifying hit/miss, TTL expiry, and eviction behavior.
-- Every stream consumer must have tests for `XREADGROUP`, `XPENDING`, `XCLAIM`, and crash recovery.
-- Every migration must be tested forward and backward; the down migration must restore the prior key schema.
-- Load tests must run nightly via `redis-benchmark` to detect latency regressions.
-- Failover tests must verify Sentinel and Cluster failover under node failure simulation.
-- Backup restore drills must run weekly with documented RTO measurement.
-- Memory tests must verify `maxmemory` enforcement and eviction policy behavior.
-- Schema lint must enforce key naming conventions and TTL presence in CI.
-- Cluster resharding tests must verify slot migration and `MOVED` handling in CI.
-
-## 18. Documentation Standards
-
-- Every key namespace must have a doc entry in `docs/data-model/` describing purpose, TTL, and data structure.
-- Every Lua script must have a header comment describing inputs, outputs, atomicity guarantee, and error behavior.
-- Every consumer group must have a runbook for `XPENDING` recovery and `XAUTOCLAIM` automation.
-- Every index (RediSearch) must have a doc listing fields, types, and query patterns.
-- ADRs must be written for irreversible decisions (Sentinel vs Cluster, AOF vs RDB, module adoption).
-- `redis/README.md` must list common commands (`SCRIPT LOAD`, `BGREWRITEAOF`, `CLUSTER FAILOVER`).
-- Runbooks must exist for `BGREWRITEAOF`, replica rebuild, cluster reshard, module upgrade, and major version upgrade.
-- ACL configuration must be documented per user with command categories and key patterns.
-
-## 19. Code Review Checklist
-
-- [ ] Every cache key has a TTL; no `SET key value` without `EX`/`PX`.
-- [ ] Every `SET key value EX seconds` is atomic; no separate `EXPIRE`.
-- [ ] Every key follows `<service>:<entity>:<id>:<field>` convention.
-- [ ] Every cluster multi-key operation uses hash tags.
-- [ ] Every Lua script uses `EVALSHA` after `SCRIPT LOAD`; no `EVAL` with script body.
-- [ ] Every Lua script is < 1 ms execution time; benchmarked.
-- [ ] Every pipeline is bounded (< 1000 commands).
-- [ ] Every stream consumer uses `XREADGROUP` with consumer group.
-- [ ] Every `WATCH` wraps in `MULTI/EXEC`.
-- [ ] No `KEYS *` in production code; use `SCAN`.
-- [ ] No `FLUSHALL`/`FLUSHDB` in application code.
-- [ ] No big keys (> 1 MB); verified via `MEMORY USAGE`.
-- [ ] TLS verified (`rejectUnauthorized: true`).
-- [ ] ACL user restricted to specific commands and key patterns.
-- [ ] `maxmemory` and `maxmemory-policy` configured.
-- [ ] `appendfsync everysec` for durable writes.
-- [ ] Connection pool sized to instance; not unbounded.
-- [ ] Lua script reviewed by second engineer before deploy.
-
-## 20. Refactoring Checklist
-
-- [ ] Capture baseline metrics (p99 latency, memory usage, hit ratio) before refactoring.
-- [ ] Identify slow commands via `SLOWLOG GET`.
-- [ ] Identify big keys via `redis-cli --bigkeys` or `MEMORY USAGE`.
-- [ ] Identify keys without TTL via `SCAN` + `TTL`.
-- [ ] Replace `KEYS *` with `SCAN` in any remaining code.
-- [ ] Replace `EVAL` with `EVALSHA` after `SCRIPT LOAD`.
-- [ ] Replace individual `GET`/`SET` loops with `MGET`/`MSET` or pipeline.
-- [ ] Replace separate `SET` + `EXPIRE` with `SET key value EX`.
-- [ ] Split big keys into smaller hashes with `listpack` encoding.
-- [ ] Add hash tags to cluster multi-key operations.
-- [ ] Add TTL to keys without expiry.
-- [ ] Re-measure metrics after refactoring; document improvement or revert.
-
-## 21. Deployment Checklist
-
-- [ ] Lua scripts loaded via `SCRIPT LOAD` and SHA recorded.
-- [ ] Indexes (RediSearch) created via `FT.CREATE` before application deploy.
-- [ ] `INFO` snapshot captured pre-deploy (memory, connections, replication lag).
-- [ ] Replicas healthy; lag < 1 second.
-- [ ] AOF and RDB backups completed immediately before deploy.
-- [ ] Rollback plan documented and tested in staging.
-- [ ] Deploy window scheduled during low-traffic period.
-- [ ] On-call engineer briefed and reachable.
-- [ ] Runbook linked in deploy ticket.
-- [ ] Feature flags configured for any behavior change.
-- [ ] `maxmemory` and `maxmemory-policy` verified.
-- [ ] ACL users created with correct permissions.
-- [ ] TLS certificates valid and not expiring within 30 days.
-- [ ] Cluster slots balanced; no reshard in progress.
-- [ ] Stream consumers paused before disruptive changes.
-- [ ] PagerDuty alert sensitivity adjusted for deploy window.
-
-## 22. Production Checklist
-
-- [ ] Redis Cluster or Sentinel with at least 3 masters + 3 replicas across AZs.
-- [ ] `maxmemory` set to 70-80% of system RAM.
-- [ ] `maxmemory-policy` set to `allkeys-lru` (cache) or `noeviction` (persistent).
-- [ ] AOF enabled with `appendfsync everysec` for durable workloads.
-- [ ] RDB snapshots enabled as additional backup.
-- [ ] TLS 1.3 enforced on all connections.
-- [ ] ACL with least privilege per application user.
-- [ ] `protected-mode yes` enabled.
-- [ ] `bind` restricted to private network.
-- [ ] Backups encrypted at rest; weekly restore drill verified.
-- [ ] Disaster recovery drill run quarterly.
-- [ ] Monitoring dashboards for memory, connections, replication lag, hit ratio, slowlog.
-- [ ] Alerts for memory > 80%, replication lag > 1s, connection exhaustion, failover event, AOF rewrite failure.
-- [ ] Runbooks for every alert published and reviewed annually.
-- [ ] `lazyfree-*` enabled for non-blocking eviction and deletion.
-- [ ] `io-threads` enabled on multi-core machines.
-
-## 23. Logging Strategy
-
-- `loglevel notice` default in production; `verbose` for diagnosis only.
-- `slowlog-log-slower-than 10000` captures commands slower than 10 ms.
-- `slowlog-max-len 1000` retains last 1000 slow commands.
-- `latency-monitor-threshold 100` captures events causing > 100 ms latency.
-- Every slow log entry includes command, key, args (truncated), duration, and client.
-- Every connection log includes client IP, user, and authentication outcome (via module or `monitor`).
-- Every failover log includes reason, candidate, and resulting topology.
-- Every AOF rewrite log includes duration, size before/after, and outcome.
-- Logs must be shipped to centralized log store (Loki, CloudWatch) with retention ≥ 90 days.
-- PII must be redacted via command renaming or before log shipping; never log raw values for sensitive keys.
-
-## 24. Monitoring Strategy
-
-- `INFO memory` for `used_memory`, `used_memory_peak`, `mem_fragmentation_ratio`.
-- `INFO stats` for `ops_per_sec`, `hitrate`, `evicted_keys`, `expired_keys`.
-- `INFO replication` for `role`, `connected_slaves`, `master_repl_offset`, `slave_repl_offset`.
-- `INFO clients` for `connected_clients`, `blocked_clients`.
-- `SLOWLOG GET` for top slow commands; alert on count > threshold.
-- `LATENCY HISTORY event` for latency events (`expire`, `eviction-loop`, `fast-command`, `aof-write`).
-- `CLIENT LIST` for connected clients; alert on count > 80% of `maxclients`.
-- `MEMORY USAGE key` for big key monitoring.
-- Redis Exporter metrics for Prometheus: `redis_memory_used_bytes`, `redis_connected_clients`, `redis_replication_offset_diff`, `redis_keyspace_hits_total`, `redis_keyspace_misses_total`.
-- Alert on: memory > 80% of `maxmemory`, replication lag > 1s, connection count > 80% of `maxclients`, hit rate < 80%, slow command count > 100/min, failover event, AOF rewrite failure.
-
-## 25. Error Handling
-
-- Connection errors must retry with exponential backoff and jitter; never retry in a tight loop.
-- `MOVED`/`ASK` redirections must be handled by cluster-aware client automatically; never surface to application.
-- `NOSCRIPT` errors (script evicted from cache) must fall back to `EVAL` with script body; reload via `SCRIPT LOAD`.
-- `BUSY` errors (cluster resharding in progress) must retry with backoff; never fail immediately.
-- `OOM` errors (`maxmemory` reached with `noeviction`) must surface to application; never silently fail.
-- Stream consumer errors must `XACK` only after successful processing; never ack on failure.
-- `WATCH` triggered `nil` return must retry the transaction with bounded attempts.
-- Replication backlog overflow must trigger full sync; monitor and alert.
-- AOF rewrite failure must alert immediately; data durability is at risk.
-- Cluster failover must trigger client reconnect via driver; application must surface degraded state.
-
-## 26. Examples
-
-### Example 1: Cache-Aside with Singleflight (TypeScript)
-
-```typescript
-// src/cache/user.cache.ts
-import { Redis } from 'ioredis';
-import { UserRepository } from '../repositories/user.repository';
-
-export class UserCache {
-  private readonly inflight = new Map<string, Promise<User | null>>();
-
-  constructor(
-    private readonly redis: Redis,
-    private readonly users: UserRepository,
-    private readonly ttlSeconds = 300,
-  ) {}
-
-  async get(userId: string): Promise<User | null> {
-    const key = `user:${userId}:profile`;
-    const cached = await this.redis.get(key);
-    if (cached) return JSON.parse(cached) as User;
-
-    // Singleflight: dedupe concurrent loads for the same key
-    if (this.inflight.has(userId)) return this.inflight.get(userId)!;
-
-    const promise = this.users.findById(userId).then((user) => {
-      if (user) {
-        void this.redis.set(key, JSON.stringify(user), 'EX', this.ttlSeconds);
-      }
-      return user;
-    }).finally(() => {
-      this.inflight.delete(userId);
-    });
-
-    this.inflight.set(userId, promise);
-    return promise;
-  }
-
-  async invalidate(userId: string): Promise<void> {
-    await this.redis.del(`user:${userId}:profile`);
-  }
+export function makeRedis(): Redis {
+  const client = createClient({
+    username: process.env.REDIS_USER, // ACL user, e.g. "app-cache"
+    password: process.env.REDIS_PASSWORD, // injected by the secret manager
+    socket: {
+      host: process.env.REDIS_HOST,
+      port: Number(process.env.REDIS_PORT ?? 6379),
+      tls: true,
+      connectTimeout: 5_000,
+      reconnectStrategy: (retries) => Math.min(retries * 100, 2_000) + Math.random() * 100,
+    },
+  });
+  client.on("error", (err) => console.error("redis error", err.message)); // required: no listener = crash
+  return client;
 }
 ```
 
-### Example 2: Sliding Window Rate Limiter (Lua)
+Single-instance lock: `SET NX PX` to acquire, token check-and-delete in Lua to release:
 
-```lua
--- lua/rate_limit.lua
--- KEYS[1] = rate limit key (e.g., "ratelimit:user:1000:api")
--- ARGV[1] = current timestamp (ms)
--- ARGV[2] = window size (ms)
--- ARGV[3] = max requests in window
--- Returns: 1 if allowed, 0 if denied
+```ts
+import { randomUUID } from "node:crypto";
+import type { Redis } from "./client";
 
-local key = KEYS[1]
-local now = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local limit = tonumber(ARGV[3])
-local cutoff = now - window
-
--- Remove entries outside the window
-redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
-
-local current = redis.call('ZCARD', key)
-if current >= limit then
-  return 0
+const RELEASE = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
 end
+return 0`;
 
-redis.call('ZADD', key, now, now .. ':' .. math.random())
-redis.call('PEXPIRE', key, window)
-return 1
-```
-
-```typescript
-// src/ratelimit/sliding.window.ts
-import { Redis } from 'ioredis';
-import * as fs from 'fs';
-import * as crypto from 'crypto';
-
-const scriptSource = fs.readFileSync('lua/rate_limit.lua', 'utf8');
-const scriptSha = crypto.createHash('sha1').update(scriptSource).digest('hex');
-
-export class SlidingWindowRateLimiter {
-  constructor(private readonly redis: Redis, private readonly limit = 100, private readonly windowMs = 60_000) {}
-
-  async allow(identifier: string): Promise<boolean> {
-    const key = `ratelimit:${identifier}`;
-    const now = Date.now();
-    try {
-      const result = await this.redis.evalsha(scriptSha, 1, key, now, this.windowMs, this.limit);
-      return result === 1;
-    } catch (err: any) {
-      if (err.message?.includes('NOSCRIPT')) {
-        await this.redis.script('LOAD', scriptSource);
-        const result = await this.redis.evalsha(scriptSha, 1, key, now, this.windowMs, this.limit);
-        return result === 1;
-      }
-      throw err;
-    }
+export async function withLock<T>(
+  redis: Redis, tenantId: string, name: string, ttlMs: number, fn: () => Promise<T>,
+): Promise<T | null> {
+  const key = `lock:${tenantId}:${name}`;
+  const token = randomUUID();
+  const ok = await redis.set(key, token, { condition: "NX", expiration: { type: "PX", value: ttlMs } });
+  if (ok !== "OK") return null; // someone else holds it
+  try {
+    return await fn(); // must finish well within ttlMs; the lock can expire underneath you
+  } finally {
+    await redis.eval(RELEASE, { keys: [key], arguments: [token] });
   }
 }
 ```
 
-### Example 3: Stream Consumer Group with XAUTOCLAIM
+Caveats: if `fn` outlives the TTL, a second holder can enter (use a fencing token checked by the protected resource when that matters); a failover can lose the lock before replication; Redlock across several independent primaries narrows but does not remove clock and pause assumptions, so use a consensus store when correctness, not efficiency, depends on it. On Redis 8.4+ `SET ... IFEQ` can compare before overwriting, but the Lua release is portable across versions and Valkey.
 
-```typescript
-// src/queues/order.consumer.ts
-import { Redis } from 'ioredis';
+Stream consumer group with reclaim and ack:
 
-export class OrderConsumer {
-  private running = false;
+```ts
+import type { Redis } from "./client";
 
-  constructor(
-    private readonly redis: Redis,
-    private readonly streamKey = 'order:events',
-    private readonly group = 'order-processor',
-    private readonly consumer = `processor-${process.pid}`,
-  ) {}
+const STREAM = "orders:events";
+const GROUP = "billing";
 
-  async start(handler: (event: any) => Promise<void>): Promise<void> {
-    // Ensure stream and consumer group exist
-    try {
-      await this.redis.xgroup('CREATE', this.streamKey, this.group, '$', 'MKSTREAM');
-    } catch (err: any) {
-      if (!err.message.includes('BUSYGROUP')) throw err;
+export async function runConsumer(base: Redis, consumer: string, signal: AbortSignal) {
+  const redis = base.duplicate(); // blocking reads need their own connection
+  redis.on("error", (e) => console.error("redis error", e.message));
+  await redis.connect();
+  try {
+    await redis.xGroupCreate(STREAM, GROUP, "$", { MKSTREAM: true });
+  } catch (e) {
+    if (!String(e).includes("BUSYGROUP")) throw e; // group already exists
+  }
+  let lastSweep = 0;
+  while (!signal.aborted) {
+    if (Date.now() - lastSweep > 30_000) {
+      lastSweep = Date.now();
+      // reclaim entries a crashed consumer left pending for over 60 s
+      const claimed = await redis.xAutoClaim(STREAM, GROUP, consumer, 60_000, "0-0", { COUNT: 50 });
+      for (const msg of claimed.messages) if (msg) await handle(redis, msg.id, msg.message);
     }
-
-    this.running = true;
-    while (this.running) {
-      // First claim stale pending messages
-      const claimed = await this.redis.xautoclaim(
-        this.streamKey, this.group, this.consumer, '60000', '0', 'COUNT', '10',
-      );
-      await this.processMessages(claimed[1] || [], handler);
-
-      // Then read new messages
-      const messages = await this.redis.xreadgroup(
-        'GROUP', this.group, this.consumer, 'COUNT', '10', 'BLOCK', '5000', 'STREAMS', this.streamKey, '>',
-      );
-      if (messages) {
-        await this.processMessages(messages[0][1], handler);
-      }
+    const res = await redis.xReadGroup(GROUP, consumer, { key: STREAM, id: ">" }, { COUNT: 20, BLOCK: 5_000 });
+    for (const stream of res ?? []) {
+      for (const msg of stream.messages) await handle(redis, msg.id, msg.message);
     }
   }
-
-  private async processMessages(messages: [string, string[]][], handler: (e: any) => Promise<void>): Promise<void> {
-    for (const [id, fields] of messages) {
-      const event = Object.fromEntries(fields.reduce((acc: [string, string][], v, i) => {
-        if (i % 2 === 0) acc.push([v, '']); else acc[acc.length - 1][1] = v;
-        return acc;
-      }, []));
-      try {
-        await handler(event);
-        await this.redis.xack(this.streamKey, this.group, id);
-      } catch (err) {
-        console.error('Failed to process', id, err);
-        // Do not ack; XAUTOCLAIM will retry
-      }
-    }
-  }
-
-  stop(): void { this.running = false; }
+  redis.destroy();
 }
+
+async function handle(redis: Redis, id: string, fields: Record<string, string>) {
+  await processIdempotently(id, fields); // application code keyed by entry id
+  await redis.xAck(STREAM, GROUP, id); // ack only after the effect is durable
+}
+declare function processIdempotently(id: string, fields: Record<string, string>): Promise<void>;
 ```
 
-## 27. Common Mistakes
+More examples (cache-aside, limiter scripts, hash field expiration, Functions) are in [references/caching-and-rate-limiting.md](references/caching-and-rate-limiting.md) and [references/data-structures-and-patterns.md](references/data-structures-and-patterns.md).
 
-### 27.1 Not Setting TTL on Cache Keys
-**What**: `SET user:1000:profile value` without `EX`.
-**Why**: Permanent keys accumulate; memory grows until OOM or eviction storm.
-**How to avoid**: Always `SET key value EX seconds`; lint in CI to reject `SET` without TTL.
+## 15. Common Mistakes
 
-### 27.2 Using `KEYS *` in Application Code
-**What**: `KEYS user:*` to find all user keys.
-**Why**: Blocks event loop for seconds on large keyspaces; production freeze.
-**How to avoid**: Use `SCAN` with cursor and filter; maintain a set of known keys for enumeration.
+- `KEYS *` or `SMEMBERS` on large data in production; use `SCAN` and bounded reads.
+- Caching without TTL or without `maxmemory`, then discovering unbounded growth or an OOM kill.
+- `SET` followed by `EXPIRE` as two commands; a crash between them leaves a permanent key (and a permanent lock).
+- Releasing a lock with a plain `DEL`, which can delete another client's lock after expiry.
+- Treating a single-instance lock as a guarantee of mutual exclusion for correctness-critical writes.
+- Using Pub/Sub for work that must not be lost, or a Stream consumer that acks before processing.
+- Forgetting that a blocking command monopolizes the shared connection.
+- Scripts that touch keys not passed in `KEYS`, which fail or misroute in Cluster.
+- Wildcard invalidation with `KEYS`/`SCAN` + `DEL` on the request path.
+- One giant hash or sorted set (big key) and `DEL` on it instead of `UNLINK`.
+- Multi-key commands across slots in Cluster (`CROSSSLOT`) because hash tags were not planned.
+- Running with the `default` user open, no TLS, or `+@all` for the application.
+- Assuming replicas are consistent: reads from replicas can be stale, and failover can drop acknowledged writes.
+- Assuming Redis 8 modules or hash-field commands exist on every server version or on Valkey without checking.
 
-### 27.3 Big Keys (Multi-MB)
-**What**: Storing 1 MB JSON in a single string key.
-**Why**: Block event loop on read/write; replication backlog overflow; eviction complexity.
-**How to avoid**: Split into hashes with `listpack` encoding; monitor `MEMORY USAGE`; alert on keys > 1 MB.
+## 16. References
 
-### 27.4 Long-Running Lua Scripts
-**What**: Lua script iterating over 10,000 keys.
-**Why**: Blocks event loop; all other commands queue; latency spike.
-**How to avoid**: Keep Lua scripts under 1 ms; split long operations across multiple invocations with stream coordination.
-
-### 27.5 Separate `SET` Then `EXPIRE`
-**What**: `await redis.set(key, value); await redis.expire(key, 300);`.
-**Why**: Race condition; crash between commands leaves permanent key.
-**How to avoid**: Use `SET key value EX 300` atomic; never separate write and TTL.
-
-### 27.6 `FLUSHALL` in Production
-**What**: Running `FLUSHALL` to "reset" a polluted cache.
-**Why**: Destroys all data including non-cache keys; no confirmation; irreversible.
-**How to avoid**: Never expose `FLUSHALL` to applications; use `SCAN` + `DEL` with key pattern; require ADR.
-
-## 28. Professional Workflow
-
-1. **Receive request**: cache pattern, rate limiter, stream consumer, or incident.
-2. **Reproduce**: confirm the issue in staging with production-sized dataset.
-3. **Capture baseline**: `INFO`, `SLOWLOG`, `LATENCY HISTORY`, p99 latency.
-4. **Design solution**: choose data structure, write Lua if needed, draft client code.
-5. **Peer review**: submit PR; checklist enforced; reviewer runs Lua in their dev environment.
-6. **Test**: unit tests for Lua, integration tests for cache patterns, load test for performance.
-7. **Stage deploy**: load scripts via `SCRIPT LOAD`, create indexes, verify consumer groups.
-8. **Pre-deploy checks**: confirm replica health, backup recency, connection pool, on-call availability.
-9. **Production deploy**: load scripts in low-traffic window; monitor dashboard live; rollback if metrics regress.
-10. **Post-deploy**: verify `INFO` stats; capture post-deploy metrics; close ticket with before/after.
-11. **Post-mortem**: for incidents, write blameless post-mortem within 48 hours; add alert and runbook.
-
-## 29. Response Style
-
-- Always cite `INFO` or `SLOWLOG` output before recommending a change; intuition is forbidden.
-- Always state the data structure and access pattern when proposing a key schema.
-- Always name the exact Redis version (7.x) when proposing syntax; never assume forward compatibility.
-- Never recommend a setting without stating the workload assumption (cache vs persistent vs queue).
-- Always provide the rollback command alongside every destructive operation.
-- Never use the word "should" — use "must" or "must not".
-- Always quantify expected impact (p99 latency, memory, hit ratio) before and after a change.
-- Always link to the relevant ADR or runbook; never reference tribal knowledge.
-
-## 30. Output Format
-
-- Every recommendation must include: problem statement, evidence (`INFO`/`SLOWLOG`), proposed code, expected impact, and rollback plan.
-- TypeScript/JavaScript blocks must be syntactically valid for ioredis 5+ or node-redis 4+.
-- Lua blocks must be syntactically valid for Redis 7 Lua 5.1.
-- Configuration changes must state the parameter, current value, proposed value, rationale, and restart requirement.
-- Performance reports must show before/after `SLOWLOG` and p99 latency summaries.
-- Security recommendations must cite the OWASP or CWE reference and the mitigating control.
-- Incident reports must follow: timeline, impact, root cause, contributing factors, action items with owners and dates.
-- Runbooks must be numbered step-by-step with verification commands at each step.
-- ADRs must follow: context, decision, status, consequences, alternatives considered.
-- Cache key schemas must be documented with namespace, TTL, data structure, and eviction policy.
+- [references/data-structures-and-patterns.md](references/data-structures-and-patterns.md): type selection, key design, Redis 8 built-in types, hash field expiration, Streams details, pipelines, transactions and scripts.
+- [references/persistence-replication-cluster.md](references/persistence-replication-cluster.md): RDB and AOF, replication, Sentinel, Cluster, eviction, ACL and TLS configuration, Valkey notes, ops commands.
+- [references/caching-and-rate-limiting.md](references/caching-and-rate-limiting.md): cache-aside with stampede control, invalidation, three rate-limiter scripts, locks and Redlock trade-offs, idempotency records, sessions.
+- Official docs: https://redis.io/docs/latest/ , https://valkey.io/ , https://github.com/redis/node-redis , https://github.com/redis/ioredis
