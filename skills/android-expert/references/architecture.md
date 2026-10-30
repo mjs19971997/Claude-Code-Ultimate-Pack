@@ -1,8 +1,8 @@
 # Android Architecture
 
-Architecture guidance for the android-expert skill: layers, modules, dependency injection, persistence, networking, paging, background sync and test setup. Code targets Room 2.8, Retrofit with its kotlinx.serialization converter, Paging 3, WorkManager and androidx.hilt 1.4; a separate Room 3 line exists, so check its release notes before adopting it.
+Architecture guidance absorbed from the former android-architecture-expert skill: layers, modules, dependency injection, persistence, networking, paging, background sync and test setup. Verified against Android Gradle Plugin 9.5.0, Kotlin 2.4.21, Room 2.8.5, WorkManager 2.12.0, DataStore 1.3.0, Hilt (androidx.hilt) 1.4.0 and Compose BOM 2026.09.00 (2026-10). Code targets Room 2.8, Retrofit with its kotlinx.serialization converter, Paging 3, WorkManager and androidx.hilt 1.4; a separate Room 3 line exists, so check its release notes before adopting it.
 
-## Layers
+## 1. Layers
 
 | Layer | Contains | Depends on |
 |---|---|---|
@@ -18,7 +18,7 @@ Rules:
 - ViewModels are scoped to a screen or navigation entry and survive configuration changes; they receive arguments through `SavedStateHandle` or assisted injection.
 - Feature modules never depend on each other; shared code moves to a core module and navigation between features goes through the app module or navigation keys in a shared module.
 
-## Model and database
+## 2. Model and database
 
 ```kotlin
 // core/model
@@ -84,7 +84,7 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
 }
 ```
 
-## Network
+## 3. Network
 
 ```kotlin
 // core/network
@@ -160,7 +160,7 @@ object NetworkModule {
 - Attach the user's session token with an OkHttp `Interceptor` that reads it from the token store; refresh expired tokens in an `Authenticator`, not in every call site.
 - Use `Level.BASIC` or `HEADERS` with `redactHeader("Authorization")` in debug; never log bodies containing personal data.
 
-## Dependency injection
+## 4. Dependency injection
 
 ```kotlin
 import dagger.Binds
@@ -210,7 +210,7 @@ object CoroutinesModule {
 - Use the application scope for work that must finish even if the screen closes but not survive process death (for example writing a draft); anything stronger belongs in WorkManager.
 - Run Hilt and Room through KSP; check that the KSP and Dagger versions you use support your Kotlin version and AGP 9 built-in Kotlin.
 
-## Paging 3 with RemoteMediator
+## 5. Paging 3 with RemoteMediator
 
 ```kotlin
 import androidx.paging.ExperimentalPagingApi
@@ -277,7 +277,7 @@ fun articlePager(api: ArticleApi, db: AppDatabase): Flow<PagingData<ArticleEntit
 - In Compose collect with `collectAsLazyPagingItems()` and use `itemKey { it.id.value }` for keys.
 - For APIs with cursors, store the next cursor in a remote-keys table instead of deriving it from the last item.
 
-## WorkManager sync
+## 6. WorkManager sync
 
 ```kotlin
 import android.content.Context
@@ -321,7 +321,7 @@ class SyncWorker @AssistedInject constructor(
 - Use unique work names so app restarts do not enqueue duplicates.
 - Expedited work (`setExpedited`) is for short user-visible tasks; long transfers use foreground service types declared in the manifest.
 
-## DataStore
+## 7. DataStore
 
 ```kotlin
 import android.content.Context
@@ -346,14 +346,14 @@ class SettingsRepository(private val context: Context) {
 }
 ```
 
-Create exactly one DataStore instance per file (the `preferencesDataStore` delegate at top level guarantees this). Store encrypted session tokens (see the Keystore example in SKILL.md) as Base64 strings or in a typed DataStore.
+Create exactly one DataStore instance per file (the `preferencesDataStore` delegate at top level guarantees this). Store encrypted session tokens (see section 10) as Base64 strings or in a typed DataStore.
 
-## Build logic
+## 8. Build logic
 
 ```toml
 # gradle/libs.versions.toml (excerpt; add the other libraries you use)
 [versions]
-agp = "9.4.0"
+agp = "9.5.0"
 kotlin = "2.4.21"
 composeBom = "2026.09.00"
 androidxHilt = "1.4.0"
@@ -395,7 +395,7 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
 - AGP 9 applies Kotlin itself (built-in Kotlin); do not also apply `org.jetbrains.kotlin.android`. Compose modules still apply `org.jetbrains.kotlin.plugin.compose`.
 - Keep versions only in the catalog; use the Compose BOM so Compose artifacts stay aligned.
 
-## Test setup
+## 9. Test setup
 
 ```kotlin
 import kotlinx.coroutines.Dispatchers
@@ -453,3 +453,64 @@ class ArticleListViewModelTest {
 ```
 
 Collecting in `backgroundScope` keeps the `WhileSubscribed` upstream active for the assertion and is cancelled automatically when the test ends.
+
+## 10. Token encryption with the Android Keystore
+
+Encrypts the per-user session token before it is written to DataStore. The key is non-exportable and never leaves the Keystore.
+
+```kotlin
+package com.example.core.datastore
+
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+class TokenCipher(private val keyAlias: String = "session_token_key") {
+
+    private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+
+    private fun secretKey(): SecretKey {
+        (keyStore.getEntry(keyAlias, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                keyAlias,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .build(),
+        )
+        return generator.generateKey()
+    }
+
+    /** Returns IV length, IV and ciphertext in one array; store it (e.g. Base64) in DataStore. */
+    fun encrypt(plaintext: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey())   // Keystore generates a random IV
+        val iv = cipher.iv
+        return byteArrayOf(iv.size.toByte()) + iv + cipher.doFinal(plaintext)
+    }
+
+    fun decrypt(blob: ByteArray): ByteArray {
+        val ivLength = blob[0].toInt()
+        val iv = blob.copyOfRange(1, 1 + ivLength)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+        return cipher.doFinal(blob, 1 + ivLength, blob.size - 1 - ivLength)
+    }
+
+    private companion object {
+        const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val GCM_TAG_BITS = 128
+    }
+}
+```
+
+The token is the per-user session token your backend issues after sign-in. Keystore keys are deleted on uninstall and may be invalidated (for example after a lock-screen change for keys bound to user authentication), so treat decryption failure as "signed out".

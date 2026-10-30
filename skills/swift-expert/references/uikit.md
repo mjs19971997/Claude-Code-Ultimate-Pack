@@ -1,8 +1,8 @@
 # UIKit
 
-UIKit-specific guidance for the swift-expert skill. UIKit view controllers, views and most delegate protocols are main-actor isolated in current SDKs, so UIKit code in Swift 6 mode runs on `@MainActor` by default. Examples target iOS 15+ unless noted.
+UIKit guidance absorbed from the former uikit-expert skill. Verified against Swift 6.4.2, Xcode 27.2 and the iOS 27 SDK (2026-10). UIKit view controllers, views and most delegate protocols are main-actor isolated in current SDKs, so UIKit code in Swift 6 mode runs on `@MainActor` by default. Examples target iOS 15+ unless noted.
 
-## Lifecycle
+## 1. Lifecycle
 
 - `loadView` creates a custom root view (no `super` call when you assign `view` yourself); `viewDidLoad` does one-time setup.
 - `viewWillAppear` / `viewDidAppear` refresh visible data and start animations; `viewWillDisappear` / `viewDidDisappear` pause work and cancel tasks owned by the screen.
@@ -10,14 +10,14 @@ UIKit-specific guidance for the swift-expert skill. UIKit view controllers, view
 - Trait changes: register with `registerForTraitChanges(_:handler:)` (iOS 17+) instead of overriding the deprecated `traitCollectionDidChange(_:)`.
 - `layoutSubviews` and `draw(_:)` run often; only set frames or draw there, never fetch data or create views.
 
-## Auto Layout
+## 2. Auto Layout
 
 - Use layout anchors and activate constraints in one batch with `NSLayoutConstraint.activate([...])`; set `translatesAutoresizingMaskIntoConstraints = false` on views you constrain.
 - Pin content to `safeAreaLayoutGuide` or `layoutMarginsGuide`; use `keyboardLayoutGuide` (iOS 15+) to keep inputs above the keyboard.
 - Resolve ambiguity with content hugging and compression resistance priorities rather than fixed sizes, so Dynamic Type can grow labels.
 - `UIStackView` for linear layouts; nest sparingly in scrolling cells.
 
-## Collection views with diffable data sources
+## 3. Collection views with diffable data sources
 
 Use `UICollectionViewCompositionalLayout` (list configuration for table-style screens), `UICollectionView.CellRegistration` and a diffable data source keyed by stable identifiers. Snapshots of identifiers plus `reconfigureItems` avoid reloading whole cells when content changes.
 
@@ -97,7 +97,7 @@ extension ArticleListViewController: UICollectionViewDelegate {
 - `UIHostingConfiguration` (iOS 16+) renders SwiftUI content inside a cell: `cell.contentConfiguration = UIHostingConfiguration { RowView(row: row) }`.
 - Custom cells reset transient state in `prepareForReuse()` and cancel image loads they started.
 
-## Containment
+## 4. Containment
 
 ```swift
 extension UIViewController {
@@ -124,7 +124,7 @@ extension UIViewController {
 
 Adding a child's view without `addChild` / `didMove(toParent:)` breaks appearance callbacks, trait propagation and rotation.
 
-## Presentation and custom transitions
+## 5. Presentation and custom transitions
 
 - Standard sheets: set `sheetPresentationController?.detents = [.medium(), .large()]` (iOS 15+) before presenting.
 - `transitioningDelegate` is a **weak** property. Keep a strong reference to the delegate (for example a stored property on the presenter), or the custom transition silently falls back to the default.
@@ -188,7 +188,7 @@ final class PresentingViewController: UIViewController {
 
 Interactive dismissal adds `interactionControllerForDismissal(using:)` returning a `UIPercentDrivenInteractiveTransition` driven by a pan gesture.
 
-## Images
+## 6. Images
 
 Decode and downsample large images off the main actor; full-resolution decoding of camera photos costs tens of megabytes per image.
 
@@ -213,31 +213,31 @@ func downsampledImage(at url: URL, maxPixelSize: CGFloat) async -> UIImage? {
 
 Pass `maxPixelSize` as the display size in points multiplied by the screen scale. `@concurrent` needs Swift 6.2 or later.
 
-## Gestures and input
+## 7. Gestures and input
 
 - Configure simultaneous recognition through `UIGestureRecognizerDelegate.gestureRecognizer(_:shouldRecognizeSimultaneouslyWith:)` and ordering with `require(toFail:)`.
 - Prefer `UIAction`-based APIs (`UIButton(configuration:primaryAction:)`, `UIMenu`) over target-action selectors in new code.
 - `UIButton.Configuration` (iOS 15+) handles styling, Dynamic Type and content insets.
 
-## Accessibility
+## 8. Accessibility
 
 - Set `accessibilityLabel`, `accessibilityTraits` and `accessibilityValue` on custom controls; group composite views with `isAccessibilityElement` on the container or `accessibilityElements` ordering.
 - Fonts: `UIFont.preferredFont(forTextStyle:)` with `adjustsFontForContentSizeCategory = true`, or `UIFontMetrics` for custom fonts.
 - Check `UIAccessibility.isReduceMotionEnabled` and observe its change notification for animations.
 
-## SwiftUI interop
+## 9. SwiftUI interop
 
 - Host SwiftUI in UIKit with `UIHostingController(rootView:)` (add as a child view controller) or `UIHostingConfiguration` in cells.
 - Wrap UIKit views for SwiftUI with `UIViewRepresentable`; use a `Coordinator` for delegates and keep `updateUIView` idempotent.
 
-## Memory and performance
+## 10. Memory and performance
 
 - Delegates and parent references are `weak`; escaping closures stored by a view controller capture `[weak self]`.
 - Avoid `shouldRasterize` unless Instruments shows a win; offscreen rendering from masks and shadows without `shadowPath` is a common frame-drop cause.
 - Use prefetching (`UICollectionViewDataSourcePrefetching`) to start image loads early and cancel them in `cancelPrefetchingForItemsAt`.
 - Profile scrolling with the Animation Hitches and Time Profiler instruments.
 
-## Common mistakes
+## 11. Common mistakes
 
 - Force-casting dequeued cells (`as! MyCell`); cell registrations make this unnecessary.
 - `reloadData()` after every change: loses animations and selection; apply snapshots instead.

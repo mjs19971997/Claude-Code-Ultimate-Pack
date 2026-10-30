@@ -1,8 +1,8 @@
 # Agent Memory Systems
 
-How agents keep information across steps, sessions and users: what to store, how to retrieve it, when to forget it and how to keep one user's memory away from another's.
+Absorbed from the former memory-systems-expert skill. Verified against LangGraph 1.2.18 and CrewAI 1.15.33 (2026-10). How agents keep information across steps, sessions and users: what to store, how to retrieve it, when to forget it and how to keep one user's memory away from another's.
 
-## Memory types
+## 1. Memory types
 
 | Type | Holds | Typical store | Lifetime |
 |---|---|---|---|
@@ -12,7 +12,7 @@ How agents keep information across steps, sessions and users: what to store, how
 | Episodic | What happened: task, actions, outcome, timestamp | Document store with an embedding index | Decays, then summarized or archived |
 | Procedural | Learned rules and examples ("include tests with code") | Versioned prompt fragments or few-shot examples | Until revised |
 
-## Operations
+## 2. Operations
 
 - **Encode**: extract candidate memories from a turn (often with a small extraction prompt), attach metadata (user id, type, source, timestamp, importance), redact personal data that is not needed, write asynchronously so the user response is not blocked.
 - **Retrieve**: query by similarity, then rescore with recency and importance; filter by namespace and type; keep the result small.
@@ -20,7 +20,7 @@ How agents keep information across steps, sessions and users: what to store, how
 - **Forget**: decay low-value items, summarize old episodes, delete on request.
 - **Consolidate**: a background job turns clusters of episodes into semantic facts or procedural rules, then archives the raw episodes.
 
-## Retrieval scoring
+## 3. Retrieval scoring
 
 A common scheme combines similarity, recency and importance. The weights and half-life are tuning parameters to set from your own evaluation, not universal constants.
 
@@ -77,7 +77,7 @@ def rescore(
 
 Fetch more candidates than you need from the vector store (scoped to the user), rescore, and keep the top few. A cross-encoder reranker can replace or follow the weighted score when precision matters (see the rag-expert skill).
 
-## Forgetting and retention
+## 4. Forgetting and retention
 
 - Write the retention policy down: what is kept, for how long, and what happens at expiry (delete, summarize, archive).
 - Decay: drop or archive items whose combined score stays below a threshold for a period you choose.
@@ -85,7 +85,7 @@ Fetch more candidates than you need from the vector store (scoped to the user), 
 - Soft-delete first for routine forgetting so mistakes can be reverted, then hard-delete after a grace period.
 - Deletion requests (for example under GDPR) must remove the user's data from every store: memory store, checkpoints, caches, search indexes, backups per your backup policy, and derived summaries. Keep a record that the deletion happened, without the deleted content.
 
-## Isolation and privacy
+## 5. Isolation and privacy
 
 - Namespace every memory by tenant and user, and derive the namespace from the authenticated identity, never from model output or tool arguments.
 - Apply the namespace in the store query itself; post-filtering in application code is a second line of defense, not the first.
@@ -93,9 +93,9 @@ Fetch more candidates than you need from the vector store (scoped to the user), 
 - Do not store secrets, credentials or payment data as memories.
 - Treat recalled memories as untrusted text: a stored memory can carry an injected instruction.
 
-## Example: per-user long-term memory in LangGraph
+## 6. Example: per-user long-term memory in LangGraph
 
-LangGraph separates thread state (checkpointer) from cross-thread memory (store). Namespaces are tuples; here the user id comes from the run context set by the server, not from the model. Verified against LangGraph 1.2.17; check the store reference for the exact index options of your backend.
+LangGraph separates thread state (checkpointer) from cross-thread memory (store). Namespaces are tuples; here the user id comes from the run context set by the server, not from the model. Verified against LangGraph 1.2.18; check the store reference for the exact index options of your backend.
 
 ```python
 import uuid
@@ -144,14 +144,14 @@ def handle_request(graph, authenticated_user_id: str, text: str) -> dict:
 
 In production use a persistent store (for example `PostgresStore` from `langgraph-checkpoint-postgres`) and a persistent checkpointer.
 
-## Framework options
+## 7. Framework options
 
 - **LangGraph**: checkpointers for thread memory, stores with namespaces and optional semantic search for long-term memory.
 - **CrewAI**: a unified `Memory` class with scopes; see the crewai-expert skill.
 - **Dedicated memory services** such as Mem0, Letta or Zep provide extraction, storage and retrieval as a service. Check their current docs for APIs, data residency and deletion guarantees before adopting one.
 - **Custom**: a document or vector store plus an extraction prompt and a scheduled consolidation job.
 
-## Evaluation
+## 8. Evaluation
 
 - **Accuracy**: are stored facts correct and current?
 - **Retrieval relevance**: do recalled items help the current task?
@@ -160,7 +160,7 @@ In production use a persistent store (for example `PostgresStore` from `langgrap
 - **Isolation**: a test user's queries return nothing from other users, including after deletions.
 - **Ablation**: compare task success with and without memory to confirm it helps.
 
-## Common mistakes
+## 9. Common mistakes
 
 - Storing whole transcripts as memory: noisy retrieval, storage growth and personal data spread. Extract facts and episodes instead.
 - No retention policy: stale facts keep resurfacing.

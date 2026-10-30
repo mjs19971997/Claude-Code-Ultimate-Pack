@@ -1,7 +1,7 @@
 ---
 name: android-expert
 description: >-
-  Builds and reviews native Android apps in Kotlin: app architecture (UI, domain and data layers, modularization, Hilt, Room, Retrofit, WorkManager, DataStore, Paging), Kotlin coroutines and Flow, and Jetpack Compose UI with Material 3, navigation and adaptive layouts. Use when working on Android projects: .kt and build.gradle.kts files, libs.versions.toml, AndroidManifest.xml, ViewModels, composables, Room DAOs, Hilt modules, Gradle and AGP upgrades, offline-first sync, recomposition or ANR problems. Not for iOS or Swift (use swift-expert); not for Kotlin server back ends or React Native.
+  Builds and reviews native Android apps in Kotlin, covering the former android-architecture-expert, android-kotlin-expert and jetpack-compose-expert skills: app architecture (UI, domain and data layers, modularization, Hilt, Room, Retrofit, WorkManager, DataStore, Paging), Kotlin coroutines and Flow, and Jetpack Compose UI with Material 3, navigation and adaptive layouts. Use when working on Android projects: .kt and build.gradle.kts files, libs.versions.toml, AndroidManifest.xml, ViewModels, composables, Room DAOs, Hilt modules, Gradle and AGP upgrades, offline-first sync, recomposition or ANR problems. Not for iOS or Swift (use swift-expert); not for Kotlin server back ends or React Native.
 license: MIT
 metadata:
   version: "3.0.0"
@@ -9,9 +9,9 @@ metadata:
 
 # Android Expert
 
-This skill covers native Android development in Kotlin: architecture and modularization, coroutines and Flow, Jetpack Compose UI, persistence, networking, background work, security, testing and release. Deep material is split into three references: architecture, Kotlin and Jetpack Compose. It does not cover iOS, Kotlin server frameworks, or cross-platform UI toolkits; Kotlin Multiplatform is mentioned only where it shapes Android module design.
+This skill covers native Android development in Kotlin and absorbs the former android-architecture-expert, android-kotlin-expert and jetpack-compose-expert skills: architecture and modularization, coroutines and Flow, Jetpack Compose UI, persistence, networking, background work, security, testing and release. Deep material is split into three references: architecture, Kotlin and Jetpack Compose. It does not cover iOS, Kotlin server frameworks, or cross-platform UI toolkits; Kotlin Multiplatform is mentioned only where it shapes Android module design.
 
-> Verified against Kotlin 2.4.21, Android Gradle Plugin 9.4.0 (Gradle 9.6.0), Compose BOM 2026.09.00 (Compose UI 1.12.1, Material 3 1.4.0), Android 17 / API 37 as compileSdk, Google Play target API 36 minimum, Navigation 3 1.2.0, Navigation 2.10.2 and androidx.hilt 1.4.0 (2026-10).
+> Verified against Kotlin 2.4.21, Android Gradle Plugin 9.5.0 (Gradle 9.6.0 minimum), Compose BOM 2026.09.00 (Compose UI 1.12.1, Material 3 1.4.0), Android 17 / API 37 as compileSdk, Google Play target API 36 minimum, Navigation 3 1.2.0, Navigation 2.10.2 and androidx.hilt 1.4.0 (2026-10).
 
 ## Contents
 1. [Scope](#1-scope)
@@ -69,7 +69,7 @@ This skill covers native Android development in Kotlin: architecture and modular
 - **WorkManager vs coroutine.** Work that must finish even if the user leaves or the process dies (uploads, sync): WorkManager. Work tied to a screen: `viewModelScope`.
 - **RemoteMediator vs manual refresh.** Paged network lists cached locally: Paging 3 with `RemoteMediator`. Small lists: repository refresh plus Room `Flow`.
 - **`@Binds` vs `@Provides`.** Interface to implementation: `@Binds`. Construction logic or third-party types (Retrofit, Room): `@Provides`.
-- **Navigation 3 vs Navigation 2.** New Compose apps: Navigation 3 (back stack is app-owned state). Existing apps on Navigation 2: stay and use type-safe `@Serializable` routes; Navigation 2 is in maintenance mode and receives only critical fixes.
+- **Navigation 3 vs Navigation 2.** New Compose apps: Navigation 3 (back stack is app-owned state). Existing apps on Navigation 2: stay and use type-safe `@Serializable` routes; Navigation 2 remains supported (latest stable 2.10.2), so migrate when the back stack needs app-level control, not by default.
 - **`remember` vs `rememberSaveable` vs ViewModel.** Transient UI state: `remember`. UI state that must survive configuration change and process death (text input, selection): `rememberSaveable`. Screen data and business state: ViewModel (with `SavedStateHandle` for arguments).
 - **Compose vs Views.** New UI in Compose; existing View screens interoperate through `ComposeView` and `AndroidView`.
 
@@ -144,8 +144,9 @@ my-app/
 ## 10. Security
 
 - **An APK is not a secret store.** `BuildConfig` fields, `local.properties` values compiled into the app, resources, assets and native libraries can be extracted from the APK or App Bundle. Never ship third-party API keys, signing secrets or service credentials in the app.
+- **No secrets in the repository.** Signing keystores and passwords, and any local credentials, stay out of version control: do not commit `gradle.properties`, `local.properties` or `*.jks` files that hold them; read signing values from CI secret storage or a developer-local, git-ignored file, and never copy them into `BuildConfig` or resources.
 - **Backend for third-party access.** The app authenticates the user against your backend (OAuth 2.0 with PKCE via Custom Tabs, or Credential Manager with passkeys); the backend holds third-party keys, proxies calls or issues short-lived scoped tokens, and enforces quotas. The Play Integrity API helps the backend reject tampered clients.
-- **Android Keystore for user tokens.** Encrypt session tokens with a non-exportable AES-GCM key generated in the Android Keystore and store the ciphertext in DataStore (Example 3). The `androidx.security:security-crypto` APIs (`EncryptedSharedPreferences`) are deprecated in favor of platform APIs and direct Keystore use.
+- **Android Keystore for user tokens.** Encrypt session tokens with a non-exportable AES-GCM key generated in the Android Keystore and store the ciphertext in DataStore ([references/architecture.md](references/architecture.md), section 10). The `androidx.security:security-crypto` APIs (`EncryptedSharedPreferences`) are deprecated in favor of platform APIs and direct Keystore use.
 - HTTPS only: network security config with `cleartextTrafficPermitted="false"`; certificate pinning only with backup pins and a rotation plan.
 - Exported components: set `android:exported` deliberately; protect exported activities, services and receivers; validate all `Intent` extras and deep-link parameters.
 - Use `PendingIntent.FLAG_IMMUTABLE` unless mutability is required.
@@ -361,65 +362,6 @@ fun ArticleListScreen(
 }
 ```
 
-### Example 3: Encrypting a session token with the Android Keystore
-
-```kotlin
-package com.example.core.datastore
-
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import java.security.KeyStore
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
-
-class TokenCipher(private val keyAlias: String = "session_token_key") {
-
-    private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-
-    private fun secretKey(): SecretKey {
-        (keyStore.getEntry(keyAlias, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
-        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-        generator.init(
-            KeyGenParameterSpec.Builder(
-                keyAlias,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .build(),
-        )
-        return generator.generateKey()
-    }
-
-    /** Returns IV length, IV and ciphertext in one array; store it (e.g. Base64) in DataStore. */
-    fun encrypt(plaintext: ByteArray): ByteArray {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey())   // Keystore generates a random IV
-        val iv = cipher.iv
-        return byteArrayOf(iv.size.toByte()) + iv + cipher.doFinal(plaintext)
-    }
-
-    fun decrypt(blob: ByteArray): ByteArray {
-        val ivLength = blob[0].toInt()
-        val iv = blob.copyOfRange(1, 1 + ivLength)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
-        return cipher.doFinal(blob, 1 + ivLength, blob.size - 1 - ivLength)
-    }
-
-    private companion object {
-        const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        const val TRANSFORMATION = "AES/GCM/NoPadding"
-        const val GCM_TAG_BITS = 128
-    }
-}
-```
-
-The token is the per-user session token your backend issues after sign-in. Keystore keys are deleted on uninstall and may be invalidated (for example after a lock-screen change for keys bound to user authentication), so treat decryption failure as "signed out".
-
 ## 15. Common Mistakes
 
 - **API keys in `BuildConfig` or `local.properties`.** They end up in the APK in plain form. Move third-party calls behind your backend; keep only per-user tokens on the device, encrypted with a Keystore key.
@@ -442,3 +384,4 @@ The token is the per-user session token your backend issues after sign-in. Keyst
 - [references/architecture.md](references/architecture.md) - layers and modules, Hilt modules, Room, Retrofit with kotlinx.serialization, Paging 3 with RemoteMediator, WorkManager sync, DataStore, convention plugins and test setup.
 - [references/kotlin.md](references/kotlin.md) - Kotlin idioms, coroutines and cancellation, Flow operators and sharing, events, kotlinx.serialization with custom serializers, Gradle Kotlin DSL.
 - [references/jetpack-compose.md](references/jetpack-compose.md) - state and effects, stability and strong skipping, lazy lists, Material 3 theming with dynamic color, Navigation 3 and type-safe Navigation 2, adaptive layouts, accessibility, animation and UI testing.
+- Official docs: https://developer.android.com/topic/architecture , https://developer.android.com/develop/ui/compose , https://developer.android.com/guide/navigation/navigation-3 , https://developer.android.com/kotlin/coroutines , https://developer.android.com/build/releases/gradle-plugin , https://developer.android.com/privacy-and-security/keystore

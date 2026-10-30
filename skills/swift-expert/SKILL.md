@@ -1,7 +1,7 @@
 ---
 name: swift-expert
 description: >-
-  Writes, reviews and migrates Swift 6 code for Apple platforms: strict concurrency (actors, Sendable, MainActor, async/await), SwiftUI, UIKit, Codable networking, Keychain storage, Swift Testing and Instruments-driven performance work. Use when working on iOS, iPadOS, macOS, watchOS, tvOS or visionOS apps and Swift packages: .swift files, Package.swift, Xcode projects, SwiftUI views and @Observable models, UIKit view controllers, diffable data sources, Auto Layout, Swift 6 language-mode migration or data-race diagnostics. Not for Android or Kotlin (use android-expert); not for React or web front ends (use senior-react-19-engineer).
+  Writes, reviews and migrates Swift 6 code for Apple platforms: strict concurrency (actors, Sendable, MainActor, async/await), SwiftUI, UIKit, Codable networking, Keychain storage, Swift Testing and Instruments-driven performance work. Covers the former swiftui-expert and uikit-expert skills. Use when working on iOS, iPadOS, macOS, watchOS, tvOS or visionOS apps and Swift packages: .swift files, Package.swift, Xcode projects, SwiftUI views and @Observable models, UIKit view controllers, diffable data sources, Auto Layout, Swift 6 language-mode migration or data-race diagnostics. Not for Android or Kotlin (use android-expert); not for React or web front ends (use senior-react-19-engineer).
 license: MIT
 metadata:
   version: "3.0.0"
@@ -9,9 +9,9 @@ metadata:
 
 # Swift Expert
 
-This skill covers production Swift on Apple platforms: the language, Swift 6 data-race safety, app architecture, SwiftUI and UIKit, networking, persistence of secrets, testing and profiling. SwiftUI and UIKit details live in the reference files. It does not cover Android, Kotlin, Kotlin Multiplatform UI or cross-platform frameworks such as React Native and Flutter.
+This skill covers production Swift on Apple platforms: the language, Swift 6 data-race safety, app architecture, SwiftUI and UIKit, networking, persistence of secrets, testing and profiling. It absorbs the former swiftui-expert and uikit-expert skills; their details live in dedicated reference files. It does not cover Android, Kotlin, Kotlin Multiplatform UI or cross-platform frameworks such as React Native and Flutter.
 
-> Verified against Swift 6.4 (bundled with Xcode 27.1, iOS 27 SDK), with concurrency features from Swift 6.2 (SE-0461, SE-0466) and 6.4 (SE-0493) (2026-10).
+> Verified against Swift 6.4.2 (Xcode 27.2, iOS 27 SDK), with concurrency features from Swift 6.2 (SE-0461, SE-0466) and 6.4 (SE-0493) (2026-10).
 
 ## Contents
 1. [Scope](#1-scope)
@@ -420,3 +420,4 @@ The token stored here is the user's session token issued by your backend after s
 
 - [references/swiftui.md](references/swiftui.md) - SwiftUI state ownership, navigation, lists, environment, animation, accessibility, previews, performance and testing.
 - [references/uikit.md](references/uikit.md) - UIKit lifecycle, Auto Layout, diffable data sources with cell registrations, containment, custom transitions, image downsampling and SwiftUI interop.
+- Official docs: https://www.swift.org/documentation/ , https://developer.apple.com/documentation/swiftui , https://developer.apple.com/documentation/uikit , https://developer.apple.com/documentation/swift/concurrency , https://developer.apple.com/documentation/security/keychain-services

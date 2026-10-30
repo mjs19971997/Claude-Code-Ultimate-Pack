@@ -1,7 +1,7 @@
 ---
 name: ai-agent-architect
 description: >-
-  Designs framework-neutral LLM agents: the tool loop, planning patterns, tool contracts, budgets, human approval gates, multi-agent topologies and agent memory (short-term, long-term, episodic, semantic). Use when choosing an agent pattern (ReAct, plan-and-execute, reflection, supervisor-worker, fan-out), defining tool schemas and allow-lists, bounding loops and cost, designing multi-agent coordination or agent memory with forgetting and per-user isolation, or reviewing an agent for prompt-injection and destructive-action risk. Not for CrewAI code (use crewai-expert), LangChain or LangGraph code (use langchain-expert), retrieval pipelines (use rag-expert), MCP servers (use mcp-expert) or prompt wording (use prompt-engineering-expert).
+  Designs framework-neutral LLM agents: the tool loop, planning patterns, tool contracts, budgets, human approval gates, multi-agent topologies and agent memory (short-term, long-term, episodic, semantic). Covers the former multi-agent-expert and memory-systems-expert skills. Use when choosing an agent pattern (ReAct, plan-and-execute, reflection, supervisor-worker, fan-out), defining tool schemas and allow-lists, bounding loops and cost, designing multi-agent coordination or agent memory (extraction, retrieval scoring, consolidation) with forgetting and per-user isolation, or reviewing an agent for prompt-injection and destructive-action risk. Not for CrewAI code (use crewai-expert), LangChain or LangGraph code (use langchain-expert), retrieval pipelines (use rag-expert), MCP servers (use mcp-expert) or prompt wording (use prompt-engineering-expert).
 license: MIT
 metadata:
   version: "3.0.0"
@@ -9,9 +9,9 @@ metadata:
 
 # AI Agent Architecture
 
-This skill covers the architecture of LLM agents independent of any framework: the reasoning loop, tool design, planning, limits, approval gates, evaluation, multi-agent coordination and memory. It produces designs and plain Python reference code that can be mapped onto any SDK or framework. Framework APIs (CrewAI, LangChain, LangGraph), provider SDK details and retrieval pipeline tuning live in their own skills.
+This skill covers the architecture of LLM agents independent of any framework: the reasoning loop, tool design, planning, limits, approval gates, evaluation, multi-agent coordination and memory. It absorbs the former multi-agent-expert and memory-systems-expert skills; each lives in its own reference file. It produces designs and plain Python reference code that can be mapped onto any SDK or framework. Framework APIs (CrewAI, LangChain, LangGraph), provider SDK details and retrieval pipeline tuning live in their own skills.
 
-> Verified against LangChain 1.4.7, LangGraph 1.2.17 and CrewAI 1.15.30 for the framework notes; examples use plain Python with the Pydantic v2 API (2026-10).
+> Verified against LangChain 1.4.7, LangGraph 1.2.18, CrewAI 1.15.33 and Pydantic 2.14 for the framework notes; examples use plain Python with the Pydantic v2 API (2026-10).
 
 ## Contents
 1. [Scope](#1-scope)
@@ -365,3 +365,4 @@ def test_budget_stops_the_loop():
 
 - [references/multi-agent.md](references/multi-agent.md): topologies, communication, bounded concurrency, failure handling, supervisor and fan-out code, evaluation and security for multi-agent systems.
 - [references/memory-systems.md](references/memory-systems.md): memory types, encoding, retrieval scoring, forgetting, consolidation, per-user isolation, deletion requests and framework options.
+- Official docs: https://docs.langchain.com/oss/python/langgraph/overview , https://docs.langchain.com/oss/python/langchain/overview , https://docs.crewai.com/ , https://docs.pydantic.dev/latest/

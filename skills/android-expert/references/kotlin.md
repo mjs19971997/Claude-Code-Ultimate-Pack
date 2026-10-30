@@ -1,8 +1,8 @@
 # Kotlin for Android
 
-Kotlin language and coroutine guidance for the android-expert skill, verified against Kotlin 2.4 and kotlinx.coroutines as used on Android. For new language features in your exact Kotlin version, check the "What's new" page on kotlinlang.org.
+Kotlin language and coroutine guidance absorbed from the former android-kotlin-expert skill. Verified against Kotlin 2.4.21, kotlinx.coroutines 1.11 and kotlinx.serialization 1.12 as used on Android (2026-10). For new language features in your exact Kotlin version, check the "What's new" page on kotlinlang.org.
 
-## Language idioms
+## 1. Language idioms
 
 - **Null safety.** `?.`, `?:`, smart casts and `requireNotNull(value) { "message" }`; no `!!` outside tests.
 - **Immutability.** `val` by default; read-only `List`/`Map` in APIs; `copy()` on data classes for state updates.
@@ -14,7 +14,7 @@ Kotlin language and coroutine guidance for the android-expert skill, verified ag
 - **Constants.** `const val` for compile-time primitives and strings; `SCREAMING_SNAKE_CASE` naming.
 - **`lateinit`.** Only for non-null properties set by a framework before use (for example injected fields); otherwise constructor parameters or `lazy`.
 
-## Coroutines
+## 2. Coroutines
 
 ### Scopes and ownership
 
@@ -89,7 +89,7 @@ fun LocationClient.updates(): Flow<Location> = callbackFlow {
 
 Use `suspendCancellableCoroutine` for single-result callbacks and register an `invokeOnCancellation` handler that cancels the underlying request.
 
-## Flow
+## 3. Flow
 
 ### Cold and hot
 
@@ -153,7 +153,7 @@ val events = _events.receiveAsFlow()
 
 Collect it in the UI with lifecycle awareness (`LaunchedEffect` + `repeatOnLifecycle`, or `ObserveAsEvents`-style helpers). Each event is delivered to one collector.
 
-## kotlinx.serialization
+## 4. kotlinx.serialization
 
 ```kotlin
 import java.time.Instant
@@ -196,14 +196,14 @@ val appJson = Json {
 - Sealed hierarchies serialize polymorphically with a `type` discriminator; set `@SerialName` on each subclass so renames do not break the wire format.
 - Catch `SerializationException` (and `IllegalArgumentException` from custom parsers) at the data source and map to a domain error.
 
-## Gradle Kotlin DSL
+## 5. Gradle Kotlin DSL
 
 - Use `build.gradle.kts` and the version catalog accessors (`libs.androidx.compose.material3`); no hard-coded versions in module scripts.
 - Configure the JVM toolchain once in a convention plugin (`kotlin { jvmToolchain(17) }` or the AGP-equivalent `compileOptions`) rather than per module.
 - Treat compiler warnings as errors in CI (`kotlin { compilerOptions { allWarningsAsErrors.set(true) } }`) once the codebase is clean.
 - KSP replaces KAPT for Room, Hilt and Moshi codegen; KAPT is in maintenance mode and slower because it generates Java stubs.
 
-## Common mistakes
+## 6. Common mistakes
 
 - `runCatching { api.call() }` in a coroutine: cancellation becomes a failure result and the coroutine keeps running.
 - `async` without `await`: exceptions surface late or are lost; use `launch`.

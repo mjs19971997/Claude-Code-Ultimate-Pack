@@ -1,8 +1,8 @@
 # Multi-Agent Systems
 
-Design notes and code for systems where several LLM agents cooperate. Start from a single agent and move to several only when a measured limit (context size, conflicting instructions, independent parallel work, separate permissions) justifies the extra tokens, latency and failure modes.
+Design notes and code for systems where several LLM agents cooperate, absorbed from the former multi-agent-expert skill. Verified against LangChain 1.4.7, LangGraph 1.2.18 and CrewAI 1.15.33 (2026-10). Start from a single agent and move to several only when a measured limit (context size, conflicting instructions, independent parallel work, separate permissions) justifies the extra tokens, latency and failure modes.
 
-## Topologies
+## 1. Topologies
 
 | Topology | Shape | Good fit | Main risk |
 |---|---|---|---|
@@ -15,18 +15,18 @@ Design notes and code for systems where several LLM agents cooperate. Start from
 | Ensemble | Several independent attempts, then a vote | Reducing variance on classification | Cost; correlated errors |
 | Blackboard | Agents read and write a shared workspace | Building one shared artifact | Write conflicts |
 
-## Roles
+## 2. Roles
 
 Typical roles are planner, researcher, executor, critic, synthesizer and router. Each role needs written inputs, outputs, tools and a stop condition. Overlapping roles cause duplicated or dropped work; a role without a stop condition causes loops.
 
-## Communication
+## 3. Communication
 
 - Pass typed messages (sender, recipient, task id, trace id, payload) rather than free text between agents.
 - Hand each worker only the context it needs; passing the whole transcript to every agent multiplies cost.
 - Prefer request-response through the orchestrator over direct peer calls, so every exchange is traced and bounded.
 - Validate inter-agent messages against a schema and reject oversized payloads.
 
-## Coordination and failure handling
+## 4. Coordination and failure handling
 
 - Bound concurrency with a semaphore or worker pool; never start an unbounded number of agents.
 - Give every agent call a timeout and every run a total budget, split per agent.
@@ -36,7 +36,7 @@ Typical roles are planner, researcher, executor, critic, synthesizer and router.
 - Make side-effecting workers idempotent (idempotency keys) so retries are safe.
 - Resolve conflicting outputs explicitly: a judge agent, a vote, or escalation to a human.
 
-## Example: fan-out with bounded concurrency and partial failure
+## 5. Example: fan-out with bounded concurrency and partial failure
 
 Plain `asyncio`; `run_worker` is your call into a worker agent.
 
@@ -84,9 +84,9 @@ def require_quorum(results: list[WorkerResult], minimum: int) -> list[WorkerResu
 
 The synthesizer receives only the successful results plus a note of which subtasks failed, so the final answer can say what is missing.
 
-## Example: supervisor with subagents as tools (LangChain 1.x)
+## 6. Example: supervisor with subagents as tools (LangChain 1.x)
 
-Wrapping each worker agent as a tool keeps the supervisor in control and makes every delegation a traced, bounded tool call. Verified against LangChain 1.4.7 and LangGraph 1.2.17.
+Wrapping each worker agent as a tool keeps the supervisor in control and makes every delegation a traced, bounded tool call. Verified against LangChain 1.4.7 and LangGraph 1.2.18.
 
 ```python
 from langchain.agents import create_agent
@@ -132,7 +132,7 @@ answer = supervisor.invoke(
 
 `recursion_limit` is a run-time config key, not a compile-time argument. For explicit graphs with shared state, handoffs and checkpointing, see the langchain-expert skill (LangGraph reference).
 
-## Framework options
+## 7. Framework options
 
 - **LangGraph**: explicit state graphs, conditional edges, `Send` for dynamic fan-out, checkpointing, interrupts. Best when you need control over every transition.
 - **LangChain `create_agent`**: a ready tool loop; subagents can be exposed as tools as above.
@@ -141,7 +141,7 @@ answer = supervisor.invoke(
 
 Check each framework's current docs before relying on a specific multi-agent helper; these APIs change between minor releases.
 
-## Evaluation
+## 8. Evaluation
 
 - **Task success** of the whole system on a golden set.
 - **Efficiency**: tokens, cost and wall-clock time versus a single-agent baseline on the same set.
@@ -149,14 +149,14 @@ Check each framework's current docs before relying on a specific multi-agent hel
 - **Communication overhead**: messages and handoffs per task.
 - **Failure recovery**: inject worker timeouts and errors and check that the system degrades as designed.
 
-## Security
+## 9. Security
 
 - Each agent gets its own tool allow-list and credentials; a researcher has no write tools.
 - Content produced by one agent is untrusted input for the next; an injected instruction in a fetched page must not propagate through the pipeline.
 - Keep per-tenant state separate; never let a shared blackboard mix tenants.
 - Audit every delegation with parent trace id, agent, input hash and result hash.
 
-## Common mistakes
+## 10. Common mistakes
 
 - Unbounded parallelism that hits rate limits and multiplies cost.
 - Agents calling each other directly with no timeout, trace or budget.
