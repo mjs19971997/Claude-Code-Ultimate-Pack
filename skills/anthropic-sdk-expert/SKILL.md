@@ -1,743 +1,346 @@
 ---
 name: anthropic-sdk-expert
-description: >
-  Build production applications with the Anthropic SDK: Messages API, streaming, tool use, prompt caching, extended thinking, vision, documents, batch, Bedrock, and Vertex.
-  
-  Use this skill when designing AI agents, LLM applications, RAG pipelines, prompt workflows, multi-agent systems, or integrating LLM SDKs.
+description: >-
+  Builds applications on the Claude API with the official SDKs (Python `anthropic` 2.x, TypeScript `@anthropic-ai/sdk` 1.x): Messages API, streaming, tool use and the tool runner, adaptive thinking and effort, prompt caching, token counting, Message Batches, Files API, structured outputs, error handling, retries and rate limits. Use when writing or reviewing code that calls claude-opus-5-5, claude-sonnet-5-5, claude-haiku-5-5 or claude-fable-5-1, or when a request fails with a 400, 429, 529 or a thinking, prefill or tool_choice error. Not for provider-neutral prompt wording (use prompt-engineering-expert), OpenAI or Gemini SDK code (use openai-sdk-expert or gemini-sdk-expert), or multi-agent system design (use ai-agent-architect).
 license: MIT
-version: 1.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-## Table of Contents
+# Anthropic SDK Expert
 
-1. [Role](#1-role)
-2. [Mission](#2-mission)
-3. [Core Expertise](#3-core-expertise)
-4. [Responsibilities](#4-responsibilities)
-5. [Thinking Process](#5-thinking-process)
-6. [Decision Making Rules](#6-decision-making-rules)
-7. [Architecture Rules](#7-architecture-rules)
-8. [Coding Standards](#8-coding-standards)
-9. [Naming Conventions](#9-naming-conventions)
-10. [Folder Structure](#10-folder-structure)
-11. [Project Structure](#11-project-structure)
-12. [Design Patterns](#12-design-patterns)
-13. [Best Practices](#13-best-practices)
-14. [Anti Patterns](#14-anti-patterns)
-15. [Performance Rules](#15-performance-rules)
-16. [Security Rules](#16-security-rules)
-17. [Testing Strategy](#17-testing-strategy)
-18. [Documentation Standards](#18-documentation-standards)
-19. [Code Review Checklist](#19-code-review-checklist)
-20. [Refactoring Checklist](#20-refactoring-checklist)
-21. [Deployment Checklist](#21-deployment-checklist)
-22. [Production Checklist](#22-production-checklist)
-23. [Logging Strategy](#23-logging-strategy)
-24. [Monitoring Strategy](#24-monitoring-strategy)
-25. [Error Handling](#25-error-handling)
-26. [Examples](#26-examples)
-27. [Common Mistakes](#27-common-mistakes)
-28. [Professional Workflow](#28-professional-workflow)
-29. [Response Style](#29-response-style)
-30. [Output Format](#30-output-format)
+This skill covers calling Claude through the Claude API with the official Python and TypeScript SDKs: request shape, model and parameter choices, tool-use loops, caching, streaming, batch and file workflows, and failure handling. Several parameters taught in older tutorials (`thinking.budget_tokens`, assistant prefill, forced `tool_choice`, `temperature`/`top_k`) are rejected by the current models, so the rules below follow the current documentation, not older habits.
 
----
+> Verified against the Claude API docs (platform.claude.com), Python SDK `anthropic` 2.3.x (Python 3.10+), TypeScript SDK `@anthropic-ai/sdk` 1.3.x (Node.js 20+), API version `2026-10-21`, models `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5-1` (2026-10).
 
-## 1. Role
+## Contents
+1. [Scope](#1-scope)
+2. [Core Expertise](#2-core-expertise)
+3. [Workflow](#3-workflow)
+4. [Decision Rules](#4-decision-rules)
+5. [Coding Standards](#5-coding-standards)
+6. [Project Structure](#6-project-structure)
+7. [Design Patterns](#7-design-patterns)
+8. [Best Practices](#8-best-practices)
+9. [Performance](#9-performance)
+10. [Security](#10-security)
+11. [Testing](#11-testing)
+12. [Review Checklist](#12-review-checklist)
+13. [Production Notes](#13-production-notes)
+14. [Examples](#14-examples)
+15. [Common Mistakes](#15-common-mistakes)
+16. [References](#16-references)
 
-The Anthropic SDK Expert builds production applications using the `anthropic` Python package and the `@anthropic-ai/sdk` Node.js package. The expert owns the client configuration, the Messages API surface, content blocks, streaming, tool use, prompt caching, extended thinking, vision, documents (PDFs), the batch API, embeddings via Voyage AI, the model garden (Bedrock and Vertex), and the production hardening required to ship.
+## 1. Scope
 
-This role is distinct from a generic LLM user. The Anthropic SDK has unique features the expert must exploit: prompt caching for cost reduction on repeated context, extended thinking for complex reasoning, XML-tagged prompts for structure, assistant prefill to force format, tool use for agentic applications, and document content blocks for PDFs. The expert chooses between direct API, Bedrock, and Vertex; between sync and async clients; and between streaming and structured outputs.
+- Covered: `client.messages.create` and `.stream`, content blocks, system prompts, adaptive thinking and `output_config.effort`, client tools and the SDK tool runner, strict tool use, structured outputs, prompt caching, token counting, Message Batches, Files API, stop reasons, error classes, retries, timeouts, rate-limit headers, the MCP connector parameter, SDK upgrades (Python 2.x, TypeScript 1.x).
+- Not covered: wording and evaluation of prompts (prompt-engineering-expert), architecture of multi-agent systems (ai-agent-architect), building MCP servers (mcp-expert), other vendors' SDKs (openai-sdk-expert, gemini-sdk-expert), cloud-provider setup beyond the client class names.
 
-The expert is accountable for cost, latency, observability, and correctness. Every call that ships must be typed, retried, rate-limited, budget-bounded, logged with token and cache usage, and tested against a golden set.
+## 2. Core Expertise
 
-## 2. Mission
+| Area | Key facts |
+|---|---|
+| Model ids | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5-1`. Every id is a pinned snapshot (dateless ids included). All four list a 1M-token context window and 128K max output tokens; check the models overview before relying on limits |
+| Thinking | Adaptive only. Omit `thinking` (adaptive is the default on these models) or send `{"type": "adaptive", "display": "summarized"}`. `{"type": "enabled", "budget_tokens": N}` returns 400 on these models. `display` defaults to `"omitted"` on 5.x models (empty `thinking` text, signature still returned) |
+| Effort | `output_config={"effort": "high"}` with one of `low`, `medium`, `high`, `xhigh`, `max`. Default is `medium` on Opus 5.5 and Haiku 5.5, `high` on Sonnet 5.5 and Fable 5.1. Effort is soft guidance; `max_tokens` is the hard cap |
+| Thinking off | Opus 5.5 and Fable 5.1 reject `{"type": "disabled"}`. Sonnet 5.5 rejects it too; its lowest setting is `{"type": "between_tools"}`. Haiku 5.5 accepts `disabled` at `high` effort or below |
+| Sampling params | `temperature`, `top_p`, `top_k` return 400 on the current models. From API version `2026-10-21` (Python 2.x, TypeScript 1.x SDKs) any value returns 400 on every model and the SDK types no longer have them. Steer with prompts and effort |
+| Prefill | A final assistant message (prefill) returns 400 on Claude 4.6 and later. Use structured outputs or system-prompt instructions |
+| tool_choice | `auto` (default) and `none` work everywhere. `any` and `tool` return 400 on Opus 5.5, Sonnet 5.5 and Fable 5.1. Use `auto` with `strict: true` tools or `output_config.format` |
+| Tools | Client tools run in your code (`stop_reason: "tool_use"`, reply with `tool_result` blocks first in the next user message). Server tools (web search, code execution, web fetch) run on Anthropic infrastructure |
+| Tool runner | Beta. Python `client.beta.messages.tool_runner` with `@beta_tool`; TypeScript `client.beta.messages.toolRunner` with `betaZodTool` or `betaTool` |
+| Structured outputs | `output_config.format` with a JSON schema; SDK helper `client.messages.parse(..., output_format=PydanticModel)` (Python) or `zodOutputFormat(schema)` (TypeScript). Grammar-constrained, so output matches the schema unless `stop_reason` is `refusal` or `max_tokens` |
+| Prompt caching | Top-level `cache_control` (automatic) or `cache_control` on blocks (up to 4 breakpoints). Order is tools, system, messages. Default 5-minute lifetime, `{"type": "ephemeral", "ttl": "1h"}` for one hour. Minimum cacheable prompt is 512 tokens on the 5.x models |
+| Batches | `client.messages.batches`: up to 100,000 requests or 256 MB per batch, finishes within 24 hours, results kept 29 days, discounted versus synchronous calls (check the pricing page) |
+| Files API | `client.files.upload`, then reference a `file_id` in `document` or `image` blocks. 500 MB per file, workspace-scoped, no beta header |
+| Errors | 400, 401, 402, 403, 404, 409, 413, 429, 500, 504, 529; typed SDK exceptions; two automatic retries by default; `request-id` header exposed as `_request_id` |
+| Mid-conversation system messages | `{"role": "system"}` entries after a user turn are supported on Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.1; they do not invalidate the cached prefix |
 
-Build Anthropic SDK applications that complete real tasks reliably, observably, and at production scale. Reliability means correct behavior under rate limits, partial failures, and model drift. Observability means every call is logged with tokens, cache hits, latency, and cost. Scale means prompt caching, batch API, streaming, and fallbacks.
+## 3. Workflow
 
-The mission covers: clients, Messages API, messages, content blocks, streaming, tool use, prompt caching, extended thinking, vision, documents, batch API, embeddings, model garden, administration, error handling, production patterns, observability, security, testing, versioning, and Claude-specific patterns.
+1. Pick the model from the task (section 4) and put its id in one config constant; do not scatter literals.
+2. Write the smallest request: `model`, `max_tokens`, top-level `system`, `messages`. Leave sampling parameters, `thinking` and `effort` unset until a measurement says otherwise.
+3. Parse the response by content block `type` and branch on `stop_reason` (`end_turn`, `max_tokens`, `tool_use`, `refusal`, `pause_turn`, `model_context_window_exceeded`).
+4. If the request is long (large `max_tokens`, thinking at high effort, big inputs), stream it and take `get_final_message()` / `finalMessage()`.
+5. Add tools: precise descriptions, `strict: true` on tools whose inputs feed code, the manual loop or the tool runner, an iteration cap.
+6. Add caching: stable content first, breakpoint on the last block that is identical across requests, then read `usage.cache_read_input_tokens` to confirm hits.
+7. Add error handling: catch the SDK's typed exceptions, keep default retries, log `_request_id`, treat 400s as bugs to fix, not to retry.
+8. For bulk work that is not interactive, move to Message Batches; for large reusable inputs, use the Files API.
+9. Before shipping, run section 12 and a gated live smoke test against the cheapest suitable model.
 
-## 3. Core Expertise
+## 4. Decision Rules
 
-- **SDK**: `anthropic` Python and `@anthropic-ai/sdk` Node.js; Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku, Claude 3.5 Haiku; 200K context window for Claude 3 family.
-- **Clients**: `Anthropic()` sync, `AsyncAnthropic()` async; config: `api_key`, `base_url` for Bedrock/Vertex, `auth_token` for custom auth, `timeout`, `max_retries`.
-- **Messages API**: `client.messages.create` with `model`, `max_tokens` (required), `messages` (list of user/assistant), `system` (separate top-level param), `temperature`, `top_p`, `top_k`, `stop_sequences`, `stream`, `metadata` with `user_id`.
-- **Messages**: user and assistant roles only; no system role in messages (system is top-level param); content as string or array of content blocks (text, image, tool_use, tool_result, document for PDFs).
-- **Content blocks**: text block `{type: text, text}`; image block `{type: image, source: {type: base64, media_type, data}}` or `{type: image, source: {type: url, url}}`; tool_use block `{type: tool_use, id, name, input}`; tool_result block `{type: tool_result, tool_use_id, content, is_error}`; document block `{type: document, source: {type: base64, media_type, data}}` for PDFs.
-- **Streaming**: `stream=True` returns iterator of events: `message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, `message_stop`; SSE format; async streaming with `async for`; stream tool use input via `input_json_delta`; stream text via `text_delta`.
-- **Tool use**: `tools` parameter with `name`, `description`, `input_schema` as JSON Schema; `tool_choice`: auto/any/{type: tool, name}; parallel tool use supported; `tool_use` in response with `id` and `input` as parsed JSON; `tool_result` back as user message with `tool_use_id` and `content`; error handling with `is_error` in `tool_result`.
-- **Prompt caching**: `cache_control: {type: ephemeral}` on content blocks; up to 4 breakpoint markers; 5-minute TTL default; 1-hour TTL with beta header; cache hit returns cached tokens at 90% discount on input; cache write at 25% premium; cache read tracking in `usage` with `cache_creation_input_tokens` and `cache_read_input_tokens`; use cases: large system prompts, long documents, few-shot examples, conversation history.
-- **Extended thinking**: Claude 3.7 Sonnet and later with `thinking` parameter; `budget_tokens` for thinking budget; thinking content blocks in response; interleaved thinking with tool use; extended thinking for complex reasoning, math, coding, analysis; thinking not exposed in API responses by default for safety.
-- **Vision**: image content block with base64 data URI or URL; supported formats: JPEG/PNG/GIF/WebP; image size limits; multiple images per message; vision for document understanding, charts, diagrams, screenshots, OCR.
-- **Documents**: PDF document content block; up to 32MB and 100 pages; text extraction with layout preservation; vision-based processing for scanned PDFs; combined text and image understanding.
-- **Batch API**: `client.messages.batches.create` for 50% cost reduction on large volumes; requests with `custom_id` and `params`; submit up to 100K requests; 24-hour completion window; results via `client.messages.batches.results`; streaming results; error handling per request.
-- **Embeddings**: Claude does not have a native embeddings API; use Voyage AI with `voyage-3`/`voyage-3-large`/`voyage-3-lite`/`voyage-code-3`; Anthropic recommends Voyage for embedding use cases; alternatives: OpenAI, Cohere, local models.
-- **Model garden**: Claude on Amazon Bedrock via `AnthropicBedrock` client; Claude on Google Vertex AI via `AnthropicVertex` client; configuration differences; region availability; model IDs vary by provider.
-- **Administration**: model listing via docs not API (no model list endpoint); usage tracking via console; API key management via console; organization management.
-- **Error handling**: `APIError`, `RateLimitError` with `retry-after` header, `APIConnectionError`, `APITimeoutError`, `AuthenticationError`, `BadRequestError`, `ConflictError`, `InternalServerError`, `OverloadedError`; retries via `max_retries` with exponential backoff; idempotency for retries.
-- **Production patterns**: prompt caching for cost reduction on repeated context; streaming for responsive UX; tool use for agentic applications; batch API for bulk processing; extended thinking for complex reasoning; long context for document analysis; structured output via tool use without actual tools (force the model to fill a schema).
-- **Observability**: structured logs with request/response; latency tracking; token usage per request; cache hit rate; cost per request; OpenTelemetry for tracing; LangSmith/Langfuse integration.
-- **Security**: api_key in environment not code; prompt injection defense via system prompt separation and tool sandboxing; user input sanitization; output validation; PII detection; content moderation via Claude itself; rate limiting per user.
-- **Testing**: mock Anthropic client for tests; fixture responses; snapshot tests for prompts; eval suites with golden examples; A/B testing of prompts; regression tests for model upgrades.
-- **Versioning**: model deprecation schedule; version pinning in production; gradual migration to new models; prompt compatibility across Claude versions.
-- **Claude-specific patterns**: XML tags in prompts for structure (`<example>`, `<instructions>`, `<output>`); prefill assistant response to force format; role-play with system prompt; chain-of-thought via thinking or by asking for reasoning; few-shot with example pairs; constitutional AI patterns; helpful/honest/harmless via system prompt.
+- Model: start with `claude-opus-5-5` for most workloads per the docs; `claude-fable-5-1` for demanding reasoning and long-horizon agent work, or when Opus 5.5 at higher effort still fails your evals; `claude-sonnet-5-5` for speed and quality balance; `claude-haiku-5-5` for high-volume, latency-sensitive classification, extraction and routing. Decide by evals on your data, and see the pricing page for costs.
+- Reduce cost or latency: lower `effort` first, then pick a smaller model, then cache, then batch. Do not try to lower `temperature`; it is rejected.
+- Need schema-valid JSON: use `output_config.format` (final answer) or `strict: true` tools (tool inputs). Do not prefill and do not force a tool on models that reject it.
+- Need a tool to run on every turn: describe when to call it in the system prompt with `tool_choice: {"type": "auto"}`; if the model must produce one specific object, use structured outputs instead.
+- Streaming vs not: stream when output may be long or users watch it. The SDKs refuse non-streaming requests expected to exceed roughly 10 minutes (the docs state streaming is required above `max_tokens` 21,333); batches suit anything above about 32k thinking-heavy tokens per request.
+- Cache lifetime: 5 minutes when requests repeat within minutes; `ttl: "1h"` for agent sessions or thinking-heavy turns that pause longer; neither when each prompt is unique.
+- Sync vs batch: batch when no one waits for the answer and a few hours is acceptable; synchronous otherwise.
+- SDK major: new projects use Python `anthropic` 2.x and `@anthropic-ai/sdk` 1.x. Staying on older majors keeps API version `2023-06-01` and the old sampling parameters, and is only worth it for models that accept them.
+- Thinking display: set `display: "omitted"` when the UI does not show reasoning (faster first text token when streaming); `"summarized"` when you show or log it.
 
-## 4. Responsibilities
+## 5. Coding Standards
 
-- Configure the client with `api_key`, `timeout`, `max_retries` from environment; never hardcode.
-- Choose sync or async client based on the workload; never block the event loop with sync calls in async code.
-- Set `max_tokens` on every Messages call (required parameter).
-- Use `system` as a top-level parameter, never as a system message in the `messages` list.
-- Use streaming for responses above 200 tokens.
-- Use prompt caching (`cache_control: {type: ephemeral}`) for repeated context (system prompt, large documents, few-shot examples, conversation history).
-- Use extended thinking for complex reasoning tasks (math, coding, analysis).
-- Use tool use with JSON Schema `input_schema` for any external action.
-- Use document content blocks for PDFs instead of pre-extracting text when layout matters.
-- Validate LLM output against the schema; retry on validation failure.
-- Use the batch API for bulk offline workloads to halve cost.
-- Use Voyage AI for embeddings; never attempt to use Claude for embeddings.
-- Track token usage, cache hit rate, and cost per request; enforce a per-user rate limit and a per-task token budget.
-- Configure fallback models for any production call.
-- Mock the Anthropic client in unit tests; never call the real API in unit tests.
-- Pin model versions in production; migrate deliberately with eval gates.
+- Construct one client per process and reuse it: `anthropic.Anthropic()` / `anthropic.AsyncAnthropic()` / `new Anthropic()`. Use the async client inside async code; a sync call blocks the event loop.
+- Read the key from `ANTHROPIC_API_KEY` (the default) or a secret manager; never from source files. A client holds one credential: passing both `api_key` and `auth_token` raises in the 2.x/1.x SDKs.
+- Always set `max_tokens`; size it for thinking plus the answer, because thinking tokens count toward it.
+- Pass instructions in the top-level `system` parameter (string or text blocks), not as a `{"role": "system"}` first message.
+- Iterate `response.content` blocks by `block.type`; never assume `content[0]` is text (thinking blocks and tool_use blocks come first).
+- Send assistant turns back exactly as received, including `thinking` and `redacted_thinking` blocks. Edited, reordered or dropped thinking blocks in the latest assistant turn return 400.
+- Do not send `temperature`, `top_p`, `top_k`, `budget_tokens` or a final assistant message to the current models.
+- Keep tool definitions and their JSON key order stable between requests; reordering breaks cache prefixes.
+- Use SDK helpers (`messages.stream`, `messages.parse`, tool runner) before hand-rolling SSE parsing or JSON repair.
+- Type models as constants or an enum in one module; log the model id with every request.
 
-## 5. Thinking Process
-
-1. Write the task and success criteria before choosing a model.
-2. Decide direct API vs Bedrock vs Vertex based on deployment and compliance.
-3. Choose the model: Sonnet for balanced, Opus for hard reasoning, Haiku for cheap routing/extraction.
-4. Design the prompt: system (top-level), XML tags for structure, few-shot examples.
-5. Decide tool use: which tools, JSON Schema `input_schema`, parallel, error contract.
-6. Decide streaming: tokens for UX, structured for machine consumers.
-7. Decide prompt caching: cache the system prompt, large documents, few-shot examples.
-8. Decide extended thinking: enable for complex reasoning with a `budget_tokens`.
-9. Configure retries, rate limits, fallbacks, budget.
-10. Instrument: structured logs with tokens, cache hits, latency, cost; OpenTelemetry traces.
-11. Build the eval harness; iterate until success-rate target met.
-12. Deploy with health checks, autoscaling, and a kill switch.
-13. Run eval nightly; alert on regression.
-14. Pin model versions; migrate deliberately.
-
-## 6. Decision Making Rules
-
-- When sync and async conflict, choose async for I/O-bound services because sync blocks the event loop and limits throughput.
-- When direct API and Bedrock/Vertex conflict, choose direct API for simplicity and Bedrock/Vertex when compliance or existing cloud commitments require them.
-- When Sonnet and Opus conflict, choose Sonnet for balanced cost/quality and Opus for the hardest reasoning tasks because Opus is significantly more expensive.
-- When Haiku and Sonnet conflict, choose Haiku for routing, extraction, and classification because Haiku is cheaper and faster.
-- When prompt caching and no caching conflict, choose caching for any repeated context above 1024 tokens because caching reduces cost by up to 90% on cache reads.
-- When extended thinking and standard reasoning conflict, choose extended thinking for math, coding, and multi-step analysis because it improves accuracy on hard tasks; choose standard for simple tasks because thinking adds latency.
-- When tool use and free-text parsing conflict, choose tool use because the model produces structured input reliably.
-- When streaming and structured output conflict, choose structured output for machine consumers and streaming for human consumers.
-- When PDF document blocks and pre-extracted text conflict, choose document blocks when layout matters and pre-extracted text when the PDF is simple text.
-- When Voyage and other embedding providers conflict, choose Voyage for Anthropic-aligned embeddings and other providers when existing infrastructure dictates.
-
-## 7. Architecture Rules
-
-- Every Anthropic call must go through a single client wrapper that adds tracing, retry, budget enforcement, and fallbacks.
-- Every call must set `max_tokens` (required); unbounded calls are forbidden.
-- Every call must use `system` as a top-level parameter, never as a system message.
-- Every production call must have a fallback model configured.
-- Every tool call must define an `input_schema` (JSON Schema); ad-hoc tools are forbidden.
-- Every structured output must validate the LLM response against the schema; validation failures must retry or escalate.
-- Every call with repeated context above 1024 tokens must use prompt caching.
-- Every call must log token usage, cache hit/creation, latency, cost, and status.
-- Every call must enforce a per-user rate limit and a per-task token budget.
-- Every production deployment must pin model versions; floating versions are forbidden.
-
-## 8. Coding Standards
-
-- All Anthropic calls must be typed end-to-end; use Pydantic or Zod for inputs and outputs.
-- All clients must be configured from environment via dependency injection; no hardcoded keys.
-- All tool definitions must use `input_schema` (JSON Schema) with `name` and `description`.
-- All system prompts must be passed via the `system` parameter, not as a system message.
-- All async code must use `AsyncAnthropic`; sync calls in async code must be wrapped in `asyncio.to_thread`.
-- All streaming must accumulate deltas correctly across content blocks (text and tool_use).
-- All retries must use exponential backoff with jitter; never retry without backoff.
-- All configuration must be injected via dependency injection; no global state.
-- All tests must mock the Anthropic client; no real API calls in unit tests.
-- All production code must pin model versions explicitly; `claude-3-5-sonnet-latest` is forbidden in production (use dated snapshots).
-
-## 9. Naming Conventions
-
-- **Variables**: `snake_case` Python, `camelCase` TypeScript; descriptive (`message_response`, `toolUse`).
-- **Functions**: `snake_case` Python, `camelCase` TypeScript; verb-first (`create_message`, `parseToolUse`).
-- **Classes**: `PascalCase`; noun (`AnthropicClient`, `ChatService`).
-- **Interfaces / Types**: `PascalCase` (`ContentBlock`, `ToolDefinition`).
-- **Constants**: `UPPER_SNAKE_CASE` (`DEFAULT_MODEL`, `MAX_TOKENS`).
-- **Enums**: `PascalCase` enum, `UPPER_SNAKE_CASE` members (`BlockType.TEXT`).
-- **Files**: `snake_case.py` or `kebab-case.ts`; one service per file.
-- **Directories**: `snake_case` packages (`services/messages/`, `tools/search/`).
-- **Tests**: `test_<unit>.py` or `<unit>.spec.ts`; one per source file.
-- **Schemas**: `PascalCase` ending in `Schema` or `Model` (`SummarySchema`, `ExtractionResult`).
-
-## 10. Folder Structure
+## 6. Project Structure
 
 ```
-anthropic-project/
-├── src/
-│   └── my_app/
-│       ├── clients/               # Anthropic client wrappers
-│       │   ├── sync.py
-│       │   ├── async_client.py
-│       │   ├── bedrock.py
-│       │   └── vertex.py
-│       ├── services/              # Business services
-│       │   ├── messages.py        # Messages API
-│       │   ├── batch.py
-│       │   ├── vision.py
-│       │   └── documents.py
-│       ├── tools/                 # Tool definitions
-│       │   ├── search.py
-│       │   └── database.py
-│       ├── schemas/               # Pydantic / Zod schemas
-│       ├── prompts/               # Versioned prompts with XML tags
-│       ├── cache/                 # Prompt caching helpers
-│       ├── observability/         # OTel, logging
-│       ├── security/              # PII redaction, prompt injection defense
-│       └── config.py
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── eval/
-│   ├── golden/
-│   └── runner.py
-├── pyproject.toml
-└── README.md
+.
+├── pyproject.toml              # anthropic>=2,<3 (or package.json: @anthropic-ai/sdk ^1)
+├── src/app/
+│   ├── llm/
+│   │   ├── client.py           # one shared client, timeouts, max_retries, base_url
+│   │   ├── models.py           # model id constants, effort defaults per task
+│   │   ├── prompts/            # system prompts as files, versioned
+│   │   ├── tools/              # tool schemas + handlers, one module per tool group
+│   │   ├── loop.py             # tool loop with iteration cap and stop_reason handling
+│   │   └── errors.py           # mapping of SDK exceptions to app errors
+│   ├── batch/                  # batch builders and result readers (custom_id scheme)
+│   └── api/                    # HTTP layer; streams events to browsers, never holds the key client-side
+└── tests/
+    ├── fakes.py                # fake LLM gateway returning canned content blocks
+    ├── fixtures/               # recorded response JSON (tool_use, thinking, refusal)
+    └── live/                   # opt-in smoke tests, skipped without ANTHROPIC_API_KEY
 ```
 
-## 11. Project Structure
+## 7. Design Patterns
 
-```
-anthropic-platform/
-├── src/
-│   ├── platform/                  # Cross-cutting
-│   │   ├── config/
-│   │   ├── telemetry/             # OTel, LangSmith/Langfuse
-│   │   ├── llm/                   # Client wrappers, fallbacks, budget
-│   │   ├── cache/                 # Prompt cache analytics
-│   │   └── security/              # PII, prompt injection
-│   ├── services/                  # Anthropic services
-│   │   ├── messages/
-│   │   ├── batch/
-│   │   ├── vision/
-│   │   ├── documents/
-│   │   └── embeddings/            # Voyage AI integration
-│   ├── tools/                     # Tool catalog
-│   ├── schemas/                   # Pydantic / Zod schemas
-│   ├── prompts/                   # Versioned prompts
-│   ├── api/                       # HTTP/gRPC entrypoints
-│   │   ├── routes/
-│   │   └── websocket/             # Streaming gateway
-│   └── workers/                   # Batch workers
-├── eval/
-│   ├── datasets/
-│   ├── suites/
-│   └── reports/
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── deploy/
-│   ├── docker/
-│   └── k8s/
-├── docs/
-│   ├── services/
-│   └── runbooks/
-├── pyproject.toml
-└── README.md
-```
+- **LLM gateway**: one module owns the client, retries, logging and usage accounting; the rest of the code calls `complete()` / `stream()` with domain types.
+- **Manual agent loop**: call, append `response.content` as the assistant turn, run every `tool_use`, append one user message of `tool_result` blocks, repeat until `stop_reason != "tool_use"` or the iteration cap is hit. Details in [references/tool-use.md](references/tool-use.md).
+- **Tool runner**: let the SDK run the loop when no custom approval, logging or conditional execution is needed.
+- **Cache-first prompt layout**: tools, then a long static system prompt and reference documents, breakpoint, then the volatile per-request part. See [references/prompt-caching-and-cost.md](references/prompt-caching-and-cost.md).
+- **Extraction with a schema**: `messages.parse` with a Pydantic or Zod type; check `stop_reason` before trusting the parsed object.
+- **Batch pipeline**: build requests with a deterministic `custom_id`, submit, poll `processing_status == "ended"`, stream results, resubmit only `errored` and `expired` entries. See [references/batches-and-files.md](references/batches-and-files.md).
+- **Router and worker**: a `claude-haiku-5-5` classification call chooses the prompt or model for the expensive call.
+- **Streaming relay**: server streams text deltas to the browser over SSE or WebSocket; the key stays on the server.
 
-## 12. Design Patterns
+## 8. Best Practices
 
-### Messages Service
-- **When to use**: Single-turn or short multi-turn chat.
-- **When not to use**: Bulk offline workloads; use Batch.
-- **Sketch**: `client.messages.create(model, max_tokens, system, messages, tools)`.
+- Keep prompts in files, version them, and put dates and per-request data after the cache breakpoint.
+- Write tool descriptions as documentation: what it does, when to use it and when not to, what each parameter means, what it returns. The docs call this the most important factor in tool quality. Prefer fewer, consolidated tools with namespaced names.
+- Return only high-signal fields from tools (stable ids, not opaque internals); cap result size.
+- Report tool failures with `is_error: true` and a message the model can act on; do not return error text as a normal result.
+- Return exactly one `tool_result` per `tool_use` block, all in the next user message, with `tool_result` blocks before any text.
+- Handle `max_tokens` (raise the limit or continue), `refusal` (read `stop_details`, fall back or surface), and `pause_turn` (send the response back to continue).
+- Keep conversation state append-only. Editing earlier turns invalidates the cache and, on Claude 5.1 and later models, can invalidate thinking blocks sent back.
+- Use `client.messages.count_tokens` for budgeting and routing; treat the count as an estimate. Claude 4.7 and later use a newer tokenizer that produces roughly 30 percent more tokens for the same text than older models, so recount per model.
+- Set `max_retries` and `timeout` explicitly in production clients; keep retries on for 429 and 5xx.
 
-### Tool-Use Loop
-- **When to use**: Tasks that require external actions.
-- **When not to use**: Fixed pipelines with no decisions.
-- **Sketch**: `loop: response = create(messages, tools); if tool_use: execute; append tool_result; else: break`.
+## 9. Performance
 
-### Prompt Caching
-- **When to use**: Repeated context above 1024 tokens (system prompt, documents, few-shot).
-- **When not to use**: Unique per-request context.
-- **Sketch**: `system=[{"type": "text", "text": LARGE, "cache_control": {"type": "ephemeral"}}]`.
+- Prompt caching is the largest lever on repeated prefixes: cache reads cost a fraction of base input (the fraction is per model; check the pricing page) and, for most models, cache reads do not count toward input-tokens-per-minute limits.
+- Lower `effort` to cut thinking and tool-call volume; hold effort constant inside a cached conversation, since changing it (or the thinking configuration) starts a new cache prefix. Per-message effort changes via system messages preserve the cache on models that support them.
+- Stream to cut time to first token; with `display: "omitted"` the server skips streaming thinking text.
+- Parallelize independent tool calls (`asyncio.gather` / `Promise.all`) when they are read-only; keep side-effecting calls sequential.
+- Bound concurrency with a semaphore and honor `retry-after`; the API uses token-bucket limits, so bursts above the bucket 429 even when the average is fine.
+- Pre-warm a cache before a user arrives with `max_tokens: 0` (not allowed with streaming, structured outputs, forced tools or inside batches).
+- Use Batches for offline volume; use the Files API instead of re-uploading the same document.
+- For long-running agent contexts, use server-side compaction or context editing (both beta; check the docs for headers) instead of client-side summarizers.
 
-### Extended Thinking
-- **When to use**: Complex reasoning (math, coding, multi-step analysis).
-- **When not to use**: Simple tasks; thinking adds latency.
-- **Sketch**: `thinking={"type": "enabled", "budget_tokens": 4096}`.
+## 10. Security
 
-### Structured Output via Tool Use
-- **When to use**: Machine-consumed outputs that must conform to a schema.
-- **When not to use**: Free-text for humans.
-- **Sketch**: Define a tool with the schema; force `tool_choice: {type: "tool", name: "emit_result"}`; read `tool_use.input`.
+- API keys belong on servers only. The TypeScript SDK refuses browser use unless `dangerouslyAllowBrowser` is set; do not set it in shipped front-end code. Proxy through your backend.
+- Never log keys or full Authorization headers. The 2.x/1.x SDKs send the key as `Authorization: Bearer`; update gateways, log filters and stubs that read `X-Api-Key`.
+- Treat everything inside tool results, retrieved documents and user uploads as untrusted data (indirect prompt injection). Keep it inside `tool_result` blocks, not in `system`, and restrict what tools can do.
+- Validate tool inputs in your handler even with `strict: true`: strict guarantees schema shape, not that the caller may access that record. Check authorization on the server for every tool call, including `tenant_id` filters on writes as well as reads.
+- Require human confirmation for destructive or irreversible tools; apply least privilege to credentials the tools use.
+- Files uploaded to the Files API are visible to every key in the workspace. Never accept a `file_id` from an end user; use one workspace per tenant for isolation.
+- Cap loop iterations, tool output size and `max_tokens` to bound spend from runaway or injected loops; set a workspace spend limit in the Console.
+- Do not log full prompts or completions when they contain personal data; log `_request_id`, model, token usage and stop reason.
+- Keep thinking text out of end-user views unless intended; ask tools for short explanations, not "your reasoning", since a `reasoning_extraction` refusal can result.
 
-### Batch Processing
-- **When to use**: Offline workloads above 1000 requests.
-- **When not to use**: Interactive latency-sensitive workloads.
-- **Sketch**: `client.messages.batches.create(requests=[...]) -> poll -> results`.
+## 11. Testing
 
-### Fallback Chain
-- **When to use**: Any production call.
-- **When not to use**: Never; production calls always need fallbacks.
-- **Sketch**: `try primary (Sonnet); except OverloadedError: try Haiku; except: deterministic`.
+- Hide the SDK behind a narrow gateway interface and unit-test business logic with a fake that returns canned content blocks, including `tool_use`, `thinking`, `refusal` and `max_tokens` cases.
+- Replay recorded response JSON as fixtures to test loop code; assert that assistant content is passed back unmodified and every `tool_use` gets a matching `tool_result`.
+- Test error mapping with a mocked HTTP layer (Python: pass an `httpx2` client via `http_client`; TypeScript: pass a custom `fetch`). Cover 400, 401, 429 with and without `retry-after`, 529 and connection errors.
+- Assert request shape, not model text: required `max_tokens`, no sampling parameters, `system` at top level, stable tool order.
+- Run live smoke tests only when `ANTHROPIC_API_KEY` is set, on the cheapest suitable model, with tiny `max_tokens`; never in default CI.
+- Use `count_tokens` in tests to guard against prompts growing past budgets or below the minimum cacheable length.
+- Evaluate model changes with a fixed eval set before switching model ids; effort and model defaults differ per model.
 
-## 13. Best Practices
+## 12. Review Checklist
 
-- Always configure `max_retries` and `timeout` on the client.
-- Always set `max_tokens` on every Messages call (required).
-- Always use `system` as a top-level parameter, never as a system message.
-- Always use streaming for responses above 200 tokens.
-- Always use prompt caching for repeated context above 1024 tokens.
-- Always use tool use with `input_schema` (JSON Schema) for external actions.
-- Always use document content blocks for PDFs when layout matters.
-- Always validate LLM output against the schema; retry on failure.
-- Always track token usage, cache hit rate, and cost per request.
-- Always configure fallback models in production.
-- Always use the batch API for offline workloads above 1000 requests.
-- Always use Voyage AI for embeddings; Claude has no embeddings API.
-- Always mock the client in unit tests; never call the real API.
-- Always pin model versions in production.
+- [ ] Model id comes from config; one of the current ids, not a retired one.
+- [ ] `max_tokens` set; response parsed by block type; `stop_reason` handled.
+- [ ] No `temperature`, `top_p`, `top_k`, `thinking.budget_tokens`, prefill, or forced `tool_choice` on models that reject them.
+- [ ] Thinking blocks round-tripped unmodified in tool loops.
+- [ ] Tool results: one per `tool_use`, results first, `is_error` used, output size capped, loop capped.
+- [ ] Cache breakpoint on the last stable block; prompt above the minimum length; `cache_read_input_tokens` observed.
+- [ ] Long requests stream; timeouts and `max_retries` set intentionally.
+- [ ] Errors: typed exceptions caught, `_request_id` logged, 400s not retried blindly, spend-cap 429 recognized.
+- [ ] Key only on the server; no key in front-end bundles, logs or VCS.
+- [ ] Untrusted content stays in tool results; tool handlers re-check authorization; writes are tenant-scoped.
+- [ ] Tests cover fake gateway, fixtures and a gated live smoke test.
 
-## 14. Anti Patterns
+## 13. Production Notes
 
-### Hardcoded API key
-- **Why wrong**: Secrets in source are leaked via version control, logs, and images.
-- **Correct alternative**: Read `ANTHROPIC_API_KEY` from environment via a secrets manager.
+- Models retire on a published schedule (see the model deprecations page); pin ids, subscribe to deprecation notices, and plan migrations with evals. The models overview lists the earliest retirement date for each current model.
+- Rate limits are per organization and model class: requests, input tokens and output tokens per minute. Read the `anthropic-ratelimit-*` response headers and `retry-after`; request higher limits through the Console when needed.
+- A 429 without `retry-after` and with `error.details.error_code` of `enforced_spend_limit_reached` means a spend cap: retries (including the SDK's) fail until access resumes or limits change. A spend limit you set yourself returns 400 instead.
+- 529 means overloaded: retry with backoff, and consider a fallback model for user-facing paths. Streaming responses can carry an error event after a 200 status; handle it.
+- Interrupted streams cannot be resumed from an event id. On Claude 4.6 and later, continue by sending a new user message containing the partial text and an instruction to continue; tool_use and thinking blocks cannot be partially recovered.
+- Cloud platforms (Amazon Bedrock, Google Cloud, Microsoft Foundry, Claude Platform on AWS) use their own client classes and, in some cases, different model ids and feature sets; check the platform page before copying API-direct code.
+- Python 2.x uses `httpx2` (not `httpx`) and the operating-system trust store for TLS; minimal containers need CA certificates or `SSL_CERT_FILE`.
+- Upgrading from Python 1.x or TypeScript 0.x: change `anthropic-version` assumptions, remove sampling parameters, update proxies that read `X-Api-Key`, and follow the API-version migration guide.
+- Check the pricing page for token and cache prices; never hard-code prices in code.
 
-### System prompt as a system message
-- **Why wrong**: The Messages API requires `system` as a top-level parameter; a system role in `messages` is rejected.
-- **Correct alternative**: Pass `system="..."` (or list of content blocks) to `messages.create`.
+## 14. Examples
 
-### No max_tokens
-- **Why wrong**: `max_tokens` is required; omitting it raises an error.
-- **Correct alternative**: Set `max_tokens` on every call based on the task.
-
-### No prompt caching for repeated context
-- **Why wrong**: Repeated large context is charged full price every call.
-- **Correct alternative**: Add `cache_control: {type: "ephemeral"}` to repeated content blocks.
-
-### Sync client in async code
-- **Why wrong**: Blocks the event loop; throughput collapses.
-- **Correct alternative**: Use `AsyncAnthropic`; wrap unavoidable sync calls in `asyncio.to_thread`.
-
-### No fallback in production
-- **Why wrong**: Provider outages and `OverloadedError` take down the service.
-- **Correct alternative**: Configure fallback models via try/except.
-
-### Floating model version in production
-- **Why wrong**: Model updates change behavior silently; regressions are unattributable.
-- **Correct alternative**: Pin model versions; migrate deliberately with eval gates.
-
-## 15. Performance Rules
-
-- Always set `max_tokens` on every call.
-- Always stream tokens for responses above 200 tokens.
-- Always batch independent requests with `asyncio.gather`.
-- Always use prompt caching for repeated context above 1024 tokens.
-- Always use the cheapest model that meets the success-rate target (Haiku for routing/extraction, Sonnet for balanced, Opus for hard reasoning).
-- Always use the batch API for offline workloads above 1000 requests.
-- Always use `top_k` to limit token sampling when appropriate.
-- Always measure per-call latency and alert on P95 regressions.
-
-## 16. Security Rules
-
-- Always read `ANTHROPIC_API_KEY` from environment via a secrets manager; never in source.
-- Always rotate API keys; never use long-lived keys without rotation.
-- Always keep the system prompt separate from user input.
-- Always sanitize user input before adding it to the prompt.
-- Always validate LLM output against the schema.
-- Always use Claude itself for content moderation of user-generated content.
-- Always rate-limit per user and per tenant.
-- Always redact PII from logs and traces.
-- Always audit-log every tool call.
-- Always use the `metadata.user_id` field to attribute calls to end users for abuse detection.
-
-## 17. Testing Strategy
-
-- Unit tests must mock the Anthropic client and return fixture responses.
-- Unit tests must cover streaming by mocking the event iterator.
-- Unit tests must cover tool use by mocking tool_use blocks and tool_result blocks.
-- Unit tests must cover prompt caching by asserting `cache_control` is set on repeated context.
-- Integration tests must run against the real API on a small golden set on every release.
-- Regression tests must run on every prompt change with a frozen golden set.
-- Eval suites must include adversarial examples (prompt injection, schema violations).
-- Snapshot tests must assert prompt structure (including XML tags) is unchanged across versions.
-- Never run real API calls in unit tests.
-- Test fallback paths by injecting synthetic `OverloadedError` and `RateLimitError`.
-
-## 18. Documentation Standards
-
-- Every service must have a docstring documenting: purpose, inputs, outputs, model, dependencies.
-- Every tool must have a docstring with parameters, return type, error contract.
-- Every prompt must have a header with version, intent, variables, XML tag structure, eval results.
-- Every API endpoint must have an OpenAPI spec with examples.
-- Every runbook must cover common failures, mitigation, rollback, escalation.
-- The model catalog must list every model used with version, purpose, cost per 1M tokens.
-- Every breaking change must have a CHANGELOG entry with migration notes.
-- Architecture diagrams must be checked into `docs/services/`.
-
-## 19. Code Review Checklist
-
-- [ ] Client configured with `max_retries`, `timeout`, and `api_key` from environment.
-- [ ] `max_tokens` set on every Messages call.
-- [ ] `system` passed as top-level parameter, not as a system message.
-- [ ] Streaming configured for responses above 200 tokens.
-- [ ] Tool definitions use `input_schema` (JSON Schema) with `name` and `description`.
-- [ ] Structured outputs validated against schema; retry on failure.
-- [ ] Prompt caching (`cache_control: {type: "ephemeral"}`) on repeated context above 1024 tokens.
-- [ ] Fallback models configured in production.
-- [ ] Per-user rate limit configured.
-- [ ] Per-task token budget enforced.
-- [ ] Token usage, cache hits, and cost logged per request.
-- [ ] PII redacted from logs and traces.
-- [ ] Tool outputs sanitized before being added to context.
-- [ ] Async code uses `AsyncAnthropic`; no sync calls in async paths.
-- [ ] Model versions pinned in production.
-- [ ] Prompts versioned in source control with XML tag structure documented.
-- [ ] Eval suite passes on the golden set.
-- [ ] No real API calls in unit tests.
-- [ ] Batch API used for offline workloads above 1000 requests.
-- [ ] OpenTelemetry tracing configured.
-
-## 20. Refactoring Checklist
-
-- [ ] Replace sync client with async client in async code.
-- [ ] Move system prompts from messages to the `system` parameter.
-- [ ] Add `max_tokens` where missing.
-- [ ] Add streaming where the client waits for the full response.
-- [ ] Replace free-text parsing with structured output via tool use.
-- [ ] Add `input_schema` to ad-hoc tools.
-- [ ] Wrap direct SDK calls in the shared client wrapper.
-- [ ] Add fallback models where only a primary exists.
-- [ ] Add prompt caching where repeated context is sent uncached.
-- [ ] Move inline prompts to versioned prompt files with XML tags.
-- [ ] Pin floating model versions.
-- [ ] Add OpenTelemetry spans where only logs exist.
-
-## 21. Deployment Checklist
-
-- [ ] Image is built from a pinned base with a reproducible lockfile.
-- [ ] `ANTHROPIC_API_KEY` injected from a secrets manager.
-- [ ] Bedrock or Vertex credentials configured if used.
-- [ ] Health check endpoint returns 200 only when the Anthropic client is reachable.
-- [ ] Readiness probe verifies warm-up completed.
-- [ ] Horizontal pod autoscaler targets RPS and P95 latency.
-- [ ] Rate limiter configured per user and per tenant.
-- [ ] OpenTelemetry collector is reachable.
-- [ ] Logs are shipped to the log store with retention.
-- [ ] Audit logs are immutable and retained per compliance.
-- [ ] Batch workers are scaled for offline workloads.
-- [ ] WebSocket gateway is reachable for streaming.
-- [ ] Rollback procedure is documented and tested.
-- [ ] Runbook is published to the on-call team.
-- [ ] Eval suite has passed on the release candidate.
-- [ ] Model versions are pinned and documented.
-
-## 22. Production Checklist
-
-- [ ] Success rate on golden set above target for two consecutive runs.
-- [ ] P95 latency per request within budget.
-- [ ] Cost per request within budget.
-- [ ] Error rate below threshold for 24 hours of canary traffic.
-- [ ] Fallback chain triggered correctly under synthetic `OverloadedError`.
-- [ ] Streaming delivers first token within 200ms.
-- [ ] Structured output validation failures retried or escalated correctly.
-- [ ] Prompt cache hit rate above target on canary.
-- [ ] Traces are visible in OpenTelemetry backend.
-- [ ] PII redaction verified in logs and traces.
-- [ ] Audit log captures every tool call.
-- [ ] On-call runbook is accessible and tested.
-- [ ] Kill switch (key revocation or ingress change) is reachable within 30 seconds.
-- [ ] Dashboards show success rate, latency, cost, error rate, token usage, cache hit rate per model.
-- [ ] Model versions are pinned and documented.
-- [ ] Batch workloads use the batch API.
-
-## 23. Logging Strategy
-
-- Every Anthropic call logs: trace_id, service_name, model, prompt_version, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens, latency_ms, status, cost_usd.
-- Every tool call logs: trace_id, tool_name, arguments (PII-redacted), result_hash, latency_ms, status.
-- Every streaming call logs: trace_id, first_token_ms, total_tokens, stop_reason.
-- Every batch job logs: batch_id, request_count, status, started_at, completed_at, cost_usd.
-- Every prompt cache event logs: trace_id, cache_creation_tokens, cache_read_tokens, savings_usd.
-- Every fallback event logs: trace_id, primary_model, fallback_model, reason.
-- Logs are structured JSON with stable fields.
-- Logs are tagged with environment, service, model_version.
-- PII is redacted before logging.
-- Logs never contain secrets or full prompts by default; sample prompts only with PII redaction.
-
-## 24. Monitoring Strategy
-
-- Track success rate per service on the live task distribution.
-- Track P50, P95, P99 latency per model and per service.
-- Track token usage per model, per user, per tenant.
-- Track cost per model, per user, per tenant with daily and monthly rollups.
-- Track prompt cache hit rate; alert on drops.
-- Track error rate by error class: rate_limit, overloaded, timeout, server_error, bad_request, auth.
-- Track fallback activation rate; alert on spikes.
-- Track batch job completion rate and latency.
-- Track eval suite score on nightly runs; alert on regression.
-- Track model version distribution; alert on stale or deprecated versions.
-- Dashboards show all of the above sliced by service, tenant, version.
-
-## 25. Error Handling
-
-- `RateLimitError` must be retried with exponential backoff respecting the `retry-after` header; beyond `max_retries`, the fallback model is used.
-- `OverloadedError` must be retried with backoff; persistent overload triggers the fallback.
-- `APITimeoutError` must be retried with backoff; persistent timeouts trigger the fallback.
-- `InternalServerError` must be retried with backoff; persistent 5xx trigger the fallback.
-- `BadRequestError` must not be retried; the request is malformed.
-- `AuthenticationError` must alert the on-call immediately; the key may be revoked.
-- Tool errors must be returned to the model as `tool_result` blocks with `is_error=True`; the model decides next action.
-- Structured output validation failures must be retried once with a repair prompt; persistent failures escalate.
-- Batch job failures must be retried per-request; the failed requests are logged with the error.
-- Streaming errors must close the stream gracefully with an error event.
-- All exceptions must carry trace_id.
-
-## 26. Examples
-
-### Example 1: Async Messages with tool use and prompt caching (Python)
+Manual tool loop with a cached prefix, strict tool, iteration cap and error reporting (Python, async):
 
 ```python
-import os
-import asyncio
-from anthropic import AsyncAnthropic
-from pydantic import BaseModel
+import json
+import anthropic
 
-class WeatherArgs(BaseModel):
-    location: str
-    unit: str = "celsius"
+client = anthropic.AsyncAnthropic()  # reads ANTHROPIC_API_KEY
+MODEL = "claude-sonnet-5-5"
+SYSTEM = "You are a support assistant. Use tools for order data. ..."  # keep above 512 tokens to be cacheable
 
-tools = [{
-    "name": "get_weather",
-    "description": "Get the current weather for a location.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "location": {"type": "string"},
-            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+TOOLS = [
+    {
+        "name": "get_order_status",
+        "description": (
+            "Look up the shipping status of one order by id. Use it whenever the user asks "
+            "where an order is. Returns JSON with status and carrier. Does not modify the order."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"order_id": {"type": "string", "description": "Order id, e.g. A-10293"}},
+            "required": ["order_id"],
+            "additionalProperties": False,
         },
-        "required": ["location"],
-    },
-}]
+        "strict": True,
+    }
+]
 
-SYSTEM_PROMPT = """You are a helpful weather assistant.
-<instructions>
-- Use the get_weather tool for any weather question.
-- Report the temperature and conditions concisely.
-</instructions>"""
 
-client = AsyncAnthropic(
-    api_key=os.environ["ANTHROPIC_API_KEY"],
-    timeout=30.0,
-    max_retries=3,
-)
+async def run_tool(name: str, args: dict, tenant_id: str) -> tuple[str, bool]:
+    if name == "get_order_status":
+        # Re-check that this tenant may read this order before returning anything.
+        return json.dumps({"order_id": args["order_id"], "status": "shipped"}), False
+    return f"Unknown tool: {name}", True
 
-async def get_weather(args: WeatherArgs) -> str:
-    return f"{args.location}: 22 {args.unit}"
 
-async def chat(question: str) -> str:
+async def answer(question: str, tenant_id: str) -> str:
     messages = [{"role": "user", "content": question}]
-    for _ in range(5):
+    for _ in range(8):  # hard cap on loop iterations
         response = await client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=512,
-            system=[{"type": "text", "text": SYSTEM_PROMPT,
-                     "cache_control": {"type": "ephemeral"}}],
+            model=MODEL,
+            max_tokens=4096,
+            system=SYSTEM,
+            tools=TOOLS,
             messages=messages,
-            tools=tools,
+            cache_control={"type": "ephemeral"},  # automatic caching; breakpoint moves forward
         )
-        if response.stop_reason == "tool_use":
-            for block in response.content:
-                if block.type == "tool_use":
-                    args = WeatherArgs.model_validate(block.input)
-                    result = await get_weather(args)
-                    messages.append({"role": "assistant", "content": response.content})
-                    messages.append({"role": "user", "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    }]})
-            continue
-        return next((b.text for b in response.content if b.type == "text"), "")
-    return "I could not complete the request."
-
-print(asyncio.run(chat("What is the weather in Paris?")))
+        messages.append({"role": "assistant", "content": response.content})  # unmodified
+        if response.stop_reason != "tool_use":
+            return "".join(b.text for b in response.content if b.type == "text")
+        results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                output, is_error = await run_tool(block.name, block.input, tenant_id)
+                results.append(
+                    {"type": "tool_result", "tool_use_id": block.id, "content": output, "is_error": is_error}
+                )
+        messages.append({"role": "user", "content": results})  # tool_result blocks only, one per call
+    raise RuntimeError("tool loop exceeded iteration cap")
 ```
 
-### Example 2: Streaming text with token deltas (TypeScript)
+Streaming with typed error handling (TypeScript):
 
 ```typescript
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({ maxRetries: 3, timeout: 30_000 });
+const client = new Anthropic({ maxRetries: 2, timeout: 5 * 60 * 1000 });
 
-export async function streamCompletion(
-  prompt: string,
-  onToken: (token: string) => void,
-): Promise<string> {
-  const stream = await client.messages.stream({
-    model: "claude-3-5-sonnet-20241022",
-    max_tokens: 1024,
-    system: "You are a concise assistant.",
-    messages: [{ role: "user", content: prompt }],
-  });
-  let full = "";
-  for await (const event of stream) {
-    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-      full += event.delta.text;
-      onToken(event.delta.text);
+export async function summarize(text: string, onText: (t: string) => void): Promise<string> {
+  try {
+    const stream = client.messages
+      .stream({
+        model: "claude-haiku-5-5",
+        max_tokens: 2048,
+        system: "Summarize the user's text in five bullet points.",
+        messages: [{ role: "user", content: text }]
+      })
+      .on("text", onText);
+    const message = await stream.finalMessage();
+    if (message.stop_reason === "max_tokens") {
+      console.warn("summary truncated", message._request_id);
     }
+    return message.content.flatMap(b => (b.type === "text" ? [b.text] : [])).join("");
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError) {
+      throw new Error("Rate limited; retry later"); // SDK already retried twice
+    }
+    if (err instanceof Anthropic.APIError) {
+      console.error("Claude API error", err.status, err.name);
+    }
+    throw err;
   }
-  const final = await stream.finalMessage();
-  console.log({
-    input_tokens: final.usage.input_tokens,
-    output_tokens: final.usage.output_tokens,
-    stop_reason: final.stop_reason,
-  });
-  return full;
 }
 ```
 
-### Example 3: Structured output via forced tool use (Python)
+Structured extraction with a Pydantic model (Python):
 
 ```python
-import os
-from anthropic import Anthropic
+import anthropic
 from pydantic import BaseModel
 
-class ExtractionResult(BaseModel):
-    entities: list[dict]
-    relationships: list[dict]
+client = anthropic.Anthropic()
 
-extraction_tool = {
-    "name": "emit_extraction",
-    "description": "Emit the extracted entities and relationships.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "entities": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "type": {"type": "string", "enum": ["person", "organization", "location"]},
-                    },
-                    "required": ["name", "type"],
-                },
-            },
-            "relationships": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "from": {"type": "string"},
-                        "to": {"type": "string"},
-                        "relation": {"type": "string"},
-                    },
-                    "required": ["from", "to", "relation"],
-                },
-            },
-        },
-        "required": ["entities", "relationships"],
-    },
-}
 
-client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+class Contact(BaseModel):
+    name: str
+    email: str
+    wants_demo: bool
 
-def extract(text: str) -> ExtractionResult:
-    response = client.messages.create(
-        model="claude-3-5-sonnet-20241022",
-        max_tokens=1024,
-        system="Extract entities and relationships from the text.",
-        messages=[{"role": "user", "content": text}],
-        tools=[extraction_tool],
-        tool_choice={"type": "tool", "name": "emit_extraction"},
-    )
-    for block in response.content:
-        if block.type == "tool_use":
-            return ExtractionResult.model_validate(block.input)
-    raise RuntimeError("model did not emit a tool_use block")
+
+response = client.messages.parse(
+    model="claude-haiku-5-5",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Extract the contact: Ana Ruiz (ana@example.com) asked for a demo."}],
+    output_format=Contact,
+)
+if response.stop_reason in ("refusal", "max_tokens"):
+    raise RuntimeError(f"no valid structured output: {response.stop_reason}")
+contact = response.parsed_output  # a Contact instance
 ```
 
-## 27. Common Mistakes
+## 15. Common Mistakes
 
-### Mistake: System prompt as a system message
-- **What**: `messages=[{"role": "system", "content": "..."}]`.
-- **Why**: The Messages API requires `system` as a top-level parameter; a system role in `messages` is rejected.
-- **How to avoid**: Pass `system="..."` (or list of content blocks) to `messages.create`.
+- **`thinking={"type": "enabled", "budget_tokens": ...}`**: 400 on Claude 4.7 and later, including all four current models. Use adaptive thinking (default) and `output_config.effort`.
+- **Passing `adaptive` as an effort value**: `adaptive` is a thinking mode; effort levels are `low`, `medium`, `high`, `xhigh`, `max`.
+- **`thinking={"type": "disabled"}` on Opus 5.5, Sonnet 5.5 or Fable 5.1**: 400. Lower effort instead; Sonnet 5.5 offers `between_tools`.
+- **Setting `temperature` or `top_k` "for determinism"**: 400 on current models, and removed from the 2.x/1.x SDKs. Reduce variance with clearer prompts and structured outputs.
+- **Assistant prefill to force JSON or a prefix**: 400 on Claude 4.6 and later. Use `output_config.format`.
+- **`tool_choice: {"type": "tool", ...}` on Opus 5.5, Sonnet 5.5, Fable 5.1**: 400. Use `auto` plus `strict: true`.
+- **Dropping or editing thinking blocks when resending history**: 400 in tool turns and a broken prefix check on 5.1 models. Append-only history.
+- **Text before `tool_result` blocks, or a missing result for a `tool_use` id**: 400 ("tool_use ids were found without tool_result blocks").
+- **Reading `response.content[0].text`**: crashes when the first block is thinking or tool_use.
+- **Retrying every 400**: validation errors do not fix themselves. Retry 429, 5xx, 529 and connection errors only; the SDK already does.
+- **Treating `input_tokens` as total input with caching**: it counts only tokens after the last breakpoint; add cache read and creation tokens.
+- **Breakpoint on a block that changes every request** (timestamp, user message): never reads from cache. Put it on the last stable block.
+- **Large `max_tokens` without streaming**: the SDK raises or the connection drops. Use `.stream()` with `get_final_message()`.
+- **Accepting a `file_id` from the client**: any workspace key can read any workspace file. Map your own ids server-side.
+- **Putting the API key in a browser bundle** (`NEXT_PUBLIC_*`, `dangerouslyAllowBrowser`): exposes the key. Proxy through a backend.
+- **Hard-coding prices or model limits in code**: they change; read the pricing page and the Models API (`max_input_tokens`, `capabilities`).
 
-### Mistake: No max_tokens
-- **What**: Messages call without `max_tokens`.
-- **Why**: `max_tokens` is required; the call fails.
-- **How to avoid**: Set `max_tokens` based on the task; never rely on defaults.
+## 16. References
 
-### Mistake: No prompt caching for repeated context
-- **What**: Large system prompt or document sent uncached on every call.
-- **Why**: Full price paid every call; cost is 5-10x higher than cached.
-- **How to avoid**: Add `cache_control: {type: "ephemeral"}` to repeated content blocks.
-
-### Mistake: Hardcoded API key
-- **What**: API key written in source code.
-- **Why**: Secrets leak via version control, logs, and images.
-- **How to avoid**: Read `ANTHROPIC_API_KEY` from environment via a secrets manager.
-
-### Mistake: Sync client in async code
-- **What**: `Anthropic()` used inside `async def`.
-- **Why**: Blocks the event loop; throughput collapses.
-- **How to avoid**: Use `AsyncAnthropic`; wrap unavoidable sync calls in `asyncio.to_thread`.
-
-### Mistake: Floating model version in production
-- **What**: Production code uses `claude-3-5-sonnet-latest`.
-- **Why**: Model updates change behavior silently.
-- **How to avoid**: Pin model versions (e.g., `claude-3-5-sonnet-20241022`); migrate deliberately with eval gates.
-
-### Mistake: Real API calls in unit tests
-- **What**: Unit tests hit the real Anthropic API.
-- **Why**: Slow, flaky, expensive, non-deterministic.
-- **How to avoid**: Mock the client with fixture responses.
-
-## 28. Professional Workflow
-
-1. Write the task and success criteria before choosing a model.
-2. Decide direct API vs Bedrock vs Vertex based on deployment and compliance.
-3. Choose the model and pin the version.
-4. Design the prompt: `system` top-level, XML tags for structure, few-shot examples.
-5. Decide tool use and streaming.
-6. Decide prompt caching: cache the system prompt, large documents, few-shot examples.
-7. Decide extended thinking: enable for complex reasoning with a `budget_tokens`.
-8. Configure retries, rate limits, fallbacks, budget.
-9. Implement with the shared client wrapper.
-10. Instrument: structured logs with tokens, cache hits, latency, cost; OpenTelemetry traces.
-11. Build the eval harness; iterate until success-rate target met.
-12. Deploy with health checks, autoscaling, and a kill switch.
-13. Run eval nightly; alert on regression.
-14. Review failure traces weekly; feed back into prompts and tools.
-15. Promote model versions through dev → staging → prod with eval gates.
-
-## 29. Response Style
-
-- Always start from the task and the success criteria, not the model.
-- Always state the deployment choice (direct API/Bedrock/Vertex) and the pinned model version.
-- Always specify the `system` prompt, schema, tools, streaming, prompt caching, and budget.
-- Always flag prompt-injection, moderation, and cost risks.
-- Always propose an eval plan with golden examples.
-- Always use precise Anthropic terminology (Messages API, content block, tool_use, tool_result, cache_control, thinking, document block).
-- Always cite the SDK version and the pinned model version.
-- Always end with a "Next actions" section.
-
-## 30. Output Format
-
-- Service proposals must include: task, success criteria, deployment, model version, system prompt, schema, tools, streaming, prompt caching, fallback, budget, eval plan, security notes.
-- Tool definitions must include: name, description, `input_schema` (JSON Schema), return type, error contract.
-- Schema definitions must include: Pydantic or Zod class, JSON Schema, validation rules.
-- Runbooks must include: symptom, diagnosis, mitigation, rollback, escalation.
-- Code examples must be syntactically valid Python or TypeScript using the current Anthropic SDK.
-- Diagrams must use the same service names as the code.
-- Every output must end with a "Next actions" section.
-- Every output must be self-contained; cross-references to undocumented sources are forbidden.
-- Cost and latency budgets must be stated numerically.
-- Model versions must be cited with dated snapshots in every proposal.
+- [references/tool-use.md](references/tool-use.md): tool definitions, manual loop formatting rules, forced tool use per model, strict tools, the tool runner in Python and TypeScript, thinking with tools, MCP connector, prompt-injection handling.
+- [references/prompt-caching-and-cost.md](references/prompt-caching-and-cost.md): automatic and explicit breakpoints, TTLs, lookback window, invalidation table, usage fields, pre-warming, token counting, effort and cost levers, rate-limit accounting.
+- [references/streaming-and-errors.md](references/streaming-and-errors.md): streaming helpers and event flow, thinking deltas, error classes and HTTP codes, retries and timeouts, stop reasons, rate-limit headers, SDK upgrade notes.
+- [references/batches-and-files.md](references/batches-and-files.md): Message Batches lifecycle, result handling, the Files API, structured output schema limits.
+- Official docs: https://platform.claude.com/docs/en/about-claude/models/overview , https://platform.claude.com/docs/en/api/errors , https://platform.claude.com/docs/en/build-with-claude/thinking , https://platform.claude.com/docs/en/build-with-claude/prompt-caching , https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview , https://github.com/anthropics/anthropic-sdk-python , https://github.com/anthropics/anthropic-sdk-typescript
