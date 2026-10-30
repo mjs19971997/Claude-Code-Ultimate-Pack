@@ -1,125 +1,145 @@
 #!/usr/bin/env python3
-"""Generate docs/skill-index.md from the migration manifest."""
+"""
+Generate docs/skill-index.md from the SKILL.md frontmatter in skills/.
 
-import json
+Usage (from anywhere):
+    python scripts/generate_skill_index.py           # write docs/skill-index.md
+    python scripts/generate_skill_index.py --check   # exit 1 if the index is out of date
+
+The script reads only skills/*/SKILL.md and writes only docs/skill-index.md,
+both resolved relative to this repository.
+"""
+
+from __future__ import annotations
+
+import sys
 from pathlib import Path
 
-MANIFEST_PATH = Path("/home/z/my-project/workspace/migration-manifest.json")
-OUTPUT_PATH = Path("/home/z/my-project/workspace/Claude-Code-Ultimate-Pack-v2/docs/skill-index.md")
+try:
+    import yaml  # PyYAML
+except ImportError:
+    print("PyYAML is required: python -m pip install pyyaml", file=sys.stderr)
+    sys.exit(2)
 
-DOMAIN_ORDER = [
-    "frontend", "backend", "database", "blockchain", "mobile",
-    "devops", "architecture", "security", "testing", "ai", "seo",
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SKILLS_DIR = REPO_ROOT / "skills"
+OUTPUT_PATH = REPO_ROOT / "docs" / "skill-index.md"
+
+CATEGORIES: list[tuple[str, list[str]]] = [
+    ("Architecture", [
+        "solution-architect", "system-design-expert", "clean-architecture-expert", "ddd-expert",
+        "microservices-expert", "code-review-expert", "refactoring-expert", "scalability-expert",
+    ]),
+    ("Frontend", [
+        "senior-react-19-engineer", "nextjs-15-architect", "typescript-master", "tailwindcss-master",
+        "shadcn-ui-expert", "framer-motion-expert", "accessibility-expert", "ui-designer", "ux-designer",
+        "core-web-vitals-expert", "technical-seo-expert",
+    ]),
+    ("Backend", [
+        "nodejs-architect", "expressjs-expert", "nestjs-expert", "graphql-expert", "rest-api-expert",
+    ]),
+    ("Data", [
+        "postgresql-expert", "mongodb-expert", "redis-expert", "elasticsearch-expert", "prisma-expert",
+    ]),
+    ("Infrastructure and DevOps", [
+        "aws-expert", "kubernetes-expert", "terraform-expert", "docker-expert", "nginx-expert",
+        "linux-expert", "cicd-expert", "git-expert",
+    ]),
+    ("Security", [
+        "secure-coding-expert", "api-security-expert", "authentication-expert", "authorization-expert",
+    ]),
+    ("Testing", [
+        "unit-testing-expert", "integration-testing-expert", "e2e-testing-expert", "playwright-expert",
+    ]),
+    ("Mobile", ["swift-expert", "android-expert"]),
+    ("Blockchain", [
+        "solidity-expert", "smart-contract-security-expert", "ethereum-expert", "ethersjs-expert",
+        "web3js-expert", "hardhat-expert", "foundry-expert", "defi-expert", "dao-expert", "nft-expert",
+        "enterprise-blockchain-architect",
+    ]),
+    ("AI and LLM", [
+        "ai-agent-architect", "crewai-expert", "langchain-expert", "prompt-engineering-expert",
+        "mcp-expert", "rag-expert", "anthropic-sdk-expert", "openai-sdk-expert", "gemini-sdk-expert",
+    ]),
 ]
 
-DOMAIN_TITLES = {
-    "frontend": "Frontend",
-    "backend": "Backend",
-    "database": "Database",
-    "blockchain": "Blockchain",
-    "mobile": "Mobile",
-    "devops": "DevOps",
-    "architecture": "Architecture",
-    "security": "Security",
-    "testing": "Testing",
-    "ai": "AI",
-    "seo": "SEO",
-}
+MAX_DESCRIPTION = 200
 
-DOMAIN_COVERAGE = {
-    "frontend": "React 19, Next.js 15, TypeScript, TailwindCSS, shadcn/ui, UI/UX, accessibility, performance, Framer Motion",
-    "backend": "Node.js, Express, NestJS, REST, GraphQL, authn, authz, DDD, microservices, Clean Architecture",
-    "database": "PostgreSQL, Prisma, MongoDB, Redis, ElasticSearch",
-    "blockchain": "Ethereum, Solidity, Hardhat, Foundry, Web3.js, ethers.js, OpenZeppelin, enterprise blockchain, smart-contract security, DeFi, DAO, NFT, Hyperledger Fabric",
-    "mobile": "Android Kotlin, Jetpack Compose, Android architecture, Swift, SwiftUI, UIKit",
-    "devops": "Docker, Docker Compose, Linux, Ubuntu Server, Nginx, Git, GitHub, GitHub Actions, CI/CD, Kubernetes, Terraform, AWS",
-    "architecture": "Software architecture, solution architecture, enterprise architecture, system design, performance optimization, scalability, refactoring, code review",
-    "security": "OWASP Top 10, secure coding, JWT, OAuth2, API security",
-    "testing": "Vitest, Jest, Playwright, Cypress, unit, integration, end-to-end",
-    "ai": "Agent architecture, MCP, LangGraph, LangChain, CrewAI, OpenAI SDK, Anthropic SDK, Gemini SDK, prompt engineering, RAG, vector databases, memory systems, multi-agent",
-    "seo": "Technical SEO, Core Web Vitals, Schema.org, structured data",
-}
+
+def read_frontmatter(skill_md: Path) -> dict:
+    text = skill_md.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        return {}
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return {}
+    data = yaml.safe_load(text[4:end])
+    return data if isinstance(data, dict) else {}
+
+
+def short_description(description: str) -> str:
+    text = " ".join(str(description).split())
+    # The first sentence before "Use when" says what the skill does.
+    text = text.split(" Use when ")[0]
+    if len(text) > MAX_DESCRIPTION:
+        text = text[: MAX_DESCRIPTION - 3].rstrip() + "..."
+    return text.replace("|", "\\|")
+
+
+def anchor(title: str) -> str:
+    return "".join(c for c in title.lower() if c.isalnum() or c in " -").replace(" ", "-")
+
+
+def build() -> tuple[str, list[str]]:
+    present = {d.name for d in SKILLS_DIR.iterdir() if (d / "SKILL.md").is_file()}
+    listed = {name for _, names in CATEGORIES for name in names}
+    problems = [f"skill folder not in any category: {n}" for n in sorted(present - listed)]
+    problems += [f"category lists a missing skill: {n}" for n in sorted(listed - present)]
+
+    total = len(present & listed)
+    lines = [
+        "# Skill Index",
+        "",
+        "<!-- Generated by scripts/generate_skill_index.py. Do not edit by hand. -->",
+        "",
+        "Every skill in the pack, grouped by category. Each one lives at `skills/<name>/SKILL.md`.",
+        "",
+        f"**Total skills: {total}** in {len(CATEGORIES)} categories.",
+        "",
+        "## Contents",
+        "",
+    ]
+    for title, names in CATEGORIES:
+        count = sum(1 for n in names if n in present)
+        lines.append(f"- [{title} ({count})](#{anchor(f'{title} {count}')})")
+    lines.append("")
+
+    for title, names in CATEGORIES:
+        rows = [n for n in names if n in present]
+        lines += [f"## {title} ({len(rows)})", "", "| Skill | Description |", "|---|---|"]
+        for name in rows:
+            meta = read_frontmatter(SKILLS_DIR / name / "SKILL.md")
+            desc = short_description(meta.get("description", ""))
+            lines.append(f"| [`{name}`](../skills/{name}/SKILL.md) | {desc} |")
+        lines.append("")
+
+    return "\n".join(lines), problems
 
 
 def main() -> int:
-    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    skills = manifest["skills_migrated"]
-
-    # Group by domain
-    by_domain: dict[str, list[dict]] = {}
-    for s in skills:
-        by_domain.setdefault(s["domain"], []).append(s)
-
-    # Sort within each domain by skill_name
-    for d in by_domain:
-        by_domain[d].sort(key=lambda x: x["skill_name"])
-
-    total = len(skills)
-
-    lines: list[str] = []
-    lines.append("# Skill Index")
-    lines.append("")
-    lines.append(f"A complete, flat index of every skill in the Claude Code Ultimate Pack. All {total} skills live at `skills/<skill-name>/SKILL.md` per the [official Claude Code Agent Skills specification](https://code.claude.com/docs/en/skills).")
-    lines.append("")
-    lines.append(f"**Total skills: {total}** across {len(by_domain)} domains.")
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-    lines.append("## Table of Contents")
-    lines.append("")
-    for d in DOMAIN_ORDER:
-        if d in by_domain:
-            anchor = DOMAIN_TITLES[d].lower()
-            lines.append(f"- [{DOMAIN_TITLES[d]} ({len(by_domain[d])} skills)](#{anchor})")
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-
-    for d in DOMAIN_ORDER:
-        if d not in by_domain:
-            continue
-        title = DOMAIN_TITLES[d]
-        coverage = DOMAIN_COVERAGE.get(d, "")
-        skills_in_domain = by_domain[d]
-        lines.append(f"## {title} ({len(skills_in_domain)} skills)")
-        lines.append("")
-        lines.append(f"**Coverage**: {coverage}.")
-        lines.append("")
-        lines.append("| Skill Name | Folder | Description |")
-        lines.append("|---|---|---|")
-        for s in skills_in_domain:
-            name = s["skill_name"]
-            title_val = s["title"]
-            desc = s["description"].replace("|", "\\|").replace("\n", " ")
-            # Truncate very long descriptions for table readability
-            if len(desc) > 180:
-                desc = desc[:177] + "..."
-            folder = f"`skills/{name}/`"
-            lines.append(f"| `{name}` | {folder} | {desc} |")
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-    # Cross-domain usage notes
-    lines.append("## How to Use This Index")
-    lines.append("")
-    lines.append("1. **Find by domain**: scan the tables above to find skills relevant to your work.")
-    lines.append("2. **Find by name**: use your editor's find-in-page (`Cmd/Ctrl + F`) to search for a specific skill name.")
-    lines.append("3. **Activate**: skills auto-activate based on the `description` field in their YAML frontmatter. You can also force-activate with `/skill <skill-name>`.")
-    lines.append("4. **Compose**: multiple skills can be active simultaneously. For example, building an authenticated REST API with PostgreSQL naturally composes `nestjs-expert`, `authentication-expert`, `postgresql-expert`, and `jest-expert`.")
-    lines.append("")
-    lines.append("## See Also")
-    lines.append("")
-    lines.append("- [`docs/usage-guide.md`](./usage-guide.md) — detailed usage patterns")
-    lines.append("- [`examples/example-usage.md`](../examples/example-usage.md) — real-world scenarios")
-    lines.append("- [`docs/skill-structure.md`](./skill-structure.md) — the 30-section skill anatomy specification")
-    lines.append("- [`CONTRIBUTING.md`](../CONTRIBUTING.md) — how to add a new skill")
-
-    OUTPUT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"Skill index written to: {OUTPUT_PATH}")
-    print(f"Total skills indexed: {total}")
+    content, problems = build()
+    for p in problems:
+        print(f"WARN    {p}", file=sys.stderr)
+    if "--check" in sys.argv:
+        current = OUTPUT_PATH.read_text(encoding="utf-8") if OUTPUT_PATH.exists() else ""
+        if current != content:
+            print("docs/skill-index.md is out of date", file=sys.stderr)
+            return 1
+        return 0
+    OUTPUT_PATH.write_text(content, encoding="utf-8", newline="\n")
+    print(f"Wrote {OUTPUT_PATH.relative_to(REPO_ROOT).as_posix()}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())
