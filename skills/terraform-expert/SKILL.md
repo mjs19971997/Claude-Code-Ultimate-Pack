@@ -11,7 +11,7 @@ metadata:
 
 This skill covers infrastructure as code with Terraform and its open-source fork OpenTofu: the HCL language, module design, providers and version pinning, remote state, refactoring with config-driven blocks (`moved`, `removed`, `import`), the native `terraform test` framework, and safe plan/apply workflows. It does not cover which cloud services to choose (see aws-expert), Kubernetes object design (see kubernetes-expert), or the CI system itself beyond the Terraform-specific steps (see cicd-expert).
 
-> Verified against Terraform 1.17.0 and 1.16.x, the hashicorp/aws provider 6.x and OpenTofu 1.13 (2026-10).
+> Verified against Terraform 1.17.1 (released 2026-10-28) and 1.16.7, the hashicorp/aws provider 6.71 and OpenTofu 1.13.5 (2026-10).
 
 ## Contents
 1. [Scope](#1-scope)
@@ -42,11 +42,12 @@ This skill covers infrastructure as code with Terraform and its open-source fork
 
 ## 2. Core Expertise
 
+- **Recent language changes.** Variables and locals are allowed in module `source` and `version` (1.15) and in provider requirements (1.17); `deprecated` on `variable` and `output` blocks and typed outputs (1.15); `import` blocks inside modules and resource-level `lifecycle { destroy = false }` (1.16); `terraform plan -minimal-refresh` refreshes only resources with proposed changes (1.17). Check the changelog before relying on a feature in a shared module, since consumers may run older binaries.
 - **Language.** Blocks (`terraform`, `provider`, `resource`, `data`, `module`, `variable`, `output`, `locals`, `check`, `moved`, `removed`, `import`, `ephemeral`), type constraints (`object({...})` with `optional()` defaults), `nullable`, `sensitive`, `ephemeral` variables and outputs.
 - **Meta-arguments.** `count`, `for_each`, `depends_on`, `provider`, `lifecycle`. Lifecycle settings accept only literal values: `prevent_destroy = var.x` or any expression fails validation.
 - **Lifecycle arguments.** `create_before_destroy`, `prevent_destroy`, `ignore_changes`, `replace_triggered_by`, `precondition`, `postcondition`, and in current versions `action_trigger` and `destroy` (see the lifecycle docs for your version).
 - **Providers.** `required_providers` with source and constraint, provider aliases, passing providers into modules with `providers = { aws = aws.us_east_1 }`, the dependency lock file `.terraform.lock.hcl` (commit it; refresh hashes for every platform with `terraform providers lock -platform=...`).
-- **State.** The S3 backend with `use_lockfile = true` (S3 native locking, introduced as opt-in in Terraform 1.10; DynamoDB locking is now documented as deprecated), GCS, azurerm, HCP Terraform. `terraform state list/show/mv/rm` for inspection and emergencies; prefer config-driven blocks for planned changes.
+- **State.** The S3 backend with `use_lockfile = true` (S3 native locking, opt-in since Terraform 1.10 and generally available in 1.11; the DynamoDB arguments are deprecated), GCS, azurerm, HCP Terraform. `terraform state list/show/mv/rm` for inspection and emergencies; prefer config-driven blocks for planned changes.
 - **Refactoring blocks.** `moved` (rename or move into a module without destroy), `removed` (forget a resource, optionally `lifecycle { destroy = false }`), `import` (adopt existing objects; `for_each` supported; `terraform plan -generate-config-out=generated.tf` drafts the config).
 - **Secrets.** `sensitive` hides values in output but they still land in state. Ephemeral resources and write-only arguments (Terraform 1.11+, provider support required, for example `password_wo` with `password_wo_version`) keep values out of state and plan.
 - **Testing.** `terraform test` with `.tftest.hcl` files (1.6+), `command = plan` for unit-style checks, `mock_provider` and `override_resource` (1.7+) to run without credentials, `expect_failures` for validation tests.

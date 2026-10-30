@@ -11,7 +11,7 @@ metadata:
 
 This skill covers making web interfaces usable by people who rely on keyboards, screen readers, magnification, voice control, switch devices or reduced motion, and proving it with WCAG 2.2 AA checks. It focuses on component code (HTML, React/TSX, CSS) and on the test pipeline. It does not cover visual identity, user research, or native iOS/Android accessibility APIs beyond touch-target and screen-reader notes.
 
-> Verified against WCAG 2.2 (W3C Recommendation, Oct 2023), WAI-ARIA 1.2, the ARIA Authoring Practices Guide, axe-core 4.x with `@axe-core/playwright`, and the WCAG 3 status page (2026-10).
+> Verified against WCAG 2.2 (W3C Recommendation, Oct 2023), WAI-ARIA 1.2 (Recommendation; 1.3 is still a Working Draft), the ARIA Authoring Practices Guide, axe-core 4.14 with `@axe-core/playwright` 4.14, and the WCAG 3 Working Draft of March 2026 (2026-10).
 
 ## Contents
 1. [Scope](#1-scope)
@@ -280,7 +280,7 @@ test('checkout has no detectable WCAG A/AA violations', async ({ page }) => {
   expect(results.violations).toEqual([]);
 });
 
-test('payment dialog traps and returns focus', async ({ page }) => {
+test('payment dialog closes with Escape and returns focus', async ({ page }) => {
   await page.goto('/checkout');
   const trigger = page.getByRole('button', { name: 'Change payment method' });
   await trigger.click();
@@ -308,5 +308,6 @@ test('payment dialog traps and returns focus', async ({ page }) => {
 
 ## 16. References
 
-- [references/widget-patterns.md](references/widget-patterns.md): keyboard models and code for tabs, menu button, disclosure, combobox and live announcements.
+- [references/widget-patterns.md](references/widget-patterns.md): keyboard models for common widgets, code for tabs, disclosure and live announcements, shared CSS helpers, and combobox notes.
 - [references/testing.md](references/testing.md): automated tooling setup, manual screen reader matrix, and how to write an audit finding.
+- Official docs: https://www.w3.org/TR/WCAG22/ , https://www.w3.org/WAI/ARIA/apg/ , https://www.w3.org/TR/wai-aria-1.2/ , https://github.com/dequelabs/axe-core , https://playwright.dev/docs/accessibility-testing

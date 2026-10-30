@@ -1,8 +1,8 @@
 # CrewAI Flows, Hierarchical Crews and Projects
 
-Deeper notes for the crewai-expert skill. Verified against CrewAI 1.15.30 docs (2026-10).
+Deeper notes for the crewai-expert skill. Verified against CrewAI 1.15.33 and docs.crewai.com (2026-10).
 
-## Flow building blocks
+## 1. Flow building blocks
 
 ```python
 from crewai.flow.flow import Flow, and_, listen, or_, router, start
@@ -17,14 +17,14 @@ from crewai.flow.human_feedback import human_feedback, HumanFeedbackResult
 - **`@router(method)`**: returns a label string; declare the labels with a `Literal[...]` return annotation or `@router(method, emit=[...])` so plots show the branches.
 - **Running**: `flow.kickoff(inputs={...})` returns the output of the last method to finish; `await flow.kickoff_async(inputs={...})` is the async form. `flow.usage_metrics` aggregates token usage.
 
-## Persistence and resume
+## 2. Persistence and resume
 
 - `@persist` above the class persists state after each method (SQLite by default); above a single method it persists only that step.
 - Resume a run: `flow.kickoff(inputs={"id": stored_state_id})` continues with the stored state.
 - Fork a run: `flow.kickoff(restore_from_state_id=stored_state_id)` starts a new run (new `state.id`) from the stored state.
 - Keep state JSON-serializable and small; store large artifacts elsewhere and keep references in state.
 
-## Human feedback in Flows
+## 3. Human feedback in Flows
 
 ```python
 from crewai.flow.flow import Flow, listen, start
@@ -51,15 +51,15 @@ class DraftFlow(Flow):
         ...
 ```
 
-With `emit`, an LLM maps the reviewer's free-form feedback to one outcome label. Without `emit`, the step only collects feedback and listeners receive a `HumanFeedbackResult` with `.feedback` and `.output`. History is on `self.last_human_feedback` and `self.human_feedback_history`. Human feedback needs CrewAI 1.8.0 or later.
+With `emit`, an LLM maps the reviewer's free-form feedback to one outcome label. Without `emit`, the step only collects feedback and listeners receive a `HumanFeedbackResult` with `.feedback` and `.output`. History is on `self.last_human_feedback` and `self.human_feedback_history`.
 
-## Running crews and agents inside Flow steps
+## 4. Running crews and agents inside Flow steps
 
 - Call a crew factory and `kickoff` it inside a step; copy what you need from `CrewOutput` (`raw`, `pydantic`) into state.
 - For a single role, `Agent(...).kickoff("prompt")` avoids building a crew.
 - In async Flows use `await crew.akickoff(inputs=...)` (native async) or `await crew.kickoff_async(inputs=...)` (thread-based).
 
-## Hierarchical crews
+## 5. Hierarchical crews
 
 ```python
 from crewai import LLM, Agent, Crew, Process, Task
@@ -92,11 +92,11 @@ result = crew.kickoff(inputs={"topic": "residential solar"})
 - Use `manager_agent` instead of `manager_llm` to control the manager's role, goal and tools.
 - Hierarchical runs make more model calls than sequential ones; compare cost and quality on your eval set before choosing it.
 
-## Planning
+## 6. Planning
 
 `Crew(planning=True, planning_llm=...)` adds a planning step before execution that writes a plan the agents follow. It adds latency and tokens; keep it only where it improves results for long multi-task crews.
 
-## Memory scoping
+## 7. Memory scoping
 
 ```python
 from crewai import Agent, Crew, Memory, Task
@@ -119,7 +119,7 @@ def build_support_crew(tenant_id: str) -> Crew:
 - There is no built-in tenant model, so derive scope paths from authenticated identity and test that one tenant cannot recall another's records.
 - Custom storage backends implement the `StorageBackend` protocol; check the docs for production backends.
 
-## JSON-first project files
+## 8. JSON-first project files
 
 - `agents/<name>.jsonc`: `role`, `goal`, `backstory` (with `{placeholders}`), `llm` (`provider/model-id`), `tools` (built-in class names such as `"SerperDevTool"` or `"custom:<name>"` for `tools/<name>.py`), `settings` (for example `verbose`, `allow_delegation`).
 - `crew.jsonc`: `name`, `agents` (file names), `tasks` (each with `name`, `description`, `expected_output`, `agent`, `context` as prior task names, `output_file`, `markdown`), `process`, `verbose`, `memory`, `inputs` (placeholder defaults).

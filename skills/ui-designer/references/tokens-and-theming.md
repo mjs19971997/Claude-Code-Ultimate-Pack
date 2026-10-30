@@ -1,8 +1,8 @@
 # Tokens and Theming
 
-How to keep one source of truth for design decisions and ship it to CSS, Tailwind and JavaScript, with themes that switch without flashing.
+How to keep one source of truth for design decisions and ship it to CSS, Tailwind and JavaScript, with themes that switch without flashing. Verified against the DTCG format 2025.10, Style Dictionary 5.7, Tailwind CSS 4.3 and CSS Color Module 4 (2026-10).
 
-## Layering
+## 1. Layering
 
 | Layer | Example name | Holds | Who references it |
 |---|---|---|---|
@@ -16,7 +16,7 @@ Rules:
 - A theme (light, dark, high contrast, brand B) is a different semantic file pointing at the same or other primitives.
 - Component tokens default to semantic tokens; add them only when a component truly differs.
 
-## Source format
+## 2. Source format
 
 The Design Tokens Community Group (DTCG) format reached its first stable version (2025.10). It is a community specification, not a W3C standard, and tooling support is still catching up, so check that your exporter and build tool read the same version. Core ideas:
 
@@ -43,7 +43,7 @@ A semantic file is mostly aliases, which keeps it independent of the value forma
 }
 ```
 
-## Build output
+## 3. Build output
 
 Style Dictionary reads DTCG-style tokens and emits CSS variables, JS/TS modules and other platforms. Build one output per theme so each lands under its own selector:
 
@@ -80,7 +80,7 @@ for (const theme of themes) {
 
 The filter keeps primitives out of the shipped CSS when only semantic tokens should be public; adjust it to your naming. Check the Style Dictionary docs for the version you install, since option names have changed between major versions.
 
-## Tailwind CSS v4
+## 4. Tailwind CSS v4
 
 Tailwind v4 is configured in CSS. Map runtime CSS variables into the theme with `@theme inline` so utilities follow the active theme:
 
@@ -102,18 +102,18 @@ Tailwind v4 is configured in CSS. Map runtime CSS variables into the theme with 
 
 Utilities such as `bg-bg`, `text-fg`, `text-muted` and `bg-accent` now switch with `data-theme` without any `dark:` overrides in components.
 
-## Theme switching without a flash
+## 5. Theme switching without a flash
 
 1. Default to the system preference with `@media (prefers-color-scheme: dark)` remapping the semantic tokens when no explicit choice exists.
 2. Store an explicit choice in a cookie and render `data-theme` on `<html>` on the server, so the first paint is already correct.
 3. On fully static hosting, a tiny inline script in `<head>` can read the stored choice before first paint. Under a Content Security Policy, allow it with a hash (`'sha256-…'`) or a per-request nonce; never add `'unsafe-inline'`.
 4. Set `color-scheme` per theme so form controls and scrollbars match.
 
-## Contrast table
+## 6. Contrast table
 
 Generate a table from the token build: for each theme, list every text/background and border/background pair that the system allows, its computed WCAG contrast ratio and the required minimum (4.5, 3 or 3). Fail CI when a pair drops below its minimum. Libraries such as `culori` or `colorjs.io` can convert OKLCH to sRGB and compute relative luminance.
 
-## Versioning
+## 7. Versioning
 
 - Patch: value tweaks that keep contrast and meaning.
 - Minor: new tokens or themes.

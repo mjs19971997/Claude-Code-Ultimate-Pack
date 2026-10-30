@@ -1,8 +1,8 @@
 # Testing Terraform Modules
 
-The native test framework (`terraform test`, Terraform 1.6+) runs `.tftest.hcl` files against a module. Each file creates its own ephemeral state; resources created by apply-mode runs are destroyed when the file finishes. Mocking (`mock_provider`, `override_resource`, `override_data`) arrived in 1.7.
+The native test framework (`terraform test`, Terraform 1.6+) runs `.tftest.hcl` files against a module. Each file creates its own ephemeral state; resources created by apply-mode runs are destroyed when the file finishes. Mocking (`mock_provider`, `override_resource`, `override_data`) arrived in 1.7. Verified against Terraform 1.17.1 and OpenTofu 1.13.5 (2026-10).
 
-## Layout
+## 1. Layout
 
 ```
 modules/rds-postgres/
@@ -16,7 +16,7 @@ modules/rds-postgres/
 
 `terraform test` discovers files in the module root and in `tests/`. Run one file with `terraform test -filter=tests/unit.tftest.hcl`.
 
-## Building blocks
+## 2. Building blocks
 
 - `variables { ... }` at file level sets defaults; a `variables` block inside a `run` overrides them.
 - `run "name" { ... }` executes in order. `command = plan` checks logic without creating anything; `command = apply` (the default) creates real resources.
@@ -25,7 +25,7 @@ modules/rds-postgres/
 - `module { source = "./tests/setup" }` inside a run executes a helper module instead of the module under test, for fixtures such as a VPC.
 - `providers = { aws = aws.sandbox }` selects provider configurations defined in the test file.
 
-## Unit tests with mocks
+## 3. Unit tests with mocks
 
 ```hcl
 # tests/unit.tftest.hcl
@@ -76,7 +76,7 @@ Notes:
 - Mocked computed attributes get generated placeholder values; use `mock_resource` / `mock_data` defaults or `override_resource` when a test depends on a specific value (an ARN format, an ID used in a policy).
 - Assertions on values unknown at plan time fail in plan mode; assert on inputs and derived values, or switch that run to apply mode.
 
-## Integration tests
+## 4. Integration tests
 
 ```hcl
 # tests/integration.tftest.hcl
@@ -106,7 +106,7 @@ run "creates_instance" {
 
 Run integration tests in a dedicated sandbox account with OIDC credentials, on a schedule or before tagging a module release. The `prevent_destroy = true` in the module under test blocks the test's own cleanup; integration tests for such modules need a test-only wrapper or `override_resource`, or must accept manual cleanup. Decide this explicitly.
 
-## In CI
+## 5. In CI
 
 1. `terraform fmt -check -recursive`
 2. `terraform init -backend=false` then `terraform validate`
@@ -114,7 +114,7 @@ Run integration tests in a dedicated sandbox account with OIDC credentials, on a
 4. `terraform test -filter=tests/unit.tftest.hcl` in every PR (no credentials)
 5. Integration files on schedule or release, with a timeout and a cleanup job that deletes anything tagged by the test run.
 
-## Other tools
+## 6. Other tools
 
 - Terratest (Go): apply, then exercise endpoints (HTTP checks, SQL connections), then destroy.
 - Conftest/OPA on `terraform show -json tfplan`: policy over the full plan.

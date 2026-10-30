@@ -1,8 +1,8 @@
 # Refactoring, Import and State Migration
 
-Config-driven blocks make state changes reviewable: they appear in `terraform plan`, run in every environment that applies the configuration, and leave a record in version control. Use the `terraform state` subcommands only for inspection or for recovery when no block fits.
+Config-driven blocks make state changes reviewable: they appear in `terraform plan`, run in every environment that applies the configuration, and leave a record in version control. Use the `terraform state` subcommands only for inspection or for recovery when no block fits. Verified against Terraform 1.17.1 and OpenTofu 1.13.5 (2026-10).
 
-## `moved` blocks (Terraform 1.1+)
+## 1. `moved` blocks (Terraform 1.1+)
 
 Use when a resource or module changes address but the real object stays the same.
 
@@ -41,7 +41,7 @@ Rules:
 - Keep `moved` blocks until every state that uses the configuration has applied them. In a published module, keep them for at least one major version.
 - Chains are allowed (`a -> b`, later `b -> c`); keep the history in order.
 
-## `import` blocks (Terraform 1.5+)
+## 2. `import` blocks (Terraform 1.5+)
 
 Use to bring existing infrastructure under management through a reviewed plan.
 
@@ -73,9 +73,9 @@ Workflow:
 4. Plan again until it shows only imports and no changes. Apply.
 5. Delete the `import` blocks in a later change (they are no-ops once imported, but clutter the code).
 
-Import IDs differ per resource type; the provider documentation lists the format at the bottom of each resource page. Current Terraform versions also support `import` blocks inside child modules; check the docs for your version before relying on it.
+Import IDs differ per resource type; the provider documentation lists the format at the bottom of each resource page. `import` blocks inside child modules are supported from Terraform 1.16; in earlier versions they must live in the root module.
 
-## `removed` blocks (Terraform 1.7+)
+## 3. `removed` blocks (Terraform 1.7+)
 
 Use to stop managing an object.
 
@@ -100,7 +100,7 @@ removed {
 
 Without `destroy = false`, a `removed` block behaves like deleting the resource block: the object is destroyed. Review the plan carefully.
 
-## Splitting a state
+## 4. Splitting a state
 
 Moving resources from one root module to another without destroy:
 
@@ -109,7 +109,7 @@ Moving resources from one root module to another without destroy:
 3. Apply the source first (forgets the objects), then the target (imports them). Both plans must show no create or destroy.
 4. Replace any cross-references with outputs or data sources.
 
-## Backend migration
+## 5. Backend migration
 
 From DynamoDB locking to S3 native locking:
 
@@ -130,7 +130,7 @@ With both configured, Terraform must acquire both locks. Once every pipeline and
 
 Moving to a different backend: change the `backend` block and run `terraform init -migrate-state`; verify with `terraform plan` (expect no changes) before deleting the old state.
 
-## Recovery commands
+## 6. Recovery commands
 
 - `terraform state list` / `state show ADDRESS`: inspection, safe.
 - `terraform state pull > backup.tfstate`: take a copy before any manual change.

@@ -11,7 +11,7 @@ metadata:
 
 This skill covers running workloads on Kubernetes: the core API objects, networking with Services and Gateway API, storage, security (RBAC, Pod Security Admission, NetworkPolicy), autoscaling, packaging with Helm and Kustomize, GitOps delivery, and the upgrade path between minor versions. It does not cover building container images (docker-expert), the CI system that publishes them (cicd-expert), or creating the cluster's cloud infrastructure (terraform-expert, aws-expert).
 
-> Verified against Kubernetes 1.37, 1.36 and 1.35 (1.34 reaches end of life on 2026-10-27) and Gateway API v1.6 (2026-10).
+> Verified against Kubernetes 1.37, 1.36 and 1.35 (1.34 reached end of life on 2026-10-27, 1.30 long before) and Gateway API v1.6 (2026-10).
 
 ## Contents
 1. [Scope](#1-scope)
@@ -48,7 +48,7 @@ This skill covers running workloads on Kubernetes: the core API objects, network
 - **Native sidecars** (stable since 1.33): an `initContainers` entry with `restartPolicy: Always` starts before the app containers, keeps running, and is stopped after them. Use for proxies, log shippers and credential refreshers.
 - **In-place Pod resize** (stable since 1.35): CPU and memory requests and limits are mutable through the `resize` subresource, often without a restart; `resizePolicy` per resource controls restarts. VPA can use it through its in-place update mode (check your VPA version).
 - **Gateway API** is the successor to Ingress: role-oriented (GatewayClass for the platform, Gateway for cluster operators, Routes for app teams), portable matching, header and weight-based routing, cross-namespace references controlled by `ReferenceGrant` and `allowedRoutes`.
-- **ingress-nginx retirement.** The Kubernetes ingress-nginx project ended maintenance in March 2026: no further releases or security fixes. Migrate to a Gateway API implementation (the `ingress2gateway` tool converts manifests) or to a maintained ingress controller.
+- **ingress-nginx retirement.** The Kubernetes ingress-nginx project was retired on 2026-03-24: no further releases or security fixes. Migrate to a Gateway API implementation (`ingress2gateway` 1.0 converts manifests) or to a maintained ingress controller.
 - **EndpointSlice** replaces the deprecated v1 Endpoints API for consumers that watch endpoints.
 - **Pod Security Admission** with namespace labels `pod-security.kubernetes.io/enforce|audit|warn` at `privileged`, `baseline` or `restricted`.
 - **Admission policy in CEL:** ValidatingAdmissionPolicy (GA) for in-tree validation without webhooks; Kyverno or OPA Gatekeeper for mutation, generation and image verification.
@@ -397,3 +397,4 @@ kubectl -n payments get pod worker -o jsonpath='{.status.containerStatuses[0].re
 - [references/gateway-api.md](references/gateway-api.md): Ingress and ingress-nginx migration, Gateway API resources, TLS, canary weights, cross-namespace rules.
 - [references/security-hardening.md](references/security-hardening.md): PSA, RBAC patterns, ValidatingAdmissionPolicy, NetworkPolicy recipes, workload identity, image verification.
 - [references/upgrades-and-operations.md](references/upgrades-and-operations.md): release support, version skew, deprecated API scanning, upgrade runbook, debugging and backups.
+- Official docs: https://kubernetes.io/docs/ , https://kubernetes.io/releases/ , https://gateway-api.sigs.k8s.io/ , https://kubernetes.io/docs/concepts/security/pod-security-standards/ , https://github.com/kubernetes-sigs/ingress2gateway

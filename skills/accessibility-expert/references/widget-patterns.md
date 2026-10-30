@@ -1,8 +1,8 @@
 # Widget Patterns
 
-Keyboard models and minimal implementations for common custom widgets. They follow the WAI-ARIA Authoring Practices Guide (APG). Before building any of these by hand, check whether a native element (`<select>`, `<details>`, `<dialog>`, `popover`) or a maintained library (React Aria, Radix UI) already covers the need.
+Keyboard models and minimal implementations for common custom widgets. They follow the WAI-ARIA Authoring Practices Guide (APG). Before building any of these by hand, check whether a native element (`<select>`, `<details>`, `<dialog>`, `popover`) or a maintained library (React Aria, Radix UI) already covers the need. Verified against the WAI-ARIA Authoring Practices Guide, WAI-ARIA 1.2 and React 18+ hooks (2026-10).
 
-## Keyboard models
+## 1. Keyboard models
 
 | Widget | Tab | Arrow keys | Other keys |
 |---|---|---|---|
@@ -16,7 +16,7 @@ Keyboard models and minimal implementations for common custom widgets. They foll
 
 "Menu" roles (`menu`, `menuitem`) are for application-style menus. A site navigation list is a `<nav>` with links, not a `role="menu"`.
 
-## Tabs with roving tabindex
+## 2. Tabs with roving tabindex
 
 ```tsx
 // src/components/ui/tabs.tsx
@@ -89,7 +89,7 @@ export function Tabs({ tabs, label }: { tabs: Tab[]; label: string }) {
 
 This uses automatic activation (arrow keys select). If showing a panel is expensive, use manual activation: arrows move focus only, Enter/Space select.
 
-## Disclosure
+## 3. Disclosure
 
 ```tsx
 // src/components/ui/disclosure.tsx
@@ -113,7 +113,7 @@ export function Disclosure({ summary, children }: { summary: string; children: R
 
 For static content, `<details><summary>…</summary>…</details>` needs no script at all.
 
-## App-wide announcements
+## 4. App-wide announcements
 
 ```tsx
 // src/components/live-region.tsx
@@ -142,7 +142,7 @@ export const useAnnounce = () => useContext(AnnounceContext);
 
 The region is rendered on first load and stays mounted; only its text changes.
 
-## Visually hidden utility
+## 5. Visually hidden utility
 
 ```css
 /* src/styles/base.css */
@@ -175,6 +175,6 @@ The region is rendered on first load and stays mounted; only its text changes.
 
 The global reduced-motion override is a safety net; components should still choose a calmer alternative (fade instead of slide) rather than relying on it alone.
 
-## Combobox notes
+## 6. Combobox notes
 
 A combobox (autocomplete) is the widget most often broken by hand-rolled code. Requirements include `role="combobox"` on the input, `aria-expanded`, `aria-controls` pointing to a `role="listbox"`, `aria-activedescendant` for the highlighted option, and a polite announcement of the result count. Prefer a library that implements the APG combobox pattern and test it with at least two screen readers.

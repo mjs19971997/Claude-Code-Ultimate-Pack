@@ -11,7 +11,7 @@ metadata:
 
 This skill covers the visual layer of a product and how it is expressed in code: tokens, colour, typography, spacing, elevation, iconography, component states, theming and motion guidelines. It aims for systems that stay consistent as teams and screens grow. It does not cover user research or task flows, and it treats accessibility rules as constraints rather than auditing them in depth.
 
-> Verified against CSS Color Module 4 (`oklch()`, `color-mix()`, `light-dark()`), CSS container queries, the Design Tokens Community Group format 2025.10, Tailwind CSS v4 `@theme`, and WCAG 2.2 contrast criteria (2026-10).
+> Verified against CSS Color Module 4 (`oklch()`, `color-mix()`, `light-dark()`), CSS container queries, the Design Tokens Community Group format 2025.10 (first stable version), Tailwind CSS 4.3 `@theme`, Style Dictionary 5.7, and WCAG 2.2 contrast criteria (2026-10).
 
 ## Contents
 1. [Scope](#1-scope)
@@ -261,3 +261,4 @@ The values are a starting point; run every pair through a contrast checker befor
 ## 14. References
 
 - [references/tokens-and-theming.md](references/tokens-and-theming.md): token layering, DTCG source files, Style Dictionary and Tailwind v4 output, theme switching without a flash of the wrong theme.
+- Official docs: https://www.designtokens.org/ , https://www.w3.org/TR/css-color-4/ , https://tailwindcss.com/docs/theme , https://styledictionary.com/ , https://www.w3.org/TR/WCAG22/

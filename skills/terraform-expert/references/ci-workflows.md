@@ -1,8 +1,8 @@
 # Terraform in CI: Plan, Apply and Drift
 
-This file covers the Terraform-specific steps of a pipeline. Runner setup, reusable workflows, branch protection and general GitHub Actions hardening belong to the cicd-expert skill.
+This file covers the Terraform-specific steps of a pipeline. Runner setup, reusable workflows, branch protection and general GitHub Actions hardening belong to the cicd-expert skill. Verified against Terraform 1.17.1, OpenTofu 1.13.5, `actions/checkout` v7, `aws-actions/configure-aws-credentials` v6 and `hashicorp/setup-terraform` v4 (2026-10).
 
-## Principles
+## 1. Principles
 
 - Cloud credentials come from OIDC federation, never from stored access keys.
 - Two roles per environment: a plan role (read-only plus state read and lock) usable from pull requests, and an apply role trusted only for the protected branch and the deployment environment.
@@ -11,7 +11,7 @@ This file covers the Terraform-specific steps of a pipeline. Runner setup, reusa
 - Untrusted values (branch names, PR titles, workflow inputs) never go straight into `run:` scripts; pass them through `env:` and quote them.
 - Pin actions; prefer full commit SHAs for third-party actions.
 
-## IAM trust policy for the apply role (AWS)
+## 2. IAM trust policy for the apply role (AWS)
 
 ```json
 {
@@ -34,7 +34,7 @@ This file covers the Terraform-specific steps of a pipeline. Runner setup, reusa
 
 The `sub` claim for a job that uses `environment: production` is `repo:<owner>/<repo>:environment:production`, so only jobs gated by that environment can assume the role. The plan role can trust `repo:acme/infra:pull_request`.
 
-## Pull request plan
+## 3. Pull request plan
 
 ```yaml
 # .github/workflows/terraform-plan.yml
@@ -62,7 +62,7 @@ jobs:
           aws-region: us-east-1
       - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: 1.17.0
+          terraform_version: 1.17.1
           terraform_wrapper: false
       - run: terraform fmt -check -recursive
       - run: terraform init -input=false -lockfile=readonly
@@ -79,7 +79,7 @@ jobs:
 
 Plans can contain sensitive values that are not marked sensitive. If the repository is public or many people can read job logs, publish only `terraform show -json tfplan | jq '.resource_changes[] | {address, actions: .change.actions}'` instead of the full plan.
 
-## Apply on merge
+## 4. Apply on merge
 
 ```yaml
 # .github/workflows/terraform-apply.yml
@@ -110,7 +110,7 @@ jobs:
           aws-region: us-east-1
       - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: 1.17.0
+          terraform_version: 1.17.1
           terraform_wrapper: false
       - run: terraform init -input=false -lockfile=readonly
       - run: terraform plan -input=false -lock-timeout=5m -out=tfplan
@@ -120,7 +120,7 @@ jobs:
 
 This applies a plan made seconds earlier from the merged commit. If reviewers must approve the exact plan file, split plan and apply into two jobs, pass the plan file between them as an artifact, and put the environment gate on the apply job; or use HCP Terraform / a dedicated runner (Atlantis, Spacelift, env0) that stores and gates plans natively.
 
-## Scheduled drift detection
+## 5. Scheduled drift detection
 
 ```yaml
 # .github/workflows/terraform-drift.yml
@@ -147,7 +147,7 @@ jobs:
           aws-region: us-east-1
       - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: 1.17.0
+          terraform_version: 1.17.1
           terraform_wrapper: false
       - name: Refresh-only plan
         id: drift
@@ -172,7 +172,7 @@ jobs:
 
 Exit codes of `-detailed-exitcode`: 0 no changes, 1 error, 2 changes present. The drift job reads only (`-lock=false` avoids blocking a running apply; drop it if you need a consistent snapshot).
 
-## OpenTofu
+## 6. OpenTofu
 
 - Binary `tofu`, same subcommands (`tofu init/plan/apply/test`). Setup action: `opentofu/setup-opentofu`.
 - Registry: `registry.opentofu.org` mirrors most providers under the same addresses.

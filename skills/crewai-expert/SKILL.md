@@ -11,7 +11,7 @@ metadata:
 
 This skill covers building and operating CrewAI applications: agents with roles, tasks with typed outputs and guardrails, crews with sequential or hierarchical processes, Flows that orchestrate crews and plain code, tools, memory, observability and tests. It does not cover general agent architecture choices that are independent of CrewAI, or LangChain and LangGraph.
 
-> Verified against CrewAI 1.15.30 docs (docs.crewai.com, 2026-10).
+> Verified against CrewAI 1.15.33 (PyPI release of 2026-10-28; Python 3.10 to 3.13) and docs.crewai.com (2026-10).
 
 ## Contents
 1. [Scope](#1-scope)
@@ -40,7 +40,7 @@ This skill covers building and operating CrewAI applications: agents with roles,
 
 ## 2. Core Expertise
 
-- **Agent**: `role`, `goal`, `backstory` (required), plus `llm`, `tools`, `max_iter` (default 20), `max_execution_time`, `max_rpm`, `max_retry_limit`, `allow_delegation` (default False), `respect_context_window` (default True), `reasoning`, `memory`, `verbose`. `Agent.kickoff()` and `kickoff_async()` run one agent without a crew and return a `LiteAgentOutput`.
+- **Agent**: `role`, `goal`, `backstory` (required), plus `llm`, `tools`, `max_iter` (default 25), `max_execution_time`, `max_rpm`, `max_retry_limit`, `allow_delegation` (default False), `respect_context_window` (default True), `reasoning`, `memory`, `verbose`. `Agent.kickoff()` and `kickoff_async()` run one agent without a crew and return a `LiteAgentOutput`.
 - **Task**: `description`, `expected_output`, `agent`, `context` (upstream tasks), `tools`, `output_pydantic` or `output_json` (set one), `output_file`, `markdown`, `async_execution`, `human_input`, `callback`, `guardrail` or `guardrails`, `guardrail_max_retries` (default 3; `max_retries` is deprecated).
 - **Guardrails**: a function `(TaskOutput) -> tuple[bool, Any]` returning `(True, value)` or `(False, "reason")`, or a plain-language string that CrewAI turns into an LLM-checked guardrail using the task's agent. Failures are sent back to the agent for a retry.
 - **Crew**: `agents`, `tasks`, `process`, `manager_llm` or `manager_agent` (needed for hierarchical), `planning` and `planning_llm`, `memory`, `embedder`, `cache` (tool result cache, default True), `max_rpm`, `step_callback`, `task_callback`, `output_log_file`, `stream`.
@@ -48,6 +48,7 @@ This skill covers building and operating CrewAI applications: agents with roles,
 - **LLM**: `from crewai import LLM`; model strings are `provider/model-id`. OpenAI, Anthropic, Google Gemini, Azure, AWS Bedrock and Snowflake Cortex use native SDKs via extras (for example `crewai[anthropic]`); other providers go through LiteLLM (`crewai[litellm]`). Anthropic requires `max_tokens`.
 - **Tools**: subclass `crewai.tools.BaseTool` with `name`, `description`, `args_schema` and `_run` (may be `async def`), or use the `@tool("name")` decorator; built-in tools come from `crewai_tools` (`pip install 'crewai[tools]'`). A tool's `cache_function` decides which results are cached.
 - **Memory**: one `Memory` class (`from crewai import Memory`) replaces the older short-term, long-term and entity memory types. `Crew(memory=True)` creates a default instance; `Memory(...)` accepts recency weighting, a storage path or backend and an embedder; `memory.scope("/path")` and `memory.slice(...)` restrict what an agent reads and writes. Default storage is LanceDB under `./.crewai/memory`.
+- **Checkpoints**: `Crew(checkpoint=True)` or a `CheckpointConfig` saves run state automatically, and `kickoff(from_checkpoint=...)` resumes it; check the docs for storage options before relying on it.
 - **Flows**: `Flow[StateModel]`, `@start()`, `@listen(method_or_label)`, `@router(method)` returning a label, `or_` and `and_`, `@persist` for SQLite-backed state, `@human_feedback` for review steps, `kickoff()` and `kickoff_async()`. Details in [references/flows-and-projects.md](references/flows-and-projects.md).
 
 ## 3. Workflow
@@ -352,3 +353,4 @@ print(flow.state.category, flow.state.reply)
 ## 16. References
 
 - [references/flows-and-projects.md](references/flows-and-projects.md): Flow decorators, state, persistence and resume, human feedback, hierarchical crews, JSON-first project files and memory scoping.
+- Official docs: https://docs.crewai.com/ , https://docs.crewai.com/concepts/flows , https://docs.crewai.com/concepts/crews , https://docs.crewai.com/concepts/tasks , https://pypi.org/project/crewai/

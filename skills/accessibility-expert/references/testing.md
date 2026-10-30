@@ -1,8 +1,8 @@
 # Accessibility Testing
 
-Automated tools catch a subset of WCAG failures (missing names, contrast, invalid ARIA, duplicate IDs). Keyboard behaviour, meaningful alt text, reading order, focus management and announcement quality need manual checks.
+Automated tools catch a subset of WCAG failures (missing names, contrast, invalid ARIA, duplicate IDs). Keyboard behaviour, meaningful alt text, reading order, focus management and announcement quality need manual checks. Verified against WCAG 2.2, axe-core 4.14 with `@axe-core/playwright` 4.14, `jest-axe` 11, `eslint-plugin-jsx-a11y` 6.10 and Playwright 1.64 (2026-10).
 
-## Automated layers
+## 1. Automated layers
 
 | Layer | Tool | What it catches |
 |---|---|---|
@@ -52,7 +52,7 @@ test('skip link moves focus to main content', async ({ page }) => {
 });
 ```
 
-## Manual test matrix
+## 2. Manual test matrix
 
 | Platform | Screen reader | Browser |
 |---|---|---|
@@ -71,10 +71,10 @@ Pick at least one desktop and one mobile pairing per release; rotate the others.
 5. Reduced motion setting on: no large movement or autoplay.
 6. Voice control: visible labels can be spoken to activate controls.
 
-## Writing an audit finding
+## 3. Writing an audit finding
 
 Each finding should state: the URL or component, the WCAG success criterion (number and name), the user impact, steps to reproduce, the current code, the fix, and how to verify the fix. Group findings by blocked user task, not only by criterion, so the most harmful issues are fixed first.
 
-## Conformance reports
+## 4. Conformance reports
 
 A VPAT/ACR (Voluntary Product Accessibility Template / Accessibility Conformance Report) lists each criterion as Supports, Partially Supports, Does Not Support or Not Applicable, with remarks. Base it on a real audit and date it; do not claim "Supports" from automated results alone.
