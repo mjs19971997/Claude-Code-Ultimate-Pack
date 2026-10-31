@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Spec: Agent Skills](https://img.shields.io/badge/Spec-Agent%20Skills-7c3aed.svg)](https://code.claude.com/docs/en/skills)
 [![Skills: 105](https://img.shields.io/badge/Skills-105-orange.svg)](./docs/skill-index.md)
-[![Domains: 12](https://img.shields.io/badge/Domains-13-purple.svg)](#skill-domains)
+[![Domains: 13](https://img.shields.io/badge/Domains-13-purple.svg)](#skill-domains)
 [![Validation: 0 errors](https://img.shields.io/badge/Validation-0%20errors-brightgreen.svg)](#validation)
 
 A collection of 105 [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code covering software architecture, frontend, backend, programming languages, data, infrastructure, security, testing, mobile, blockchain, AI and machine learning, scientific and academic work, and telecom research.
@@ -20,7 +20,7 @@ License: [MIT](./LICENSE)
 
 ## Contents
 
-1. [What's new in v3.1.0](#whats-new-in-v310)
+1. [What's new in v3.2.0](#whats-new-in-v320)
 2. [Quick start](#quick-start)
 3. [Skill domains](#skill-domains)
 4. [Skills](#skills)
@@ -33,7 +33,21 @@ License: [MIT](./LICENSE)
 
 ---
 
-## What's new in v3.1.0
+## What's new in v3.2.0
+
+Released 2026-10-30. See the [changelog](./CHANGELOG.md#320---2026-10-30) for details.
+
+- 80 → 105 skills: 25 new skills in the v3 layout.
+- New **Telecom and Networking** domain: `5g-nr-3gpp-expert`, `ns3-expert`.
+- Research work: `matlab-expert`, `scientific-writing-expert`, `statistics-expert`, `data-analysis-expert`.
+- Machine learning: `pytorch-expert`, `ml-engineering-expert`, `llm-finetuning-expert`.
+- Backend and languages: `fastapi-expert`, `django-expert`, `kafka-messaging-expert`, `grpc-expert`, `bash-scripting-expert`, `cpp-expert`.
+- Frontend and desktop: `svelte-expert`, `angular-expert`, `tanstack-state-expert`, `desktop-apps-expert`.
+- Infrastructure, security and testing: `ansible-expert`, `cloudflare-expert`, `supply-chain-security-expert`, `load-testing-expert`.
+- Blockchain: `solana-expert`, `account-abstraction-expert`.
+- No skill was renamed or removed, so updating from v3.1.0 needs no clean-up.
+
+### v3.1.0
 
 Released 2026-10-30. See the [changelog](./CHANGELOG.md#310---2026-10-30) for details.
 

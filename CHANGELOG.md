@@ -9,9 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Running `scripts/validate_skills.py` in CI on every pull request
+
+---
+
+## [3.2.0] - 2026-10-30
+
 ### Added
 
-25 new skills (80 → 105), in the v3 layout with `references/` files and checked against current documentation and package registries (2026-10). Not released yet.
+25 new skills (80 → 105), in the v3 layout with `references/` files and checked against current documentation and package registries (2026-10).
 
 - **Telecom and Networking** (new category): `5g-nr-3gpp-expert`, `ns3-expert`
 - **Scientific and Academic:** `matlab-expert`, `scientific-writing-expert`, `statistics-expert`
@@ -34,9 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Notes
 
 - `5g-nr-3gpp-expert` names 3GPP specifications by number only and cites no clause or table numbers, because the 3GPP and ETSI sites could not be reached when it was written.
-
-### Planned
-- Running `scripts/validate_skills.py` in CI on every pull request
 
 ---
 
@@ -431,7 +435,8 @@ This project follows [Semantic Versioning](https://semver.org/):
 
 ---
 
-[Unreleased]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v1.0.0...v2.0.0
