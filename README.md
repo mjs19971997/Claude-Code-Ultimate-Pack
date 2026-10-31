@@ -1,5 +1,11 @@
 # Claude Code Ultimate Pack
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Spec: Agent Skills](https://img.shields.io/badge/Spec-Agent%20Skills-7c3aed.svg)](https://code.claude.com/docs/en/skills)
+[![Skills: 80](https://img.shields.io/badge/Skills-80-orange.svg)](./docs/skill-index.md)
+[![Domains: 12](https://img.shields.io/badge/Domains-12-purple.svg)](#skill-domains)
+[![Validation: 0 errors](https://img.shields.io/badge/Validation-0%20errors-brightgreen.svg)](#validation)
+
 A collection of 80 [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code covering software architecture, frontend, backend, programming languages, data, infrastructure, security, testing, mobile, blockchain, AI engineering, and scientific and academic work.
 
 Each skill is a folder with a `SKILL.md` file. Claude Code loads a skill when your request matches its `description`, and reads the skill's `references/` files only when it needs the extra detail.
@@ -16,13 +22,14 @@ License: [MIT](./LICENSE)
 
 1. [What's new in v3.0.0](#whats-new-in-v300)
 2. [Quick start](#quick-start)
-3. [Skills](#skills)
-4. [Merged skills](#merged-skills)
-5. [Skill layout](#skill-layout)
-6. [Validation](#validation)
-7. [Using the skills](#using-the-skills)
-8. [Repository structure](#repository-structure)
-9. [Contributing](#contributing)
+3. [Skill domains](#skill-domains)
+4. [Skills](#skills)
+5. [Merged skills](#merged-skills)
+6. [Skill layout](#skill-layout)
+7. [Validation](#validation)
+8. [Using the skills](#using-the-skills)
+9. [Repository structure](#repository-structure)
+10. [Contributing](#contributing)
 
 ---
 
@@ -48,6 +55,28 @@ git clone https://github.com/mjs19971997/Claude-Code-Ultimate-Pack.git
 ```
 
 Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<project>/.claude/skills/` (project). [INSTALL.md](./INSTALL.md#install) has copy commands for Linux, macOS and Windows that skip any folder that already exists, so your other skills are never overwritten.
+
+---
+
+## Skill domains
+
+The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Skills format requires; the domain is only a grouping in this README and in [docs/skill-index.md](./docs/skill-index.md).
+
+| Domain | Count | Coverage |
+|---|---:|---|
+| Architecture | 8 | Solution and system design, Clean Architecture, DDD, microservices, code review, refactoring, scalability |
+| Frontend | 12 | React 19, Next.js, Vue 3, TypeScript, Tailwind CSS, shadcn/ui, Motion, accessibility, UI and UX design, Core Web Vitals, technical SEO |
+| Backend | 5 | Node.js, Express, NestJS, GraphQL, REST |
+| Languages | 5 | Python, Go, Rust, Java and Spring Boot, C# and .NET |
+| Data | 5 | PostgreSQL, MongoDB, Redis, Elasticsearch, Prisma |
+| Infrastructure and DevOps | 11 | AWS, Google Cloud, Azure, Kubernetes, Terraform, Docker, Nginx, Linux, CI/CD, Git, observability |
+| Security | 4 | Secure coding and OWASP Top 10, API security, authentication, authorization |
+| Testing | 4 | Unit, integration and end-to-end testing, Playwright |
+| Mobile | 4 | Swift and SwiftUI, Android and Jetpack Compose, React Native with Expo, Flutter |
+| Blockchain | 11 | Solidity, smart contract security, Ethereum, ethers.js, web3.js, Hardhat, Foundry, DeFi, DAO, NFT, enterprise blockchain |
+| AI and LLM | 9 | Agent architecture, MCP, RAG, prompt engineering, LangChain, CrewAI, Anthropic, OpenAI and Gemini SDKs |
+| Scientific and Academic | 2 | Scientific Python, LaTeX papers and theses |
+| **Total** | **80** | |
 
 ---
 
