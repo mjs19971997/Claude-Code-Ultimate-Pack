@@ -1,7 +1,7 @@
 ---
 name: nodejs-architect
 description: >-
-  Designs and reviews server-side Node.js services on the current LTS lines: event loop and blocking work, async patterns with AbortSignal, streams with pipeline, worker_threads, cluster versus multiple processes, ESM and require(esm), the built-in test runner, --env-file, the permission model, native TypeScript type stripping, fetch and undici, diagnostics_channel and OpenTelemetry, graceful shutdown, memory leaks and heap snapshots, and security (path traversal, prototype pollution, ReDoS, child_process injection). Use when writing or reviewing Node.js backend code, choosing a Node version, debugging latency or memory, or hardening a Node process. Not for Express routing and middleware (use expressjs-expert) or NestJS modules and DI (use nestjs-expert).
+  Designs and reviews server-side Node.js services on the current LTS lines: event loop and blocking work, async patterns with AbortSignal, streams with pipeline, worker_threads, cluster versus multiple processes, ESM and require(esm), the built-in test runner, --env-file, the permission model, native TypeScript type stripping, fetch and undici, diagnostics_channel and OpenTelemetry, graceful shutdown, memory leaks and heap snapshots, and security (path traversal, prototype pollution, ReDoS, child_process injection). Use when writing or reviewing Node.js backend code, choosing a Node version, debugging latency or memory, or hardening a Node process. Not for Express routing and middleware (use expressjs-expert), NestJS modules and DI (use nestjs-expert) or Kafka and RabbitMQ messaging (use kafka-messaging-expert).
 license: MIT
 metadata:
   version: "3.0.0"

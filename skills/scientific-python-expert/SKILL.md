@@ -1,7 +1,7 @@
 ---
 name: scientific-python-expert
 description: >-
-  Writes fast, reproducible numerical Python with NumPy, SciPy and numba, and produces publication-quality Matplotlib figures. Use when vectorizing loops, fixing broadcasting or dtype surprises, reasoning about strides and views, seeding numpy.random.Generator for parallel Monte Carlo, profiling with cProfile, timeit or line_profiler (kernprof), limiting BLAS threads, using numba njit or prange, integrating ODEs with scipy.integrate.solve_ivp, or sizing vector PDF figures to a journal column. Not for general Python language, packaging or typing (use python-expert) or LaTeX documents that include the figures (use latex-academic-expert).
+  Writes fast, reproducible numerical Python with NumPy, SciPy and numba, and produces publication-quality Matplotlib figures. Use when vectorizing loops, fixing broadcasting or dtype surprises, reasoning about strides and views, seeding numpy.random.Generator for parallel Monte Carlo, profiling with cProfile, timeit or line_profiler (kernprof), limiting BLAS threads, using numba njit or prange, integrating ODEs with scipy.integrate.solve_ivp, or sizing vector PDF figures to a journal column. Not for general Python language, packaging or typing (use python-expert), statistical tests and confidence intervals (use statistics-expert), DataFrame wrangling (use data-analysis-expert) or LaTeX documents that include the figures (use latex-academic-expert).
 license: MIT
 metadata:
   version: "3.1.0"

@@ -1,7 +1,7 @@
 ---
 name: python-expert
 description: >-
-  Writes, reviews and ships modern Python 3.13 and 3.14 projects: typing with mypy and pyright, pyproject.toml packaging (PEP 621, dependency groups, build backends), uv, ruff, pytest, asyncio with TaskGroup and timeouts, dataclasses and profiling. Use when editing .py files, pyproject.toml, uv.lock, ruff or mypy config or conftest.py, running uv, ruff, pytest, mypy, pyright or cProfile, or fixing type errors, event-loop errors and slow Python code. Not for NumPy, SciPy or scientific plots (use scientific-python-expert), container images (use docker-expert), cross-language test strategy (use unit-testing-expert), or LLM SDK calls (use anthropic-sdk-expert or openai-sdk-expert).
+  Writes, reviews and ships modern Python 3.13 and 3.14 projects: typing with mypy and pyright, pyproject.toml packaging (PEP 621, dependency groups, build backends), uv, ruff, pytest, asyncio with TaskGroup and timeouts, dataclasses and profiling. Use when editing .py files, pyproject.toml, uv.lock, ruff or mypy config or conftest.py, running uv, ruff, pytest, mypy, pyright or cProfile, or fixing type errors, event-loop errors and slow Python code. Not for NumPy, SciPy or scientific plots (use scientific-python-expert), web APIs with FastAPI or Django (use fastapi-expert or django-expert), container images (use docker-expert), cross-language test strategy (use unit-testing-expert), or LLM SDK calls (use anthropic-sdk-expert or openai-sdk-expert).
 license: MIT
 metadata:
   version: "3.1.0"

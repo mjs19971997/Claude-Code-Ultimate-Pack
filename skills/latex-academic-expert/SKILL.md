@@ -1,7 +1,7 @@
 ---
 name: latex-academic-expert
 description: >-
-  Writes, builds and debugs LaTeX for journal and conference papers and theses: IEEEtran, elsarticle and acmart classes, BibTeX versus biblatex with biber, natbib, figures, booktabs and siunitx tables, cleveref and hyperref, latexmk, Overleaf settings and arXiv submission. Use when a .tex, .bib, .bbl, .cls, latexmkrc or 00README file is involved, or when a log shows Undefined control sequence, Missing $ inserted, Overfull hbox, Citation undefined or a biber error. Not for generating figures with Matplotlib (use scientific-python-expert) or Word documents.
+  Writes, builds and debugs LaTeX for journal and conference papers and theses: IEEEtran, elsarticle and acmart classes, BibTeX versus biblatex with biber, natbib, figures, booktabs and siunitx tables, cleveref and hyperref, latexmk, Overleaf settings and arXiv submission. Use when a .tex, .bib, .bbl, .cls, latexmkrc or 00README file is involved, or when a log shows Undefined control sequence, Missing $ inserted, Overfull hbox, Citation undefined or a biber error. Not for generating figures with Matplotlib (use scientific-python-expert), the wording and structure of a paper or a reviewer response (use scientific-writing-expert) or Word documents.
 license: MIT
 metadata:
   version: "3.1.0"
