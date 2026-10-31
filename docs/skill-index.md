@@ -4,7 +4,7 @@
 
 Every skill in the pack, grouped by category. Each one lives at `skills/<name>/SKILL.md`.
 
-**Total skills: 103** in 13 categories.
+**Total skills: 105** in 13 categories.
 
 ## Contents
 
@@ -17,7 +17,7 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 - [Security (5)](#security-5)
 - [Testing (5)](#testing-5)
 - [Mobile (4)](#mobile-4)
-- [Blockchain (11)](#blockchain-11)
+- [Blockchain (13)](#blockchain-13)
 - [AI and LLM (12)](#ai-and-llm-12)
 - [Scientific and Academic (5)](#scientific-and-academic-5)
 - [Telecom and Networking (2)](#telecom-and-networking-2)
@@ -140,7 +140,7 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`react-native-expert`](../skills/react-native-expert/SKILL.md) | Builds, secures and ships React Native apps with Expo: Expo Router navigation, the New Architecture, Hermes, Expo Modules API native code, config plugins and prebuild, EAS Build, Submit and Update,... |
 | [`flutter-expert`](../skills/flutter-expert/SKILL.md) | Builds, tests and ships Flutter apps in Dart: widgets and layout constraints, Riverpod and Bloc state management, go_router navigation, platform channels with Pigeon, Material 3 theming, widget and... |
 
-## Blockchain (11)
+## Blockchain (13)
 
 | Skill | Description |
 |---|---|
@@ -154,6 +154,8 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`defi-expert`](../skills/defi-expert/SKILL.md) | Designs and reviews DeFi protocol logic and integrations: constant-product and concentrated-liquidity AMMs (Uniswap V2, V3, V4 hooks), lending and liquidations (Aave V3 and V4, Compound-style marke... |
 | [`dao-expert`](../skills/dao-expert/SKILL.md) | Designs and builds DAO governance with OpenZeppelin Governor 5.x: ERC20Votes tokens and delegation, GovernorSettings, GovernorCountingSimple, GovernorVotesQuorumFraction, GovernorTimelockControl wi... |
 | [`nft-expert`](../skills/nft-expert/SKILL.md) | Designs and reviews NFT contracts and minting flows on OpenZeppelin Contracts 5.x: ERC-721 and ERC-1155, ERC-2981 royalties, ERC-4906 metadata updates, ERC-5192 soulbound tokens, ERC-721A batch min... |
+| [`account-abstraction-expert`](../skills/account-abstraction-expert/SKILL.md) | Designs, builds and reviews Ethereum account abstraction: ERC-4337 (EntryPoint v0.6 to v0.9, UserOperation and PackedUserOperation, bundlers and the eth_*UserOperation RPC, paymasters, ERC-7562 val... |
+| [`solana-expert`](../skills/solana-expert/SKILL.md) | Builds, tests and reviews Solana programs in Rust with Anchor 1.x (accounts, PDAs, CPIs, constraints, Token-2022 via token_interface) and TypeScript clients with @solana/kit: the account model, ren... |
 | [`enterprise-blockchain-architect`](../skills/enterprise-blockchain-architect/SKILL.md) | Designs permissioned and consortium blockchain systems with Hyperledger Fabric (channels, MSPs, private data collections, endorsement policies, Raft and SmartBFT ordering, chaincode in Go, Fabric G... |
 
 ## AI and LLM (12)

@@ -65,7 +65,7 @@ CATEGORIES: list[tuple[str, list[str]]] = [
     ("Blockchain", [
         "solidity-expert", "smart-contract-security-expert", "ethereum-expert", "ethersjs-expert",
         "web3js-expert", "hardhat-expert", "foundry-expert", "defi-expert", "dao-expert", "nft-expert",
-        "enterprise-blockchain-architect",
+        "account-abstraction-expert", "solana-expert", "enterprise-blockchain-architect",
     ]),
     ("AI and LLM", [
         "ai-agent-architect", "crewai-expert", "langchain-expert", "prompt-engineering-expert",

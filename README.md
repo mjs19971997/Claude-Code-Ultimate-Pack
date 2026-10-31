@@ -2,11 +2,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Spec: Agent Skills](https://img.shields.io/badge/Spec-Agent%20Skills-7c3aed.svg)](https://code.claude.com/docs/en/skills)
-[![Skills: 80](https://img.shields.io/badge/Skills-103-orange.svg)](./docs/skill-index.md)
+[![Skills: 105](https://img.shields.io/badge/Skills-105-orange.svg)](./docs/skill-index.md)
 [![Domains: 12](https://img.shields.io/badge/Domains-13-purple.svg)](#skill-domains)
 [![Validation: 0 errors](https://img.shields.io/badge/Validation-0%20errors-brightgreen.svg)](#validation)
 
-A collection of 103 [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code covering software architecture, frontend, backend, programming languages, data, infrastructure, security, testing, mobile, blockchain, AI and machine learning, scientific and academic work, and telecom research.
+A collection of 105 [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code covering software architecture, frontend, backend, programming languages, data, infrastructure, security, testing, mobile, blockchain, AI and machine learning, scientific and academic work, and telecom research.
 
 Each skill is a folder with a `SKILL.md` file. Claude Code loads a skill when your request matches its `description`, and reads the skill's `references/` files only when it needs the extra detail.
 
@@ -70,7 +70,7 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 
 ## Skill domains
 
-The 103 skills cover 13 work domains. The folder layout is flat, as the Agent Skills format requires; the domain is only a grouping in this README and in [docs/skill-index.md](./docs/skill-index.md).
+The 105 skills cover 13 work domains. The folder layout is flat, as the Agent Skills format requires; the domain is only a grouping in this README and in [docs/skill-index.md](./docs/skill-index.md).
 
 | Domain | Count | Coverage |
 |---|---:|---|
@@ -83,11 +83,11 @@ The 103 skills cover 13 work domains. The folder layout is flat, as the Agent Sk
 | Security | 5 | Secure coding and OWASP Top 10, API security, authentication, authorization, software supply chain (SBOM, Sigstore, SLSA) |
 | Testing | 5 | Unit, integration and end-to-end testing, Playwright, load testing with k6 and Locust |
 | Mobile | 4 | Swift and SwiftUI, Android and Jetpack Compose, React Native with Expo, Flutter |
-| Blockchain | 11 | Solidity, smart contract security, Ethereum, ethers.js, web3.js, Hardhat, Foundry, DeFi, DAO, NFT, enterprise blockchain |
+| Blockchain | 13 | Solidity, smart contract security, Ethereum, ethers.js, web3.js, Hardhat, Foundry, DeFi, DAO, NFT, account abstraction (ERC-4337, EIP-7702), Solana and Anchor, enterprise blockchain |
 | AI and LLM | 12 | Agent architecture, MCP, RAG, prompt engineering, LangChain, CrewAI, Anthropic, OpenAI and Gemini SDKs, PyTorch, ML engineering with scikit-learn and MLflow, LLM fine-tuning |
 | Scientific and Academic | 5 | Scientific Python, LaTeX papers and theses, MATLAB, scientific writing, applied statistics |
 | Telecom and Networking | 2 | 5G NR RAN, mobility and handover, ns-3 and 5G-LENA simulation |
-| **Total** | **103** | |
+| **Total** | **105** | |
 
 ---
 
@@ -211,7 +211,7 @@ The 103 skills cover 13 work domains. The folder layout is flat, as the Agent Sk
 | `react-native-expert` | React Native with Expo, Expo Router, EAS Build and Update |
 | `flutter-expert` | Flutter and Dart, Riverpod, Bloc, go_router |
 
-### Blockchain (11)
+### Blockchain (13)
 
 | Skill | Covers |
 |---|---|
@@ -225,6 +225,8 @@ The 103 skills cover 13 work domains. The folder layout is flat, as the Agent Sk
 | `defi-expert` | AMMs, lending, oracles, MEV |
 | `dao-expert` | On-chain governance and treasuries |
 | `nft-expert` | ERC-721, ERC-1155, metadata, royalties |
+| `account-abstraction-expert` | ERC-4337, EntryPoint, paymasters, ERC-7562, EIP-7702, smart accounts and modules |
+| `solana-expert` | Solana programs with Anchor, @solana/kit clients, LiteSVM tests |
 | `enterprise-blockchain-architect` | Permissioned networks, including Hyperledger Fabric |
 
 ### AI and LLM (12)
@@ -349,7 +351,7 @@ Claude-Code-Ultimate-Pack/
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── LICENSE
-├── skills/                       # 103 skill folders
+├── skills/                       # 105 skill folders
 ├── templates/skill-template/     # starting point for a new skill
 ├── docs/
 │   ├── architecture.md

@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide covers installing, updating and removing the Claude Code Ultimate Pack (103 skills) on Linux, macOS and Windows.
+This guide covers installing, updating and removing the Claude Code Ultimate Pack (105 skills) on Linux, macOS and Windows.
 
 Every command here works on **this pack's own skill folders only**. Nothing in this guide deletes the skills folder or skills that came from somewhere else. Installing never overwrites an existing folder: if a skill with the same name is already there, it is skipped and reported.
 
@@ -36,7 +36,7 @@ Each skill is a folder that contains a `SKILL.md` file. Claude Code loads skills
 
 If the same skill name exists in both places, the personal one wins. This pack is plain skill folders; it is not packaged as a Claude Code plugin. Personal skills are not read by cloud or Cowork sessions. See the official [skills documentation](https://code.claude.com/docs/en/skills) for all locations.
 
-You do not have to install all 103 skills. Installing only the skills you use keeps the skill list short and makes activation more precise. The full list is in the [README](./README.md#skills).
+You do not have to install all 105 skills. Installing only the skills you use keeps the skill list short and makes activation more precise. The full list is in the [README](./README.md#skills).
 
 ---
 
@@ -216,18 +216,19 @@ memory-systems-expert langgraph-expert ubuntu-server-expert openzeppelin-expert
 
 ## Uninstall
 
-Remove only the pack's own folders, by name. The 103 skill names in this version are:
+Remove only the pack's own folders, by name. The 105 skill names in this version are:
 
 ```text
-5g-nr-3gpp-expert accessibility-expert ai-agent-architect android-expert
-angular-expert ansible-expert anthropic-sdk-expert api-security-expert
-authentication-expert authorization-expert aws-expert azure-expert
-bash-scripting-expert cicd-expert clean-architecture-expert cloudflare-expert
-code-review-expert core-web-vitals-expert cpp-expert crewai-expert
-csharp-dotnet-expert dao-expert data-analysis-expert ddd-expert defi-expert
-desktop-apps-expert django-expert docker-expert e2e-testing-expert
-elasticsearch-expert enterprise-blockchain-architect ethereum-expert
-ethersjs-expert expressjs-expert fastapi-expert flutter-expert foundry-expert
+5g-nr-3gpp-expert accessibility-expert account-abstraction-expert
+ai-agent-architect android-expert angular-expert ansible-expert
+anthropic-sdk-expert api-security-expert authentication-expert
+authorization-expert aws-expert azure-expert bash-scripting-expert cicd-expert
+clean-architecture-expert cloudflare-expert code-review-expert
+core-web-vitals-expert cpp-expert crewai-expert csharp-dotnet-expert
+dao-expert data-analysis-expert ddd-expert defi-expert desktop-apps-expert
+django-expert docker-expert e2e-testing-expert elasticsearch-expert
+enterprise-blockchain-architect ethereum-expert ethersjs-expert
+expressjs-expert fastapi-expert flutter-expert foundry-expert
 framer-motion-expert gcp-expert gemini-sdk-expert git-expert go-expert
 graphql-expert grpc-expert hardhat-expert integration-testing-expert
 java-spring-expert kafka-messaging-expert kubernetes-expert langchain-expert
@@ -240,7 +241,7 @@ python-expert pytorch-expert rag-expert react-native-expert redis-expert
 refactoring-expert rest-api-expert rust-expert scalability-expert
 scientific-python-expert scientific-writing-expert secure-coding-expert
 senior-react-19-engineer shadcn-ui-expert smart-contract-security-expert
-solidity-expert solution-architect statistics-expert
+solana-expert solidity-expert solution-architect statistics-expert
 supply-chain-security-expert svelte-expert swift-expert system-design-expert
 tailwindcss-master tanstack-state-expert technical-seo-expert terraform-expert
 typescript-master ui-designer unit-testing-expert ux-designer vue-expert

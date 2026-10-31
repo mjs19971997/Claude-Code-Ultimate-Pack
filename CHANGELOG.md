@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-23 new skills (80 → 103), in the v3 layout with `references/` files and checked against current documentation and package registries (2026-10). Not released yet.
+25 new skills (80 → 105), in the v3 layout with `references/` files and checked against current documentation and package registries (2026-10). Not released yet.
 
 - **Telecom and Networking** (new category): `5g-nr-3gpp-expert`, `ns3-expert`
 - **Scientific and Academic:** `matlab-expert`, `scientific-writing-expert`, `statistics-expert`
@@ -23,12 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Infrastructure and DevOps:** `ansible-expert`, `cloudflare-expert`
 - **Security:** `supply-chain-security-expert`
 - **Testing:** `load-testing-expert`
+- **Blockchain:** `solana-expert`, `account-abstraction-expert`
 
 ### Changed
 
 - The "Not for" clauses of some existing skills now point to the new skills where those take over a topic.
 - `scripts/generate_skill_index.py` has a new category, Telecom and Networking, and lists the new skills in their categories.
-- README, INSTALL.md, the architecture doc and the skill index list 103 skills in 13 domains.
+- README, INSTALL.md, the architecture doc and the skill index list 105 skills in 13 domains.
 
 ### Notes
 

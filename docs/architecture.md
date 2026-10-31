@@ -31,7 +31,7 @@ Claude-Code-Ultimate-Pack/
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── LICENSE
-├── skills/                       # 103 skill folders
+├── skills/                       # 105 skill folders
 │   └── <skill-name>/
 │       ├── SKILL.md
 │       └── references/<topic>.md
@@ -67,12 +67,12 @@ The files in `docs/` and `examples/` are for people; Claude Code does not load t
 | Security | 5 |
 | Testing | 5 |
 | Mobile | 4 |
-| Blockchain | 11 |
+| Blockchain | 13 |
 | AI and LLM | 12 |
 | Scientific and Academic | 5 |
 | Telecom and Networking | 2 |
 
-Total: 103 skills in 13 categories.
+Total: 105 skills in 13 categories.
 
 ## How Claude Code loads a skill
 
