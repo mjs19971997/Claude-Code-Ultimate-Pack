@@ -4,22 +4,23 @@
 
 Every skill in the pack, grouped by category. Each one lives at `skills/<name>/SKILL.md`.
 
-**Total skills: 80** in 12 categories.
+**Total skills: 103** in 13 categories.
 
 ## Contents
 
 - [Architecture (8)](#architecture-8)
-- [Frontend (12)](#frontend-12)
-- [Backend (5)](#backend-5)
-- [Languages (5)](#languages-5)
-- [Data (5)](#data-5)
-- [Infrastructure and DevOps (11)](#infrastructure-and-devops-11)
-- [Security (4)](#security-4)
-- [Testing (4)](#testing-4)
+- [Frontend (16)](#frontend-16)
+- [Backend (9)](#backend-9)
+- [Languages (7)](#languages-7)
+- [Data (6)](#data-6)
+- [Infrastructure and DevOps (13)](#infrastructure-and-devops-13)
+- [Security (5)](#security-5)
+- [Testing (5)](#testing-5)
 - [Mobile (4)](#mobile-4)
 - [Blockchain (11)](#blockchain-11)
-- [AI and LLM (9)](#ai-and-llm-9)
-- [Scientific and Academic (2)](#scientific-and-academic-2)
+- [AI and LLM (12)](#ai-and-llm-12)
+- [Scientific and Academic (5)](#scientific-and-academic-5)
+- [Telecom and Networking (2)](#telecom-and-networking-2)
 
 ## Architecture (8)
 
@@ -34,7 +35,7 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`refactoring-expert`](../skills/refactoring-expert/SKILL.md) | Improves the structure of existing code without changing behavior: code smells, Fowler's refactoring catalog, preparatory refactoring, characterization tests and seams for legacy code, sprout and w... |
 | [`scalability-expert`](../skills/scalability-expert/SKILL.md) | Makes systems fast and able to grow under load: capacity planning (Little's law, utilization, Amdahl and the Universal Scalability Law), performance profiling (USE and RED methods, flame graphs), l... |
 
-## Frontend (12)
+## Frontend (16)
 
 | Skill | Description |
 |---|---|
@@ -50,8 +51,12 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`core-web-vitals-expert`](../skills/core-web-vitals-expert/SKILL.md) | Measures and improves web performance with Core Web Vitals (LCP, INP, CLS) using field data (CrUX, web-vitals attribution build) and lab tools (Lighthouse, DevTools), and fixes the causes: LCP imag... |
 | [`technical-seo-expert`](../skills/technical-seo-expert/SKILL.md) | Makes sites crawlable, indexable and eligible for rich results in search: robots.txt with correct longest-match rules, meta robots and X-Robots-Tag, canonicals, hreflang, XML sitemaps, redirects, p... |
 | [`vue-expert`](../skills/vue-expert/SKILL.md) | Builds and reviews Vue 3 apps with the Composition API and script setup: reactivity, props and defineModel, composables, Pinia, Vue Router (typed file-based routes, guards), Nuxt data fetching and... |
+| [`svelte-expert`](../skills/svelte-expert/SKILL.md) | Builds, reviews and migrates Svelte 5 and SvelteKit 3 apps: runes, snippets, event attributes, context, reactive .svelte.ts modules, routing and load functions, form actions with use:enhance, exper... |
+| [`angular-expert`](../skills/angular-expert/SKILL.md) | Builds, reviews and upgrades Angular 22 applications: standalone components, signals (signal, computed, linkedSignal, resource, httpResource), signal inputs and model, zoneless change detection, bu... |
+| [`tanstack-state-expert`](../skills/tanstack-state-expert/SKILL.md) | Designs and reviews client and server state in React apps with TanStack Query v5 and Zustand v5: query keys, queryOptions, mutations and optimistic updates, infinite and dependent queries, SSR hydr... |
+| [`desktop-apps-expert`](../skills/desktop-apps-expert/SKILL.md) | Builds, hardens, packages and tests cross-platform desktop apps with Electron 45 and Tauri 2: process model, IPC, preload and contextBridge, Electron Fuses, Tauri commands, capabilities and permiss... |
 
-## Backend (5)
+## Backend (9)
 
 | Skill | Description |
 |---|---|
@@ -60,8 +65,12 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`nestjs-expert`](../skills/nestjs-expert/SKILL.md) | Builds and reviews NestJS 12 applications: modules, providers and dependency injection scopes, controllers, the request lifecycle (middleware, guards, interceptors, pipes, exception filters), valid... |
 | [`graphql-expert`](../skills/graphql-expert/SKILL.md) | Designs, secures and tunes GraphQL APIs on graphql-js 17 (and 16), Apollo Server 5, GraphQL Yoga 6 and Apollo Federation 2: schema design (nullability, Relay connections, input types, mutation payl... |
 | [`rest-api-expert`](../skills/rest-api-expert/SKILL.md) | Designs and reviews HTTP/REST APIs: resource modeling, method and status code semantics (RFC 9110), Problem Details errors (RFC 9457), OpenAPI 3.1 and 3.2 contracts, cursor pagination, filtering, c... |
+| [`fastapi-expert`](../skills/fastapi-expert/SKILL.md) | Builds, reviews and ships FastAPI services with Pydantic v2: path operations, APIRouter, Annotated dependencies (yield, scope), response models, pydantic-settings, lifespan, OAuth2 with JWT, async... |
+| [`django-expert`](../skills/django-expert/SKILL.md) | Builds, reviews and deploys Django 6.x projects: models and migrations, QuerySet tuning and N+1 fixes, transactions, async views, forms, admin, custom user and permissions, Django REST Framework, t... |
+| [`kafka-messaging-expert`](../skills/kafka-messaging-expert/SKILL.md) | Designs, operates and debugs event streaming and messaging with Apache Kafka 4.x (KRaft, topics, partitions, producers, consumer groups, transactions, Schema Registry, share groups) and RabbitMQ 4.... |
+| [`grpc-expert`](../skills/grpc-expert/SKILL.md) | Designs, builds and reviews gRPC services and Protocol Buffers schemas: proto3 and Editions, schema evolution, Buf CLI, code generation for Go, Python, Node and Java, streaming, deadlines, retries,... |
 
-## Languages (5)
+## Languages (7)
 
 | Skill | Description |
 |---|---|
@@ -70,8 +79,10 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`rust-expert`](../skills/rust-expert/SKILL.md) | Writes, reviews and debugs Rust 2024 edition code: ownership, borrowing and lifetimes, error handling with Result, thiserror and anyhow, traits and generics, async Rust on tokio, Cargo workspaces,... |
 | [`java-spring-expert`](../skills/java-spring-expert/SKILL.md) | Writes and reviews modern Java 21/25 code and Spring Boot 4 (Spring Framework 7) services: records, sealed types, pattern matching, virtual threads, dependency injection, Spring Data JPA with Flywa... |
 | [`csharp-dotnet-expert`](../skills/csharp-dotnet-expert/SKILL.md) | Writes and reviews modern C# and .NET services: ASP.NET Core minimal APIs (route groups, TypedResults, endpoint filters, built-in validation, OpenAPI), EF Core data access, dependency injection and... |
+| [`cpp-expert`](../skills/cpp-expert/SKILL.md) | Writes, reviews and builds modern C++20 and C++23: RAII and the rule of zero, move semantics, std::expected, ranges, concepts, std::format, jthread, CMake presets, sanitizers, clang-tidy and Google... |
+| [`bash-scripting-expert`](../skills/bash-scripting-expert/SKILL.md) | Writes, reviews and hardens Bash 5.x and POSIX sh scripts: strict mode and its errexit caveats, quoting, arrays, parameter expansion, traps and cleanup, getopts, safe file iteration, locking, GNU/B... |
 
-## Data (5)
+## Data (6)
 
 | Skill | Description |
 |---|---|
@@ -80,8 +91,9 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`redis-expert`](../skills/redis-expert/SKILL.md) | Designs and operates Redis and Valkey: data structure choice, key design, caching, rate limiting, distributed locks, Streams consumer groups, Lua scripts and Functions, persistence, replication, Se... |
 | [`elasticsearch-expert`](../skills/elasticsearch-expert/SKILL.md) | Designs, queries, secures and operates Elasticsearch 9.x for search and analytics: explicit mappings (keyword versus text, multi-fields), analyzers, Query DSL (bool, filter context), ES\|QL, aggrega... |
 | [`prisma-expert`](../skills/prisma-expert/SKILL.md) | Designs Prisma ORM 7 data layers on PostgreSQL: schema.prisma, the prisma-client generator, driver adapters (@prisma/adapter-pg), prisma.config.ts, Prisma Migrate, queries and transactions, $extend... |
+| [`data-analysis-expert`](../skills/data-analysis-expert/SKILL.md) | Analyses and reshapes tabular data with pandas 3, Polars 2 and DuckDB, using Arrow and Parquet as storage and interchange: joins, groupby, window functions, time series, missing data, dtypes, memor... |
 
-## Infrastructure and DevOps (11)
+## Infrastructure and DevOps (13)
 
 | Skill | Description |
 |---|---|
@@ -96,8 +108,10 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`gcp-expert`](../skills/gcp-expert/SKILL.md) | Designs and operates workloads on Google Cloud: resource hierarchy, IAM and least privilege, keyless auth with Workload Identity Federation, Cloud Run, GKE, Cloud SQL, Pub/Sub, Cloud Storage, VPC n... |
 | [`azure-expert`](../skills/azure-expert/SKILL.md) | Designs and operates secure Azure workloads with Microsoft Entra ID identities, Azure RBAC, App Service, Container Apps, AKS, Azure SQL, Key Vault, private networking, Bicep and cost controls. |
 | [`observability-expert`](../skills/observability-expert/SKILL.md) | Instruments services and builds telemetry pipelines with OpenTelemetry (SDKs, zero-code agents, OTLP, Collector, sampling), Prometheus and PromQL, Grafana dashboards and alerting as code, structure... |
+| [`ansible-expert`](../skills/ansible-expert/SKILL.md) | Writes, reviews and tests Ansible automation on ansible-core 2.19 to 2.21: inventories, playbooks, roles, collections with FQCNs, variables and Jinja2 templating, handlers, Ansible Vault, become wi... |
+| [`cloudflare-expert`](../skills/cloudflare-expert/SKILL.md) | Builds and reviews applications on the Cloudflare developer platform: Workers (module syntax, bindings, compatibility dates), Wrangler 4 with wrangler.jsonc, R2, D1, KV, Durable Objects, Queues, st... |
 
-## Security (4)
+## Security (5)
 
 | Skill | Description |
 |---|---|
@@ -105,8 +119,9 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`api-security-expert`](../skills/api-security-expert/SKILL.md) | Secures REST, GraphQL and gRPC APIs against the OWASP API Security Top 10 (2023): object- and property-level authorization (BOLA, mass assignment), rate limiting and resource caps, webhook and requ... |
 | [`authentication-expert`](../skills/authentication-expert/SKILL.md) | Designs and reviews authentication: argon2id password storage, server-side sessions and cookies, JWT issuing and verification with jose, OAuth 2.0 and OpenID Connect clients (PKCE, refresh token ro... |
 | [`authorization-expert`](../skills/authorization-expert/SKILL.md) | Designs and reviews access control: RBAC, ABAC and ReBAC (Zanzibar-style with OpenFGA or SpiceDB), policy engines (OPA/Rego, Cedar), deny-by-default enforcement on the server for every request, obj... |
+| [`supply-chain-security-expert`](../skills/supply-chain-security-expert/SKILL.md) | Secures the software supply chain: SBOMs (SPDX, CycloneDX) with Syft, vulnerability scanning with Grype, Trivy and OSV-Scanner, Sigstore signing with cosign, SLSA provenance and GitHub artifact att... |
 
-## Testing (4)
+## Testing (5)
 
 | Skill | Description |
 |---|---|
@@ -114,6 +129,7 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`integration-testing-expert`](../skills/integration-testing-expert/SKILL.md) | Designs integration tests that run a service against real dependencies: Testcontainers (Node, Java, Python, Go), per-test database isolation (rollback, truncate, template databases), seeding and id... |
 | [`e2e-testing-expert`](../skills/e2e-testing-expert/SKILL.md) | Plans and writes browser end-to-end tests for critical user journeys: strategy and test pyramid, choosing Playwright or Cypress, test data seeded through the API or test-environment fixtures (never... |
 | [`playwright-expert`](../skills/playwright-expert/SKILL.md) | Designs and writes Playwright Test suites in TypeScript: role-based locators, web-first assertions and auto-waiting, setup projects with storageState authentication, test.extend fixtures, network m... |
+| [`load-testing-expert`](../skills/load-testing-expert/SKILL.md) | Designs, writes and runs load and performance tests with Grafana k6 (scenarios, executors, thresholds, checks, custom metrics, TypeScript scripts, CI gating) and, briefly, Locust. |
 
 ## Mobile (4)
 
@@ -140,7 +156,7 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`nft-expert`](../skills/nft-expert/SKILL.md) | Designs and reviews NFT contracts and minting flows on OpenZeppelin Contracts 5.x: ERC-721 and ERC-1155, ERC-2981 royalties, ERC-4906 metadata updates, ERC-5192 soulbound tokens, ERC-721A batch min... |
 | [`enterprise-blockchain-architect`](../skills/enterprise-blockchain-architect/SKILL.md) | Designs permissioned and consortium blockchain systems with Hyperledger Fabric (channels, MSPs, private data collections, endorsement policies, Raft and SmartBFT ordering, chaincode in Go, Fabric G... |
 
-## AI and LLM (9)
+## AI and LLM (12)
 
 | Skill | Description |
 |---|---|
@@ -153,10 +169,23 @@ Every skill in the pack, grouped by category. Each one lives at `skills/<name>/S
 | [`anthropic-sdk-expert`](../skills/anthropic-sdk-expert/SKILL.md) | Builds applications on the Claude API with the official SDKs (Python `anthropic` 2.x, TypeScript `@anthropic-ai/sdk` 1.x): Messages API, streaming, tool use and the tool runner, adaptive thinking a... |
 | [`openai-sdk-expert`](../skills/openai-sdk-expert/SKILL.md) | Builds production integrations with the OpenAI API using the official Python and Node SDKs on the Responses API: input and instructions, function calling and built-in tools (web search, file search... |
 | [`gemini-sdk-expert`](../skills/gemini-sdk-expert/SKILL.md) | Builds production integrations with Gemini through the current Google Gen AI SDK (google-genai for Python, @google/genai for JavaScript): client setup for the Gemini Developer API or Gemini Enterpr... |
+| [`pytorch-expert`](../skills/pytorch-expert/SKILL.md) | Writes, debugs and speeds up PyTorch 2.x code: devices and dtypes, autograd, nn.Module design, DataLoader, training loops, torch.autocast with torch.amp.GradScaler, torch.compile, checkpoints, repr... |
+| [`ml-engineering-expert`](../skills/ml-engineering-expert/SKILL.md) | Builds, validates and ships classical machine learning on tabular data: scikit-learn Pipelines and ColumnTransformer, cross-validation, data leakage prevention, class imbalance, XGBoost and LightGB... |
+| [`llm-finetuning-expert`](../skills/llm-finetuning-expert/SKILL.md) | Fine-tunes open-weight language models with the Hugging Face stack: transformers 5, datasets, chat templates, PEFT (LoRA, QLoRA), TRL (SFTTrainer, DPOTrainer, GRPOTrainer), memory budgeting, evalua... |
 
-## Scientific and Academic (2)
+## Scientific and Academic (5)
 
 | Skill | Description |
 |---|---|
 | [`scientific-python-expert`](../skills/scientific-python-expert/SKILL.md) | Writes fast, reproducible numerical Python with NumPy, SciPy and numba, and produces publication-quality Matplotlib figures. |
 | [`latex-academic-expert`](../skills/latex-academic-expert/SKILL.md) | Writes, builds and debugs LaTeX for journal and conference papers and theses: IEEEtran, elsarticle and acmart classes, BibTeX versus biblatex with biber, natbib, figures, booktabs and siunitx table... |
+| [`matlab-expert`](../skills/matlab-expert/SKILL.md) | Writes, reviews and tests MATLAB code for the R2026b release: vectorisation and preallocation, arguments blocks, classdef, packages, tables and timetables, string arrays, matlab.unittest and buildt... |
+| [`scientific-writing-expert`](../skills/scientific-writing-expert/SKILL.md) | Writes, structures and revises engineering, computer science and telecom research papers: IMRaD and conference or journal layout, titles, abstracts, introductions with contribution lists, related w... |
+| [`statistics-expert`](../skills/statistics-expert/SKILL.md) | Applies statistics to engineering and simulation experiments: choosing tests (Welch t, paired, Mann-Whitney, Wilcoxon, chi-square, ANOVA, Kruskal-Wallis), confidence intervals and bootstrap, effect... |
+
+## Telecom and Networking (2)
+
+| Skill | Description |
+|---|---|
+| [`5g-nr-3gpp-expert`](../skills/5g-nr-3gpp-expert/SKILL.md) | Explains and analyses 5G NR mobility and handover for researchers and engineers: measurement events A1 to A6, A3 offset, time-to-trigger and hysteresis, L1 and L3 filtering, conditional handover (C... |
+| [`ns3-expert`](../skills/ns3-expert/SKILL.md) | Builds, runs and debugs ns-3 network simulations (3.49) in C++: the ./ns3 CMake wrapper, scratch and contrib programs, attributes and Config paths, CommandLine, trace sources, PCAP, FlowMonitor, NS... |

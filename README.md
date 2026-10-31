@@ -2,11 +2,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Spec: Agent Skills](https://img.shields.io/badge/Spec-Agent%20Skills-7c3aed.svg)](https://code.claude.com/docs/en/skills)
-[![Skills: 80](https://img.shields.io/badge/Skills-80-orange.svg)](./docs/skill-index.md)
-[![Domains: 12](https://img.shields.io/badge/Domains-12-purple.svg)](#skill-domains)
+[![Skills: 80](https://img.shields.io/badge/Skills-103-orange.svg)](./docs/skill-index.md)
+[![Domains: 12](https://img.shields.io/badge/Domains-13-purple.svg)](#skill-domains)
 [![Validation: 0 errors](https://img.shields.io/badge/Validation-0%20errors-brightgreen.svg)](#validation)
 
-A collection of 80 [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code covering software architecture, frontend, backend, programming languages, data, infrastructure, security, testing, mobile, blockchain, AI engineering, and scientific and academic work.
+A collection of 103 [Agent Skills](https://code.claude.com/docs/en/skills) for Claude Code covering software architecture, frontend, backend, programming languages, data, infrastructure, security, testing, mobile, blockchain, AI and machine learning, scientific and academic work, and telecom research.
 
 Each skill is a folder with a `SKILL.md` file. Claude Code loads a skill when your request matches its `description`, and reads the skill's `references/` files only when it needs the extra detail.
 
@@ -70,23 +70,24 @@ Then copy the skill folders you want into `~/.claude/skills/` (personal) or `<pr
 
 ## Skill domains
 
-The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Skills format requires; the domain is only a grouping in this README and in [docs/skill-index.md](./docs/skill-index.md).
+The 103 skills cover 13 work domains. The folder layout is flat, as the Agent Skills format requires; the domain is only a grouping in this README and in [docs/skill-index.md](./docs/skill-index.md).
 
 | Domain | Count | Coverage |
 |---|---:|---|
 | Architecture | 8 | Solution and system design, Clean Architecture, DDD, microservices, code review, refactoring, scalability |
-| Frontend | 12 | React 19, Next.js, Vue 3, TypeScript, Tailwind CSS, shadcn/ui, Motion, accessibility, UI and UX design, Core Web Vitals, technical SEO |
-| Backend | 5 | Node.js, Express, NestJS, GraphQL, REST |
-| Languages | 5 | Python, Go, Rust, Java and Spring Boot, C# and .NET |
-| Data | 5 | PostgreSQL, MongoDB, Redis, Elasticsearch, Prisma |
-| Infrastructure and DevOps | 11 | AWS, Google Cloud, Azure, Kubernetes, Terraform, Docker, Nginx, Linux, CI/CD, Git, observability |
-| Security | 4 | Secure coding and OWASP Top 10, API security, authentication, authorization |
-| Testing | 4 | Unit, integration and end-to-end testing, Playwright |
+| Frontend | 16 | React 19, Next.js, Vue 3, TypeScript, Tailwind CSS, shadcn/ui, Motion, accessibility, UI and UX design, Core Web Vitals, technical SEO, Svelte 5 and SvelteKit, Angular, TanStack Query and Zustand, Electron and Tauri desktop apps |
+| Backend | 9 | Node.js, Express, NestJS, GraphQL, REST, FastAPI, Django, Kafka and RabbitMQ, gRPC |
+| Languages | 7 | Python, Go, Rust, Java and Spring Boot, C# and .NET, C++20 and C++23, Bash scripting |
+| Data | 6 | PostgreSQL, MongoDB, Redis, Elasticsearch, Prisma, pandas, Polars and DuckDB analysis |
+| Infrastructure and DevOps | 13 | AWS, Google Cloud, Azure, Kubernetes, Terraform, Docker, Nginx, Linux, CI/CD, Git, observability, Ansible, Cloudflare Workers |
+| Security | 5 | Secure coding and OWASP Top 10, API security, authentication, authorization, software supply chain (SBOM, Sigstore, SLSA) |
+| Testing | 5 | Unit, integration and end-to-end testing, Playwright, load testing with k6 and Locust |
 | Mobile | 4 | Swift and SwiftUI, Android and Jetpack Compose, React Native with Expo, Flutter |
 | Blockchain | 11 | Solidity, smart contract security, Ethereum, ethers.js, web3.js, Hardhat, Foundry, DeFi, DAO, NFT, enterprise blockchain |
-| AI and LLM | 9 | Agent architecture, MCP, RAG, prompt engineering, LangChain, CrewAI, Anthropic, OpenAI and Gemini SDKs |
-| Scientific and Academic | 2 | Scientific Python, LaTeX papers and theses |
-| **Total** | **80** | |
+| AI and LLM | 12 | Agent architecture, MCP, RAG, prompt engineering, LangChain, CrewAI, Anthropic, OpenAI and Gemini SDKs, PyTorch, ML engineering with scikit-learn and MLflow, LLM fine-tuning |
+| Scientific and Academic | 5 | Scientific Python, LaTeX papers and theses, MATLAB, scientific writing, applied statistics |
+| Telecom and Networking | 2 | 5G NR RAN, mobility and handover, ns-3 and 5G-LENA simulation |
+| **Total** | **103** | |
 
 ---
 
@@ -105,7 +106,7 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `refactoring-expert` | Behaviour-preserving refactoring and code smells |
 | `scalability-expert` | Scaling and performance optimisation of backend systems |
 
-### Frontend (12)
+### Frontend (16)
 
 | Skill | Covers |
 |---|---|
@@ -121,8 +122,12 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `core-web-vitals-expert` | LCP, INP, CLS and front-end performance |
 | `technical-seo-expert` | Crawling, indexing, Schema.org and structured data |
 | `vue-expert` | Vue 3 Composition API, Pinia, Vue Router, Nuxt, Vitest |
+| `svelte-expert` | Svelte 5 runes, SvelteKit routing, load functions, form actions, adapters |
+| `angular-expert` | Angular signals, standalone components, zoneless change detection, routing, forms, SSR |
+| `tanstack-state-expert` | TanStack Query server state and Zustand client state in React apps |
+| `desktop-apps-expert` | Electron and Tauri 2 desktop apps: IPC, security, packaging, signing, updates |
 
-### Backend (5)
+### Backend (9)
 
 | Skill | Covers |
 |---|---|
@@ -131,8 +136,12 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `nestjs-expert` | NestJS modules, providers, pipes, guards |
 | `graphql-expert` | GraphQL schemas, resolvers, federation, N+1 |
 | `rest-api-expert` | REST resource design, HTTP semantics, OpenAPI |
+| `fastapi-expert` | FastAPI with Pydantic v2, dependencies, async SQLAlchemy, auth, testing |
+| `django-expert` | Django ORM, migrations, Django REST Framework, security settings, testing |
+| `kafka-messaging-expert` | Apache Kafka and RabbitMQ: producers, consumers, delivery guarantees, outbox, DLQ |
+| `grpc-expert` | gRPC and Protocol Buffers, Buf, deadlines, errors, streaming, Connect |
 
-### Languages (5)
+### Languages (7)
 
 | Skill | Covers |
 |---|---|
@@ -141,8 +150,10 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `rust-expert` | Rust 2024 edition, ownership, traits, tokio, Cargo workspaces |
 | `java-spring-expert` | Java 21/25 and Spring Boot, Spring Data JPA, Spring Security |
 | `csharp-dotnet-expert` | C# and .NET, ASP.NET Core minimal APIs, EF Core, xUnit |
+| `cpp-expert` | Modern C++20 and C++23, CMake, sanitizers, testing and benchmarking |
+| `bash-scripting-expert` | Robust Bash and POSIX sh scripts, strict mode, quoting, ShellCheck, bats |
 
-### Data (5)
+### Data (6)
 
 | Skill | Covers |
 |---|---|
@@ -151,8 +162,9 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `redis-expert` | Redis data structures, caching patterns, persistence |
 | `elasticsearch-expert` | Elasticsearch mappings, analyzers, query DSL |
 | `prisma-expert` | Prisma ORM schema, migrations, queries |
+| `data-analysis-expert` | pandas, Polars, DuckDB, Arrow and Parquet, tidy data and performance |
 
-### Infrastructure and DevOps (11)
+### Infrastructure and DevOps (13)
 
 | Skill | Covers |
 |---|---|
@@ -167,8 +179,10 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `gcp-expert` | Google Cloud IAM, Workload Identity Federation, Cloud Run, GKE |
 | `azure-expert` | Azure Entra ID, managed identities, Container Apps, AKS, Bicep |
 | `observability-expert` | OpenTelemetry, Prometheus and PromQL, Grafana, SLOs and alerting |
+| `ansible-expert` | Ansible playbooks, roles, collections, Vault, ansible-lint and Molecule |
+| `cloudflare-expert` | Cloudflare Workers, Wrangler, R2, D1, KV and Pages |
 
-### Security (4)
+### Security (5)
 
 | Skill | Covers |
 |---|---|
@@ -176,8 +190,9 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `api-security-expert` | API threats, rate limiting, request signing |
 | `authentication-expert` | Login, MFA, passkeys, sessions, JWT, OAuth 2.0 and OpenID Connect |
 | `authorization-expert` | RBAC, ABAC, ReBAC and policy enforcement |
+| `supply-chain-security-expert` | SBOMs, Sigstore and cosign, SLSA provenance, dependency pinning and review |
 
-### Testing (4)
+### Testing (5)
 
 | Skill | Covers |
 |---|---|
@@ -185,6 +200,7 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `integration-testing-expert` | Integration and contract tests |
 | `e2e-testing-expert` | End-to-end test strategy, flakiness, Cypress |
 | `playwright-expert` | Playwright Test |
+| `load-testing-expert` | Load and performance testing with k6, plus Locust |
 
 ### Mobile (4)
 
@@ -211,7 +227,7 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `nft-expert` | ERC-721, ERC-1155, metadata, royalties |
 | `enterprise-blockchain-architect` | Permissioned networks, including Hyperledger Fabric |
 
-### AI and LLM (9)
+### AI and LLM (12)
 
 | Skill | Covers |
 |---|---|
@@ -224,13 +240,26 @@ The 80 skills cover 12 work domains. The folder layout is flat, as the Agent Ski
 | `anthropic-sdk-expert` | Claude API and the Anthropic SDKs |
 | `openai-sdk-expert` | OpenAI API and SDKs |
 | `gemini-sdk-expert` | Gemini API and the Google Gen AI SDK |
+| `pytorch-expert` | PyTorch training loops, mixed precision, torch.compile, data loading, DDP and FSDP |
+| `ml-engineering-expert` | scikit-learn pipelines, data leakage, MLflow tracking, model serving |
+| `llm-finetuning-expert` | Fine-tuning open LLMs with transformers, PEFT/LoRA and TRL, and evaluation |
 
-### Scientific and Academic (2)
+### Scientific and Academic (5)
 
 | Skill | Covers |
 |---|---|
 | `scientific-python-expert` | NumPy, SciPy, numba, reproducible simulations, Matplotlib figures |
 | `latex-academic-expert` | LaTeX papers and theses, BibTeX and biblatex, arXiv submission |
+| `matlab-expert` | MATLAB language, performance, testing, figures, 5G and Communications Toolboxes |
+| `scientific-writing-expert` | Paper structure, abstracts, related work, figures, reviewer responses |
+| `statistics-expert` | Hypothesis tests, confidence intervals, effect sizes, simulation output analysis |
+
+### Telecom and Networking (2)
+
+| Skill | Covers |
+|---|---|
+| `5g-nr-3gpp-expert` | 5G NR RAN, RRC, measurement events, handover and CHO, beam management, TR 38.901 channel models |
+| `ns3-expert` | ns-3 simulator and the 5G-LENA nr module, tracing, reproducible runs |
 
 ---
 
@@ -320,7 +349,7 @@ Claude-Code-Ultimate-Pack/
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── LICENSE
-├── skills/                       # 80 skill folders
+├── skills/                       # 103 skill folders
 ├── templates/skill-template/     # starting point for a new skill
 ├── docs/
 │   ├── architecture.md

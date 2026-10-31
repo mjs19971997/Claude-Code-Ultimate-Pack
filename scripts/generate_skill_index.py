@@ -33,26 +33,33 @@ CATEGORIES: list[tuple[str, list[str]]] = [
     ("Frontend", [
         "senior-react-19-engineer", "nextjs-15-architect", "typescript-master", "tailwindcss-master",
         "shadcn-ui-expert", "framer-motion-expert", "accessibility-expert", "ui-designer", "ux-designer",
-        "core-web-vitals-expert", "technical-seo-expert", "vue-expert",
+        "core-web-vitals-expert", "technical-seo-expert", "vue-expert", "svelte-expert", "angular-expert",
+        "tanstack-state-expert", "desktop-apps-expert",
     ]),
     ("Backend", [
         "nodejs-architect", "expressjs-expert", "nestjs-expert", "graphql-expert", "rest-api-expert",
+        "fastapi-expert", "django-expert", "kafka-messaging-expert", "grpc-expert",
     ]),
     ("Languages", [
         "python-expert", "go-expert", "rust-expert", "java-spring-expert", "csharp-dotnet-expert",
+        "cpp-expert", "bash-scripting-expert",
     ]),
     ("Data", [
         "postgresql-expert", "mongodb-expert", "redis-expert", "elasticsearch-expert", "prisma-expert",
+        "data-analysis-expert",
     ]),
     ("Infrastructure and DevOps", [
         "aws-expert", "kubernetes-expert", "terraform-expert", "docker-expert", "nginx-expert",
         "linux-expert", "cicd-expert", "git-expert", "gcp-expert", "azure-expert", "observability-expert",
+        "ansible-expert", "cloudflare-expert",
     ]),
     ("Security", [
         "secure-coding-expert", "api-security-expert", "authentication-expert", "authorization-expert",
+        "supply-chain-security-expert",
     ]),
     ("Testing", [
         "unit-testing-expert", "integration-testing-expert", "e2e-testing-expert", "playwright-expert",
+        "load-testing-expert",
     ]),
     ("Mobile", ["swift-expert", "android-expert", "react-native-expert", "flutter-expert"]),
     ("Blockchain", [
@@ -63,8 +70,13 @@ CATEGORIES: list[tuple[str, list[str]]] = [
     ("AI and LLM", [
         "ai-agent-architect", "crewai-expert", "langchain-expert", "prompt-engineering-expert",
         "mcp-expert", "rag-expert", "anthropic-sdk-expert", "openai-sdk-expert", "gemini-sdk-expert",
+        "pytorch-expert", "ml-engineering-expert", "llm-finetuning-expert",
     ]),
-    ("Scientific and Academic", ["scientific-python-expert", "latex-academic-expert"]),
+    ("Scientific and Academic", [
+        "scientific-python-expert", "latex-academic-expert", "matlab-expert", "scientific-writing-expert",
+        "statistics-expert",
+    ]),
+    ("Telecom and Networking", ["5g-nr-3gpp-expert", "ns3-expert"]),
 ]
 
 MAX_DESCRIPTION = 200

@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+23 new skills (80 → 103), in the v3 layout with `references/` files and checked against current documentation and package registries (2026-10). Not released yet.
+
+- **Telecom and Networking** (new category): `5g-nr-3gpp-expert`, `ns3-expert`
+- **Scientific and Academic:** `matlab-expert`, `scientific-writing-expert`, `statistics-expert`
+- **Data:** `data-analysis-expert`
+- **AI and LLM:** `pytorch-expert`, `ml-engineering-expert`, `llm-finetuning-expert`
+- **Backend:** `fastapi-expert`, `django-expert`, `kafka-messaging-expert`, `grpc-expert`
+- **Languages:** `bash-scripting-expert`, `cpp-expert`
+- **Frontend:** `svelte-expert`, `angular-expert`, `tanstack-state-expert`, `desktop-apps-expert`
+- **Infrastructure and DevOps:** `ansible-expert`, `cloudflare-expert`
+- **Security:** `supply-chain-security-expert`
+- **Testing:** `load-testing-expert`
+
+### Changed
+
+- The "Not for" clauses of some existing skills now point to the new skills where those take over a topic.
+- `scripts/generate_skill_index.py` has a new category, Telecom and Networking, and lists the new skills in their categories.
+- README, INSTALL.md, the architecture doc and the skill index list 103 skills in 13 domains.
+
+### Notes
+
+- `5g-nr-3gpp-expert` names 3GPP specifications by number only and cites no clause or table numbers, because the 3GPP and ETSI sites could not be reached when it was written.
+
 ### Planned
 - Running `scripts/validate_skills.py` in CI on every pull request
 
