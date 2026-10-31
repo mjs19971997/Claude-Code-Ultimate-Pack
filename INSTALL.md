@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide covers installing, updating and removing the Claude Code Ultimate Pack v3.0.0 (67 skills) on Linux, macOS and Windows.
+This guide covers installing, updating and removing the Claude Code Ultimate Pack v3.1.0 (80 skills) on Linux, macOS and Windows.
 
 Every command here works on **this pack's own skill folders only**. Nothing in this guide deletes the skills folder or skills that came from somewhere else. Installing never overwrites an existing folder: if a skill with the same name is already there, it is skipped and reported.
 
@@ -216,25 +216,28 @@ memory-systems-expert langgraph-expert ubuntu-server-expert openzeppelin-expert
 
 ## Uninstall
 
-Remove only the pack's own folders, by name. The 67 skill names in v3.0.0 are:
+Remove only the pack's own folders, by name. The 80 skill names in v3.1.0 are:
 
 ```text
 accessibility-expert ai-agent-architect android-expert anthropic-sdk-expert
 api-security-expert authentication-expert authorization-expert aws-expert
-cicd-expert clean-architecture-expert code-review-expert core-web-vitals-expert
-crewai-expert dao-expert ddd-expert defi-expert docker-expert e2e-testing-expert
-elasticsearch-expert enterprise-blockchain-architect ethereum-expert ethersjs-expert
-expressjs-expert foundry-expert framer-motion-expert gemini-sdk-expert git-expert
-graphql-expert hardhat-expert integration-testing-expert kubernetes-expert
-langchain-expert linux-expert mcp-expert microservices-expert mongodb-expert
-nestjs-expert nextjs-15-architect nft-expert nginx-expert nodejs-architect
+azure-expert cicd-expert clean-architecture-expert code-review-expert
+core-web-vitals-expert crewai-expert csharp-dotnet-expert dao-expert ddd-expert
+defi-expert docker-expert e2e-testing-expert elasticsearch-expert
+enterprise-blockchain-architect ethereum-expert ethersjs-expert expressjs-expert
+flutter-expert foundry-expert framer-motion-expert gcp-expert gemini-sdk-expert
+git-expert go-expert graphql-expert hardhat-expert integration-testing-expert
+java-spring-expert kubernetes-expert langchain-expert latex-academic-expert
+linux-expert mcp-expert microservices-expert mongodb-expert nestjs-expert
+nextjs-15-architect nft-expert nginx-expert nodejs-architect observability-expert
 openai-sdk-expert playwright-expert postgresql-expert prisma-expert
-prompt-engineering-expert rag-expert redis-expert refactoring-expert
-rest-api-expert scalability-expert secure-coding-expert senior-react-19-engineer
+prompt-engineering-expert python-expert rag-expert react-native-expert redis-expert
+refactoring-expert rest-api-expert rust-expert scalability-expert
+scientific-python-expert secure-coding-expert senior-react-19-engineer
 shadcn-ui-expert smart-contract-security-expert solidity-expert solution-architect
 swift-expert system-design-expert tailwindcss-master technical-seo-expert
 terraform-expert typescript-master ui-designer unit-testing-expert ux-designer
-web3js-expert
+vue-expert web3js-expert
 ```
 
 If you also installed skills with these names from another source, leave those out.

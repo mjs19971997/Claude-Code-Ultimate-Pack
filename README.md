@@ -20,7 +20,7 @@ License: [MIT](./LICENSE)
 
 ## Contents
 
-1. [What's new in v3.0.0](#whats-new-in-v300)
+1. [What's new in v3.1.0](#whats-new-in-v310)
 2. [Quick start](#quick-start)
 3. [Skill domains](#skill-domains)
 4. [Skills](#skills)
@@ -33,7 +33,17 @@ License: [MIT](./LICENSE)
 
 ---
 
-## What's new in v3.0.0
+## What's new in v3.1.0
+
+Released 2026-10-30. See the [changelog](./CHANGELOG.md#310---2026-10-30) for details.
+
+- 67 → 80 skills: 13 new skills in the v3 layout.
+- New **Languages** domain: `python-expert`, `go-expert`, `rust-expert`, `java-spring-expert`, `csharp-dotnet-expert`.
+- New **Scientific and Academic** domain: `scientific-python-expert`, `latex-academic-expert`.
+- Also new: `vue-expert`, `react-native-expert`, `flutter-expert`, `gcp-expert`, `azure-expert`, `observability-expert`.
+- No skill was renamed or removed, so updating from v3.0.0 needs no clean-up.
+
+### v3.0.0
 
 Released 2026-10-30. See the [changelog](./CHANGELOG.md#300---2026-10-30) for details.
 

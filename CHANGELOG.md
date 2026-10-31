@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Running `scripts/validate_skills.py` in CI on every pull request
+
+---
+
+## [3.1.0] - 2026-10-30
+
 ### Added
 
 13 new skills (67 → 80), in the v3 layout with `references/` files and checked against current documentation (2026-10):
@@ -23,9 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The descriptions of `aws-expert`, `scalability-expert`, `swift-expert` and `android-expert` now point to the new skills in their "Not for" clauses.
 - `scripts/generate_skill_index.py` has two new categories: Languages, and Scientific and Academic.
-
-### Planned
-- Running `scripts/validate_skills.py` in CI on every pull request
+- README: badges and a "Skill domains" table with the 12 work domains.
+- INSTALL.md lists the 80 skill names of v3.1.0.
 
 ---
 
@@ -399,7 +405,8 @@ This project follows [Semantic Versioning](https://semver.org/):
 
 ---
 
-[Unreleased]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/mjs19971997/Claude-Code-Ultimate-Pack/releases/tag/v1.0.0
