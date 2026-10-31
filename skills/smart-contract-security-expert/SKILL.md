@@ -1,7 +1,7 @@
 ---
 name: smart-contract-security-expert
 description: >-
-  Finds and fixes vulnerabilities in Solidity smart contracts: reentrancy, access control, upgradeable-proxy and initializer bugs, signature replay and malleability, oracle and price manipulation, ERC-20 and ERC-4626 edge cases, denial of service, MEV and front-running. Covers audit workflow, Slither, Aderyn, Foundry invariant tests, Echidna, Medusa, Halmos and Certora. Use when reviewing or hardening contracts, writing invariants, triaging analyzer output, preparing for an audit, or running a post-incident review. Not for writing contracts in general (use solidity-expert), DeFi protocol design (use defi-expert), Foundry or Hardhat project setup (use foundry-expert or hardhat-expert), or DAO governance (use dao-expert).
+  Finds and fixes vulnerabilities in Solidity smart contracts: reentrancy, access control, upgradeable-proxy and initializer bugs, signature replay and malleability, oracle and price manipulation, ERC-20 and ERC-4626 edge cases, denial of service, MEV and front-running. Covers audit workflow, Slither, Aderyn, Foundry invariant tests, Echidna, Medusa, Halmos and Certora. Use when reviewing or hardening contracts, writing invariants, triaging analyzer output, preparing for an audit, or running a post-incident review. Not for writing contracts in general (use solidity-expert), DeFi protocol design (use defi-expert), Foundry or Hardhat project setup (use foundry-expert or hardhat-expert), DAO governance (use dao-expert), smart-account validation code (use account-abstraction-expert), or Solana programs (use solana-expert).
 license: MIT
 metadata:
   version: "3.0.0"

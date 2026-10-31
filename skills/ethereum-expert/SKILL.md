@@ -1,7 +1,7 @@
 ---
 name: ethereum-expert
 description: >-
-  Explains Ethereum protocol behavior for application developers: accounts and transaction types (legacy, EIP-2930, EIP-1559, EIP-4844 blob, EIP-7702 set-code), gas and the fee market, proof-of-stake slots, epochs and finality, execution and consensus clients, hard forks from Dencun through Fusaka, the EVM, storage layout, logs, JSON-RPC, L2 rollups and account abstraction (ERC-4337, EIP-7702). Use when reasoning about gas, nonces, reorgs and confirmations, block tags, blobs, node or RPC provider choices, fork readiness, or how a transaction is processed. Not for writing Solidity contracts (use solidity-expert), JavaScript client code (use ethersjs-expert), or exploit review (use smart-contract-security-expert).
+  Explains Ethereum protocol behavior for application developers: accounts and transaction types (legacy, EIP-2930, EIP-1559, EIP-4844 blob, EIP-7702 set-code), gas and the fee market, proof-of-stake slots, epochs and finality, execution and consensus clients, hard forks from Dencun through Fusaka, the EVM, storage layout, logs, JSON-RPC, L2 rollups and account abstraction (ERC-4337, EIP-7702). Use when reasoning about gas, nonces, reorgs and confirmations, block tags, blobs, node or RPC provider choices, fork readiness, or how a transaction is processed. Not for writing Solidity contracts (use solidity-expert), JavaScript client code (use ethersjs-expert), exploit review (use smart-contract-security-expert), or building ERC-4337 and EIP-7702 accounts (use account-abstraction-expert).
 license: MIT
 metadata:
   version: "3.0.0"

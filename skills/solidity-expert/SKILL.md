@@ -1,7 +1,7 @@
 ---
 name: solidity-expert
 description: >-
-  Writes and reviews production Solidity 0.8.x smart contracts, including OpenZeppelin Contracts 5.x (ERC20, ERC721, ERC1155, ERC4626, AccessControl, AccessManager, Governor, upgradeable proxies): custom errors, pragma and EVM version choice, storage layout and ERC-7201 namespaced storage, UUPS upgrades, gas optimization, and Foundry tests. Use when working with .sol files, pragma solidity, solc settings, Ownable, ReentrancyGuard, SafeERC20, Initializable, UUPSUpgradeable, TimelockController, storage collisions, or contract size and gas problems. Not for exploit and audit methodology (use smart-contract-security-expert), Foundry or Hardhat project tooling (use foundry-expert, hardhat-expert), or off-chain clients (use ethersjs-expert).
+  Writes and reviews production Solidity 0.8.x smart contracts, including OpenZeppelin Contracts 5.x (ERC20, ERC721, ERC1155, ERC4626, AccessControl, AccessManager, Governor, upgradeable proxies): custom errors, pragma and EVM version choice, storage layout and ERC-7201 namespaced storage, UUPS upgrades, gas optimization, and Foundry tests. Use when working with .sol files, pragma solidity, solc settings, Ownable, ReentrancyGuard, SafeERC20, Initializable, UUPSUpgradeable, TimelockController, storage collisions, or contract size and gas problems. Not for exploit and audit methodology (use smart-contract-security-expert), Foundry or Hardhat project tooling (use foundry-expert, hardhat-expert), off-chain clients (use ethersjs-expert), or ERC-4337 and EIP-7702 account code (use account-abstraction-expert).
 license: MIT
 metadata:
   version: "3.0.0"
